@@ -1,0 +1,8 @@
+{
+  "name": "EEG Reader",
+  "language": "python",
+  "inputs": [],
+  "outputs": ["signal"],
+  "script": "eeg_reader.py",
+  "description": "Reads EEG signal from file"
+}

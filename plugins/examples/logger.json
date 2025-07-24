@@ -1,0 +1,8 @@
+{
+  "name": "Signal Logger",
+  "language": "python",
+  "inputs": ["signal"],
+  "outputs": [],
+  "script": "logger.py",
+  "description": "Prints EEG signal to console"
+}
