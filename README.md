@@ -13,9 +13,36 @@ A professional-grade Rapid Application Development (RAD) tool for building Brain
 ## 🧪 Getting Started
 
 ```bash
-git clone https://github.com/fouadchouag/rad-bci-python.git
+git clone https://github.com/YOUR_USERNAME/rad-bci-python.git
 cd rad-bci-python
 python -m venv venv
 venv\\Scripts\\activate
 pip install -r requirements.txt
 python main.py
+📁 Project Structure
+main.py: Application entry point
+
+gui/: Contains all UI components (main window, canvas, nodes, pins)
+
+runtime/: Engine backend and plugin loader (TBD)
+
+plugins/: Your BCI components go here
+
+📌 Roadmap
+ No-code drag/drop canvas
+
+ Visual node connections
+
+ Delete nodes + wires
+
+ Internal execution engine
+
+ Save/load projects
+
+ Export graphs
+
+ Custom node creation interface
+
+🧑‍🔬 Author
+Fouad Chouag – PhD Project (University of Setif, Algeria)
+GitHub: @fouadchouag
