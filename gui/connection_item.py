@@ -1,15 +1,21 @@
-from PySide6.QtWidgets import QGraphicsPathItem
-from PySide6.QtGui import QPainterPath, QPen, QColor
-from PySide6.QtCore import QPointF, QEvent
+from PyQt5.QtWidgets import QGraphicsPathItem
+from PyQt5.QtGui import QPainterPath, QPen
+from PyQt5.QtCore import Qt, QPointF
+
 
 class ConnectionItem(QGraphicsPathItem):
     def __init__(self, start_pin, end_pos):
         super().__init__()
-        self.setZValue(-1)
         self.start_pin = start_pin
         self.end_pin = None
         self.end_pos = end_pos
-        self.setPen(QPen(QColor("#f1c40f"), 2))
+        self.setZValue(-1)
+        self.setPen(QPen(Qt.yellow, 2))
+        self.track_pin(start_pin)
+
+    def track_pin(self, pin):
+        self.start_pin = pin
+        self.update_path()
 
     def set_end_pos(self, pos):
         self.end_pos = pos
@@ -17,29 +23,28 @@ class ConnectionItem(QGraphicsPathItem):
 
     def set_end_pin(self, pin):
         self.end_pin = pin
-        self.update_path()
-
-    def update_path(self):
-        start = self.start_pin.scenePos()
-        end = self.end_pin.scenePos() if self.end_pin else self.end_pos
-        path = QPainterPath(start)
-        dx = (end.x() - start.x()) * 0.5
-        ctrl1 = QPointF(start.x() + dx, start.y())
-        ctrl2 = QPointF(end.x() - dx, end.y())
-        path.cubicTo(ctrl1, ctrl2, end)
-        self.setPath(path)
-
-    def track_pin(self, pin):
-        node = pin.parentItem()
-        if node and node.scene() == self.scene():
-            node.installSceneEventFilter(self)
+        self.end_pos = pin.scenePos()
 
     def track_both_pins(self):
-        self.track_pin(self.start_pin)
-        if self.end_pin:
-            self.track_pin(self.end_pin)
-
-    def sceneEventFilter(self, watched, event):
-        if event.type() in (QEvent.GraphicsSceneMouseMove, QEvent.GraphicsSceneMouseRelease):
+        if self.start_pin and self.end_pin:
             self.update_path()
-        return False
+
+    def update_path(self):
+        if not self.start_pin:
+            return
+
+        start_pos = self.start_pin.scenePos()
+        end_pos = self.end_pos
+
+        if self.end_pin:
+            end_pos = self.end_pin.scenePos()
+
+        path = QPainterPath()
+        path.moveTo(start_pos)
+
+        dx = (end_pos.x() - start_pos.x()) * 0.5
+        ctrl1 = QPointF(start_pos.x() + dx, start_pos.y())
+        ctrl2 = QPointF(end_pos.x() - dx, end_pos.y())
+
+        path.cubicTo(ctrl1, ctrl2, end_pos)
+        self.setPath(path)

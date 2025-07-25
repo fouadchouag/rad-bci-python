@@ -1,13 +1,17 @@
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
-from PySide6.QtGui import QBrush, QColor, QPen
-from PySide6.QtCore import QRectF, Qt
+from PyQt5.QtWidgets import QGraphicsItem, QGraphicsTextItem
+from PyQt5.QtGui import QBrush, QColor, QPen
+from PyQt5.QtCore import QRectF, Qt
 from gui.pin_item import PinItem
+
 
 class NodeItem(QGraphicsItem):
     def __init__(self, plugin):
         super().__init__()
         self.plugin = plugin
-        self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
+        self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemSendsGeometryChanges)
+
+
+
         self.rect = QRectF(0, 0, 150, 80 + 20 * max(len(plugin.inputs), len(plugin.outputs)))
 
         self.inputs = []
@@ -27,9 +31,9 @@ class NodeItem(QGraphicsItem):
             self.outputs.append(pin)
             y_offset += 20
 
-        self.label = QGraphicsTextItem(f"{plugin.name}\n({plugin.language})", self)
-        self.label.setDefaultTextColor(QColor("white"))
-        self.label.setPos(10, 5)
+        label = QGraphicsTextItem(f"{plugin.name}", self)
+        label.setDefaultTextColor(QColor("white"))
+        label.setPos(10, 5)
 
     def boundingRect(self):
         return self.rect
@@ -38,3 +42,18 @@ class NodeItem(QGraphicsItem):
         painter.setBrush(QBrush(QColor("#2980b9")))
         painter.setPen(QPen(Qt.black, 1))
         painter.drawRoundedRect(self.rect, 5, 5)
+
+    
+    def itemChange(self, change, value):
+        if change == QGraphicsItem.ItemPositionChange:
+            scene = self.scene()
+            if scene is not None:
+                for pin in self.inputs + self.outputs:
+                    for conn in scene.items():
+                        if hasattr(conn, "start_pin") and conn.start_pin == pin:
+                            conn.update_path()
+                        if hasattr(conn, "end_pin") and conn.end_pin == pin:
+                            conn.update_path()
+        return super().itemChange(change, value)
+
+

@@ -1,99 +1,137 @@
-from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QHBoxLayout, QListWidget, QGraphicsView, QGraphicsScene, QSplitter
+from PyQt5.QtWidgets import (
+    QMainWindow, QWidget, QHBoxLayout, QListWidget, QGraphicsView,
+    QGraphicsScene, QVBoxLayout, QSplitter
 )
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QGraphicsView
-from runtime.plugin_manager import PluginManager
+from PyQt5.QtCore import Qt
 from gui.node_item import NodeItem
-from gui.connection_item import ConnectionItem
+from runtime.graph_executor import GraphExecutor
 
 
 class MainWindow(QMainWindow):
-    _instance = None  # Private singleton reference
-
     def __init__(self):
         super().__init__()
-        MainWindow._instance = self
-        self.setWindowTitle("PyFlowBCI - No-Code RAD Tool")
-        self.setMinimumSize(1000, 600)
+        self.setWindowTitle("RAD BCI Python")
+        self.setGeometry(100, 100, 1000, 600)
 
         self._init_ui()
         self._load_plugins()
-        self.pending_connection = None
 
-    @staticmethod
-    def instance():
-        return MainWindow._instance
+        self.pending_connection = None  # <== Connexion temporaire
 
     def _init_ui(self):
-        central = QWidget()
-        layout = QHBoxLayout(central)
+        main_widget = QWidget()
+        main_layout = QHBoxLayout(main_widget)
+        self.setCentralWidget(main_widget)
 
         splitter = QSplitter()
 
+        # Palette latérale
         self.palette = QListWidget()
-        self.palette.setMinimumWidth(120)
-        self.palette.setMaximumWidth(250)
-        self.palette.setResizeMode(QListWidget.Adjust)
+        self.palette.setMaximumWidth(200)
         self.palette.itemDoubleClicked.connect(self._add_node_from_palette)
 
+        # Vue graphique
         self.scene = QGraphicsScene()
-        self.canvas = QGraphicsView(self.scene)
+        self.scene.main_window = self
+        self.scene.setSceneRect(0, 0, 2000, 2000)
 
-        self._add_delete_shortcut()
+        self.view = QGraphicsView(self.scene)
+        self.view.setRenderHints(self.view.renderHints())
+
+        # Gérer les connexions à la souris
         self.scene.mouseReleaseEvent = self._handle_scene_mouse_release
 
         splitter.addWidget(self.palette)
-        splitter.addWidget(self.canvas)
+        splitter.addWidget(self.view)
         splitter.setStretchFactor(1, 1)
 
-        layout.addWidget(splitter)
-        self.setCentralWidget(central)
+        main_layout.addWidget(splitter)
+        self.view.setStyleSheet("background-color: white;")
+         # 🎯 Activation de la suppression avec la touche Delete
+        self.view.keyPressEvent = self._handle_key_press
 
-    def _add_delete_shortcut(self):
-        def delete_selected():
-            for item in self.scene.selectedItems():
-                # Also remove any ConnectionItems attached to the node
-                if isinstance(item, NodeItem):
-                    for conn in list(self.scene.items()):
-                        if isinstance(conn, ConnectionItem):
-                            if conn.start_pin.parentItem() == item or (
-                                conn.end_pin and conn.end_pin.parentItem() == item
-                            ):
-                                self.scene.removeItem(conn)
-                self.scene.removeItem(item)
 
-        self.canvas.setFocusPolicy(Qt.StrongFocus)
-        self.canvas.keyPressEvent = lambda event: delete_selected() if event.key() == Qt.Key_Delete else QGraphicsView.keyPressEvent(self.canvas, event)
 
     def _load_plugins(self):
-        self.plugins = PluginManager.load_all_plugins("plugins/examples")
+        # ⚠️ Ici on instancie manuellement chaque plugin
+        from plugins.constant import ConstantPlugin
+        from plugins.adder import AdderPlugin
+        from plugins.signal_logger import SignalLoggerPlugin
+        from plugins.eeg_reader import EEGReaderPlugin
+
+        self.plugins = [
+            ConstantPlugin(),
+            AdderPlugin(),
+            SignalLoggerPlugin(),
+            EEGReaderPlugin()
+        ]
+
         for plugin in self.plugins:
-            self.palette.addItem(f"{plugin.name} [{plugin.language}]")
+            self.palette.addItem(plugin.name)
 
     def _add_node_from_palette(self, item):
         name = item.text()
-        plugin = next((p for p in self.plugins if f"{p.name} [{p.language}]" == name), None)
-        if plugin:
-            node = NodeItem(plugin)
-            node.setPos(100, 100)
-            self.scene.addItem(node)
+        for plugin in self.plugins:
+            if plugin.name == name:
+                node = NodeItem(plugin)
+                node.setPos(300, 300)  # 🟢 Position visible dans la scène
+                self.scene.addItem(node)
+
+                # 🟢 Centrer la vue sur le nouveau node
+                self.view.centerOn(node)
+
+                self._auto_run_graph()
+                break
+
+
+    def _auto_run_graph(self):
+        executor = GraphExecutor(self.scene)
+        executor.execute()
 
     def _handle_scene_mouse_release(self, event):
         if self.pending_connection:
-            from gui.pin_item import PinItem
             items = self.scene.items(event.scenePos())
+            found_valid_pin = False
+
             for item in items:
-                if isinstance(item, PinItem) and item != self.pending_connection.start_pin:
+                if hasattr(item, "is_output") and item != self.pending_connection.start_pin:
                     if item.is_output != self.pending_connection.start_pin.is_output:
                         self.pending_connection.set_end_pin(item)
                         self.pending_connection.track_both_pins()
                         self.scene.addItem(self.pending_connection)
+                        found_valid_pin = True
                         break
-            else:
+
+            if not found_valid_pin:
                 self.scene.removeItem(self.pending_connection)
+
             self.pending_connection = None
+
         QGraphicsScene.mouseReleaseEvent(self.scene, event)
+    
+    def _handle_key_press(self, event):
+        if event.key() == Qt.Key_Delete:
+            selected_items = self.scene.selectedItems()
+            for item in selected_items:
+                if hasattr(item, "plugin"):  # Si c'est un NodeItem
+                    # Supprimer les connexions attachées
+                    for conn in self.scene.items():
+                        if hasattr(conn, "start_pin") and hasattr(conn, "end_pin"):
+                            if conn.start_pin and conn.start_pin.parentItem() == item:
+                                self.scene.removeItem(conn)
+                            elif conn.end_pin and conn.end_pin.parentItem() == item:
+                                self.scene.removeItem(conn)
+                    self.scene.removeItem(item)
+
+                elif hasattr(item, "start_pin") and hasattr(item, "end_pin"):
+                    # C’est une ConnectionItem
+                    self.scene.removeItem(item)
+
+            self._auto_run_graph()
+        else:
+            # Si une autre touche est pressée
+            QGraphicsView.keyPressEvent(self.view, event)
+
 
     def set_pending_connection(self, connection):
         self.pending_connection = connection
