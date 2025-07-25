@@ -1,11 +1,11 @@
 from plugins.constant import ConstantPlugin
 from plugins.adder import AdderPlugin
-from plugins.eeg_reader import EEGReaderPlugin
 from plugins.signal_logger import SignalLoggerPlugin
+from plugins.eeg_reader import EEGReaderPlugin
 
-PLUGIN_REGISTRY = {
-    "Constant": ConstantPlugin,
-    "Adder": AdderPlugin,
-    "EEG Reader": EEGReaderPlugin,
-    "Signal Logger": SignalLoggerPlugin,
-}
+PLUGIN_REGISTRY = [
+    ConstantPlugin,
+    AdderPlugin,
+    SignalLoggerPlugin,
+    EEGReaderPlugin,
+]

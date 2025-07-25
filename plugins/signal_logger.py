@@ -1,9 +1,23 @@
-class SignalLoggerPlugin:
+from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout
+from plugins.base import BasePlugin
+
+class SignalLoggerPlugin(BasePlugin):
     name = "Signal Logger"
-    inputs = {"signal": object}
-    outputs = {}
+    inputs = ["input"]
+    outputs = []
+
+    def __init__(self):
+        super().__init__()
+        self.widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(5, 5, 5, 5)
+
+        self.label = QLabel("No input")
+        self.label.setWordWrap(True)
+        layout.addWidget(self.label)
+        self.widget.setLayout(layout)
 
     def execute(self, inputs):
-        signal = inputs.get("signal", None)
-        print("Signal logged:", signal)
+        value = inputs.get("input", "")
+        self.label.setText(f"Signal received:\n{value}")
         return {}
