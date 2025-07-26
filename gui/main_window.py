@@ -16,7 +16,7 @@ class MainWindow(QMainWindow):
         self._init_ui()
         self._load_plugins()
 
-        self.pending_connection = None  # <== Connexion temporaire
+        self.pending_connection = None
 
     def _init_ui(self):
         main_widget = QWidget()
@@ -38,7 +38,7 @@ class MainWindow(QMainWindow):
         self.view = QGraphicsView(self.scene)
         self.view.setRenderHints(self.view.renderHints())
 
-        # Gérer les connexions à la souris
+        # Gestion des connexions
         self.scene.mouseReleaseEvent = self._handle_scene_mouse_release
 
         splitter.addWidget(self.palette)
@@ -47,38 +47,25 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(splitter)
         self.view.setStyleSheet("background-color: white;")
-         # 🎯 Activation de la suppression avec la touche Delete
         self.view.keyPressEvent = self._handle_key_press
-
-
 
     def _load_plugins(self):
         from plugins.registry import PLUGIN_REGISTRY
-
         self.plugins = [cls() for cls in PLUGIN_REGISTRY]
-
         for plugin in self.plugins:
             self.palette.addItem(f"{plugin.name} [{plugin.language}]")
-
 
     def _add_node_from_palette(self, item):
         name = item.text()
         for plugin in self.plugins:
             if plugin.name in name:
                 node = NodeItem(plugin)
-                node.setPos(300, 300)  # 🟢 Position visible dans la scène
+                plugin._node_item = node  # ✅ Lien essentiel !
+                node.setPos(300, 300)
                 self.scene.addItem(node)
-
-                # 🟢 Centrer la vue sur le nouveau node
                 self.view.centerOn(node)
-
-                self._auto_run_graph()
                 break
 
-
-    def _auto_run_graph(self):
-        executor = GraphExecutor(self.scene)
-        executor.execute()
 
     def _handle_scene_mouse_release(self, event):
         if self.pending_connection:
@@ -87,25 +74,21 @@ class MainWindow(QMainWindow):
 
             for item in items:
                 if hasattr(item, "is_output") and item != self.pending_connection.start_pin:
-                    # 🔒 Refuser les connexions entre deux pins de même type
                     if item.is_output == self.pending_connection.start_pin.is_output:
-                        print("[DEBUG] Connexion refusée : même type de pin (input → input ou output → output)")
+                        print("[DEBUG] Connexion refusée : même type de pin")
                         break
 
-                    # 🔒 Refuser si un lien existe déjà vers ce pin d'entrée
-                    if not item.is_output:  # uniquement pour les inputs
+                    if not item.is_output:
                         for conn in self.scene.items():
                             if hasattr(conn, "end_pin") and conn.end_pin == item:
-                                print("[DEBUG] Connexion refusée : un pin d’entrée ne peut avoir qu’une seule source")
+                                print("[DEBUG] Connexion refusée : entrée déjà connectée")
                                 break
                         else:
-                            # ✅ Autorisé
                             self.pending_connection.set_end_pin(item)
                             self.pending_connection.track_both_pins()
                             found_valid_pin = True
                             break
                     else:
-                        # ✅ Cas rare mais possible (connexion depuis un input vers un output)
                         self.pending_connection.set_end_pin(item)
                         self.pending_connection.track_both_pins()
                         found_valid_pin = True
@@ -114,19 +97,26 @@ class MainWindow(QMainWindow):
             if not found_valid_pin:
                 print("[DEBUG] Connexion annulée")
                 self.scene.removeItem(self.pending_connection)
+            else:
+                pass
+
+                # ✅ Propagation immédiate après ajout du lien
+                start_pin = self.pending_connection.start_pin
+                if start_pin:
+                    start_node = start_pin.parentItem()
+                    if hasattr(start_node.plugin, "on_input_updated"):
+                        print(f"[DEBUG] Propagation depuis {start_node.plugin.name}")
+                        start_node.plugin.on_input_updated()
 
             self.pending_connection = None
 
         QGraphicsScene.mouseReleaseEvent(self.scene, event)
 
-
-    
     def _handle_key_press(self, event):
         if event.key() == Qt.Key_Delete:
             selected_items = self.scene.selectedItems()
             for item in selected_items:
-                if hasattr(item, "plugin"):  # Si c'est un NodeItem
-                    # Supprimer les connexions attachées
+                if hasattr(item, "plugin"):
                     for conn in self.scene.items():
                         if hasattr(conn, "start_pin") and hasattr(conn, "end_pin"):
                             if conn.start_pin and conn.start_pin.parentItem() == item:
@@ -134,16 +124,11 @@ class MainWindow(QMainWindow):
                             elif conn.end_pin and conn.end_pin.parentItem() == item:
                                 self.scene.removeItem(conn)
                     self.scene.removeItem(item)
-
                 elif hasattr(item, "start_pin") and hasattr(item, "end_pin"):
-                    # C’est une ConnectionItem
                     self.scene.removeItem(item)
 
-            self._auto_run_graph()
         else:
-            # Si une autre touche est pressée
             QGraphicsView.keyPressEvent(self.view, event)
-
 
     def set_pending_connection(self, connection):
         self.pending_connection = connection

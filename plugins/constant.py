@@ -1,7 +1,7 @@
+# plugins/constant_plugin.py
 from PyQt5.QtWidgets import QWidget, QLineEdit, QVBoxLayout
 from PyQt5.QtCore import Qt
 from plugins.base import BasePlugin
-from gui.main_window import MainWindow
 
 class ConstantPlugin(BasePlugin):
     name = "Constant"
@@ -11,7 +11,6 @@ class ConstantPlugin(BasePlugin):
 
     def __init__(self):
         super().__init__()
-        self.value = 1.0 
         self.widget = QWidget()
         layout = QVBoxLayout()
         layout.setContentsMargins(5, 5, 5, 5)
@@ -21,16 +20,30 @@ class ConstantPlugin(BasePlugin):
         layout.addWidget(self.input_field)
         self.widget.setLayout(layout)
 
+        # Propagation dès qu'on change la valeur
         self.input_field.textChanged.connect(self._on_value_changed)
 
     def _on_value_changed(self):
-        win = MainWindow.instance()
-        if win:
-            win._auto_run_graph()
-
-    def execute(self,inputs):
         try:
             value = float(self.input_field.text())
         except ValueError:
             value = 0.0
-        return {"value": value}
+        self._propagate({"value": value})
+
+    def execute(self, inputs):
+        try:
+            return {"value": float(self.input_field.text())}
+        except ValueError:
+            return {"value": 0.0}
+
+    def _propagate(self, result):
+        print(f"[DEBUG] Propagation depuis {self.name}")
+        print(f"Node: {self.name} -> Output: {result}")
+        for output_pin in self._node_item.output_pins:
+            if output_pin.name in result:
+                output_value = result[output_pin.name]
+                for item in self._node_item.scene().items():
+                    if hasattr(item, "start_pin") and item.start_pin == output_pin:
+                        dest_node = item.end_pin.parentItem()
+                        if hasattr(dest_node.plugin, "on_input_updated"):
+                            dest_node.plugin.on_input_updated()
