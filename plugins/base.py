@@ -1,7 +1,8 @@
 class BasePlugin:
     name = "Unnamed"
-    inputs = []
-    outputs = []
+    language = "Unknown"  # ✅ Nouveau champ
+    inputs = ()
+    outputs = ()
 
     def __init__(self):
         self.widget = None

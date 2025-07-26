@@ -4,6 +4,7 @@ class AdderPlugin(BasePlugin):
     name = "Adder"
     inputs = ["a", "b"]
     outputs = ["sum"]
+    language = "Python"
 
     def __init__(self):
         super().__init__()

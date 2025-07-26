@@ -53,26 +53,18 @@ class MainWindow(QMainWindow):
 
 
     def _load_plugins(self):
-        # ⚠️ Ici on instancie manuellement chaque plugin
-        from plugins.constant import ConstantPlugin
-        from plugins.adder import AdderPlugin
-        from plugins.signal_logger import SignalLoggerPlugin
-        from plugins.eeg_reader import EEGReaderPlugin
+        from plugins.registry import PLUGIN_REGISTRY
 
-        self.plugins = [
-            ConstantPlugin(),
-            AdderPlugin(),
-            SignalLoggerPlugin(),
-            EEGReaderPlugin()
-        ]
+        self.plugins = [cls() for cls in PLUGIN_REGISTRY]
 
         for plugin in self.plugins:
-            self.palette.addItem(plugin.name)
+            self.palette.addItem(f"{plugin.name} [{plugin.language}]")
+
 
     def _add_node_from_palette(self, item):
         name = item.text()
         for plugin in self.plugins:
-            if plugin.name == name:
+            if plugin.name in name:
                 node = NodeItem(plugin)
                 node.setPos(300, 300)  # 🟢 Position visible dans la scène
                 self.scene.addItem(node)

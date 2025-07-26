@@ -4,6 +4,7 @@ class EEGReaderPlugin(BasePlugin):
     name = "EEG Reader"
     inputs = []
     outputs = ["eeg_data"]
+    language = "Python"
 
     def __init__(self):
         super().__init__()

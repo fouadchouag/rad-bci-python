@@ -14,9 +14,14 @@ class PinItem(QGraphicsEllipseItem):
         self.is_output = is_output
         self.temp_connection = None
 
-        label = QGraphicsTextItem(name, parent)
+        # ✅ Créer un label comme enfant du pin (self)
+        label = QGraphicsTextItem(name, self)
         label.setDefaultTextColor(QColor("white"))
-        label.setPos(15 if not is_output else -50, self.y() - 5)
+
+        if is_output:
+            label.setPos(-55, -5)  # à gauche du pin de sortie
+        else:
+            label.setPos(12, -5)   # à droite du pin d'entrée
 
     def mousePressEvent(self, event):
         self.temp_connection = ConnectionItem(self, self.scenePos())

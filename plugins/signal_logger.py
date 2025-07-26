@@ -5,6 +5,7 @@ class SignalLoggerPlugin(BasePlugin):
     name = "Signal Logger"
     inputs = ["input"]
     outputs = []
+    language = "Python"
 
     def __init__(self):
         super().__init__()

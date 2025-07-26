@@ -8,32 +8,46 @@ class NodeItem(QGraphicsItem):
     def __init__(self, plugin):
         super().__init__()
         self.plugin = plugin
-        self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemSendsGeometryChanges)
-
-
-
-        self.rect = QRectF(0, 0, 150, 80 + 20 * max(len(plugin.inputs), len(plugin.outputs)))
+        self.setFlags(
+            QGraphicsItem.ItemIsMovable |
+            QGraphicsItem.ItemIsSelectable |
+            QGraphicsItem.ItemSendsGeometryChanges
+        )
 
         self.inputs = []
         self.outputs = []
 
-        y_offset = 30
+        # 🔷 Titre principal : nom du plugin
+        label_title = QGraphicsTextItem(plugin.name, self)
+        label_title.setDefaultTextColor(QColor("white"))
+        label_title.setPos(10, 5)
+
+        # 🔷 Sous-titre : langage
+        label_lang = QGraphicsTextItem(f"[{plugin.language}]", self)
+        label_lang.setDefaultTextColor(QColor("lightgray"))
+        label_lang.setPos(10, 20)
+
+        # 🔷 Espace réservé avant les pins
+        pin_start_y = 45
+
+        y_offset = pin_start_y
         for inp in plugin.inputs:
             pin = PinItem(self, inp, is_output=False)
             pin.setPos(0, y_offset)
             self.inputs.append(pin)
             y_offset += 20
 
-        y_offset = 30
+        y_offset = pin_start_y
         for out in plugin.outputs:
             pin = PinItem(self, out, is_output=True)
-            pin.setPos(self.rect.width() - 10, y_offset)
+            pin.setPos(140, y_offset)  # À droite du node
             self.outputs.append(pin)
             y_offset += 20
 
-        label = QGraphicsTextItem(f"{plugin.name}", self)
-        label.setDefaultTextColor(QColor("white"))
-        label.setPos(10, 5)
+        # 🔷 Hauteur dynamique
+        total_pins = max(len(self.inputs), len(self.outputs))
+        height = pin_start_y + total_pins * 20 + 10
+        self.rect = QRectF(0, 0, 150, height)
 
     def boundingRect(self):
         return self.rect
@@ -43,7 +57,6 @@ class NodeItem(QGraphicsItem):
         painter.setPen(QPen(Qt.black, 1))
         painter.drawRoundedRect(self.rect, 5, 5)
 
-    
     def itemChange(self, change, value):
         if change == QGraphicsItem.ItemPositionChange:
             scene = self.scene()
@@ -55,5 +68,3 @@ class NodeItem(QGraphicsItem):
                         if hasattr(conn, "end_pin") and conn.end_pin == pin:
                             conn.update_path()
         return super().itemChange(change, value)
-
-
