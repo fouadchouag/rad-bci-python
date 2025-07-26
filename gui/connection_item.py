@@ -4,14 +4,17 @@ from PyQt5.QtCore import Qt, QPointF
 
 
 class ConnectionItem(QGraphicsPathItem):
+   
     def __init__(self, start_pin, end_pos):
         super().__init__()
         self.start_pin = start_pin
         self.end_pin = None
         self.end_pos = end_pos
         self.setZValue(-1)
-        self.setPen(QPen(Qt.yellow, 2))
+        self.setPen(QPen(Qt.black, 2))
+        self.setFlags(self.flags() | self.ItemIsSelectable)
         self.track_pin(start_pin)
+
 
     def track_pin(self, pin):
         self.start_pin = pin

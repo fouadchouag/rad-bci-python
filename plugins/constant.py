@@ -11,6 +11,7 @@ class ConstantPlugin(BasePlugin):
 
     def __init__(self):
         super().__init__()
+        self.value = 1.0 
         self.widget = QWidget()
         layout = QVBoxLayout()
         layout.setContentsMargins(5, 5, 5, 5)
@@ -27,7 +28,7 @@ class ConstantPlugin(BasePlugin):
         if win:
             win._auto_run_graph()
 
-    def execute(self, inputs):
+    def execute(self,inputs):
         try:
             value = float(self.input_field.text())
         except ValueError:

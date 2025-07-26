@@ -19,6 +19,7 @@ class SignalLoggerPlugin(BasePlugin):
         self.widget.setLayout(layout)
 
     def execute(self, inputs):
-        value = inputs.get("input", "")
-        self.label.setText(f"Signal received:\n{value}")
+        val = inputs.get("input", "")
+        self.label.setText(f"Signal received:\n{val}")
+        print(f"📥 Logged value: {val}")
         return {}

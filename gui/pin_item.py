@@ -12,34 +12,44 @@ class PinItem(QGraphicsEllipseItem):
         self.setFlag(QGraphicsEllipseItem.ItemIsMovable, False)
         self.name = name
         self.is_output = is_output
-        self.temp_connection = None
 
-        # ✅ Créer un label comme enfant du pin (self)
+        # Label affiché près du pin
         label = QGraphicsTextItem(name, self)
         label.setDefaultTextColor(QColor("white"))
 
         if is_output:
-            label.setPos(-55, -5)  # à gauche du pin de sortie
+            label.setPos(-55, -5)
         else:
-            label.setPos(12, -5)   # à droite du pin d'entrée
+            label.setPos(12, -5)
 
     def mousePressEvent(self, event):
-        self.temp_connection = ConnectionItem(self, self.scenePos())
-        self.temp_connection.track_pin(self)
-
         scene = self.scene()
-        if hasattr(scene, "main_window") and hasattr(scene.main_window, "set_pending_connection"):
-            scene.main_window.set_pending_connection(self.temp_connection)
+        if scene is None or not hasattr(scene, "main_window"):
+            return
 
-        scene.addItem(self.temp_connection)
+        mw = scene.main_window
+
+        if mw.pending_connection is None:
+            # Démarre une nouvelle connexion
+            conn = ConnectionItem(self, self.scenePos())
+            conn.track_pin(self)
+            mw.set_pending_connection(conn)
+
+            if conn.scene() is None:
+                print("[DEBUG] Ajout de ConnectionItem à la scène")
+                scene.addItem(conn)
+        else:
+            # Termine la connexion
+            mw.pending_connection.set_end_pin(self)
+            mw.pending_connection.track_both_pins()
+            mw.pending_connection = None
+
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        if self.temp_connection:
-            self.temp_connection.set_end_pos(event.scenePos())
+        scene = self.scene()
+        if hasattr(scene, "main_window"):
+            conn = scene.main_window.pending_connection
+            if conn:
+                conn.set_end_pos(event.scenePos())
         super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        if self.temp_connection:
-            self.temp_connection = None
-        super().mouseReleaseEvent(event)

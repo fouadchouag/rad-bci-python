@@ -87,19 +87,39 @@ class MainWindow(QMainWindow):
 
             for item in items:
                 if hasattr(item, "is_output") and item != self.pending_connection.start_pin:
-                    if item.is_output != self.pending_connection.start_pin.is_output:
+                    # 🔒 Refuser les connexions entre deux pins de même type
+                    if item.is_output == self.pending_connection.start_pin.is_output:
+                        print("[DEBUG] Connexion refusée : même type de pin (input → input ou output → output)")
+                        break
+
+                    # 🔒 Refuser si un lien existe déjà vers ce pin d'entrée
+                    if not item.is_output:  # uniquement pour les inputs
+                        for conn in self.scene.items():
+                            if hasattr(conn, "end_pin") and conn.end_pin == item:
+                                print("[DEBUG] Connexion refusée : un pin d’entrée ne peut avoir qu’une seule source")
+                                break
+                        else:
+                            # ✅ Autorisé
+                            self.pending_connection.set_end_pin(item)
+                            self.pending_connection.track_both_pins()
+                            found_valid_pin = True
+                            break
+                    else:
+                        # ✅ Cas rare mais possible (connexion depuis un input vers un output)
                         self.pending_connection.set_end_pin(item)
                         self.pending_connection.track_both_pins()
-                        self.scene.addItem(self.pending_connection)
                         found_valid_pin = True
                         break
 
             if not found_valid_pin:
+                print("[DEBUG] Connexion annulée")
                 self.scene.removeItem(self.pending_connection)
 
             self.pending_connection = None
 
         QGraphicsScene.mouseReleaseEvent(self.scene, event)
+
+
     
     def _handle_key_press(self, event):
         if event.key() == Qt.Key_Delete:
