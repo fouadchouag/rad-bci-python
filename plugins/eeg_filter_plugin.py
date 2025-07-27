@@ -1,3 +1,5 @@
+# plugins/eeg_filter_plugin.py
+
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton
 from PyQt5.QtCore import Qt
 from plugins.base import BasePlugin
@@ -15,9 +17,9 @@ class EEGFilterPlugin(BasePlugin):
         self.low_freq = 1.0
         self.high_freq = 40.0
 
-        # UI setup
-        self.widget = QWidget()
-        layout = QVBoxLayout(self.widget)
+    def build_widget(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
         layout.setContentsMargins(5, 5, 5, 5)
 
         self.label = QLabel("Filter: 1–40 Hz")
@@ -35,6 +37,8 @@ class EEGFilterPlugin(BasePlugin):
         self.button.clicked.connect(self.apply_filter)
         layout.addWidget(self.button)
 
+        return widget
+
     def apply_filter(self):
         try:
             self.low_freq = float(self.low_input.text())
@@ -47,7 +51,6 @@ class EEGFilterPlugin(BasePlugin):
         if self._node_item:
             self.on_input_updated()
             self.propagate_outputs({"filtered_raw": self.filtered_raw})
-
 
     def execute(self, inputs):
         raw = inputs.get("raw", None)

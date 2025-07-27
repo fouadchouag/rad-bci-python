@@ -15,9 +15,13 @@ class EEGVisualizerPlugin(BasePlugin):
     def __init__(self):
         super().__init__()
         self.raw = None
+        self.canvas = None
+        self.ax = None
+        self.label = None
 
-        self.widget = QWidget()
-        layout = QVBoxLayout()
+    def build_widget(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
         layout.setContentsMargins(5, 5, 5, 5)
 
         self.label = QLabel("Waiting for data...")
@@ -27,26 +31,28 @@ class EEGVisualizerPlugin(BasePlugin):
         layout.addWidget(self.canvas)
         self.ax = self.canvas.figure.add_subplot(111)
 
-        self.button = QPushButton("Agrandir")
-        self.button.clicked.connect(self._open_interactive_plot)
-        layout.addWidget(self.button)
+        button = QPushButton("Agrandir")
+        button.clicked.connect(self._open_interactive_plot)
+        layout.addWidget(button)
 
-        self.widget.setLayout(layout)
+        return widget
 
     def _open_interactive_plot(self):
         if self.raw:
-            self.raw.plot(show=True, block=False)  # ✅ Corrigé : plus d’axes=
+            self.raw.plot(show=True, block=False)
 
     def execute(self, inputs):
         self.raw = inputs.get("raw", None)
-        self.ax.clear()
+        if not (self.canvas and self.ax and self.label):
+            return {}
 
+        self.ax.clear()
         if self.raw:
             self.label.setText("Signal EEG reçu")
             try:
-                data, times = self.raw[:, :500]  # 500 premiers points
+                data, times = self.raw[:, :500]
                 if data.shape[0] > 0:
-                    signal = data[0]  # Premier canal
+                    signal = data[0]
                     self.ax.plot(times, signal)
                     self.ax.set_title("Canal 0")
                     self.canvas.draw()

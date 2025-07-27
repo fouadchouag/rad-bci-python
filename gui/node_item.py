@@ -8,7 +8,7 @@ class NodeItem(QGraphicsItem):
     def __init__(self, plugin):
         super().__init__()
         self.plugin = plugin
-        self.plugin._node_item = self  # 🔁 Permet au plugin d’accéder au NodeItem
+        self.plugin._node_item = self
         self.setFlags(
             QGraphicsItem.ItemIsMovable |
             QGraphicsItem.ItemIsSelectable |
@@ -48,13 +48,13 @@ class NodeItem(QGraphicsItem):
         base_height = pin_start_y + total_pins * 20 + 10
         self.rect = QRectF(0, 0, 150, base_height)
 
-        # 🔘 Intégrer le widget du plugin s’il existe
-        if plugin.widget:
+        # ✅ Créer un nouveau widget via build_widget() si disponible
+        widget = plugin.build_widget() if hasattr(plugin, "build_widget") else None
+        if widget:
             proxy = QGraphicsProxyWidget(self)
-            proxy.setWidget(plugin.widget)
+            proxy.setWidget(widget)
 
-            # Adapter la hauteur
-            widget_height = plugin.widget.sizeHint().height()
+            widget_height = widget.sizeHint().height()
             proxy.setPos(10, base_height)
             self.rect.setHeight(self.rect.height() + widget_height + 10)
 
@@ -79,21 +79,17 @@ class NodeItem(QGraphicsItem):
         return super().itemChange(change, value)
 
     def propagate(self, value_map):
-        """Exécute ce node et propage ses outputs vers les nodes suivants."""
         if not hasattr(self.plugin, "execute"):
             return
 
-        # Collecte des entrées
         inputs = {}
         for pin in self.input_pins:
             key = (self, pin.name)
             inputs[pin.name] = value_map.get(key, None)
 
-        # Exécution
         outputs = self.plugin.execute(inputs)
         print(f"Node: {self.plugin.name} -> Output: {outputs}")
 
-        # Propagation à chaque pin de sortie
         for output_pin in self.output_pins:
             val = outputs.get(output_pin.name)
             for item in self.scene().items():
