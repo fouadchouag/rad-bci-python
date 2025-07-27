@@ -1,2 +1,4 @@
 PySide6
 PyQt5
+mne
+matplotlib

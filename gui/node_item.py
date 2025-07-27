@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGraphicsItem, QGraphicsTextItem
+from PyQt5.QtWidgets import QGraphicsItem, QGraphicsTextItem, QGraphicsProxyWidget
 from PyQt5.QtGui import QBrush, QColor, QPen
 from PyQt5.QtCore import QRectF, Qt
 from gui.pin_item import PinItem
@@ -15,8 +15,6 @@ class NodeItem(QGraphicsItem):
             QGraphicsItem.ItemSendsGeometryChanges
         )
 
-        
-        
         self.input_pins = []
         self.output_pins = []
 
@@ -47,8 +45,18 @@ class NodeItem(QGraphicsItem):
             y_offset += 20
 
         total_pins = max(len(self.input_pins), len(self.output_pins))
-        height = pin_start_y + total_pins * 20 + 10
-        self.rect = QRectF(0, 0, 150, height)
+        base_height = pin_start_y + total_pins * 20 + 10
+        self.rect = QRectF(0, 0, 150, base_height)
+
+        # 🔘 Intégrer le widget du plugin s’il existe
+        if plugin.widget:
+            proxy = QGraphicsProxyWidget(self)
+            proxy.setWidget(plugin.widget)
+
+            # Adapter la hauteur
+            widget_height = plugin.widget.sizeHint().height()
+            proxy.setPos(10, base_height)
+            self.rect.setHeight(self.rect.height() + widget_height + 10)
 
     def boundingRect(self):
         return self.rect
