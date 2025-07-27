@@ -19,6 +19,9 @@ class BasePlugin:
             return
 
         scene = self._node_item.scene()
+        if scene is None:
+            return  # ✅ Protection ajoutée
+
         inputs = {}
 
         for pin in self._node_item.input_pins:
@@ -53,6 +56,9 @@ class BasePlugin:
             return
 
         scene = self._node_item.scene()
+        if scene is None:
+            return  # ✅ Protection ajoutée
+
         for output_pin in self._node_item.output_pins:
             if output_pin.name in output_dict:
                 val = output_dict[output_pin.name]
