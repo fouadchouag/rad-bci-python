@@ -4,8 +4,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 from core.plugin_registry import discover_plugins
-from .node_item import NodeItem  # à créer juste après
-
+from .node_item import NodeItem
+from gui.lowcode_creator import LowCodeCreator
 
 
 class MainWindow(QMainWindow):
@@ -23,10 +23,33 @@ class MainWindow(QMainWindow):
         self._init_ui()
 
     def _init_ui(self):
-        central_widget = QWidget()
-        central_layout = QHBoxLayout()
-        central_widget.setLayout(central_layout)
-        self.setCentralWidget(central_widget)
+        # --- Conteneur principal vertical ---
+        main_widget = QWidget()
+        main_layout = QVBoxLayout()
+        main_widget.setLayout(main_layout)
+        self.setCentralWidget(main_widget)
+
+        # --- Barre d’outils horizontale ---
+        toolbar = QHBoxLayout()
+
+        btn_new = QPushButton("🆕 Nouveau")
+        btn_load = QPushButton("📂 Charger")
+        btn_save = QPushButton("💾 Sauvegarder")
+        btn_lowcode = QPushButton("🛠️ Dev Mode (➕ Ajouter un Node)")
+
+        for btn in [btn_new, btn_load, btn_save, btn_lowcode]:
+            toolbar.addSpacing(10)
+            toolbar.addWidget(btn)
+            btn.setMinimumHeight(40)
+            btn.setStyleSheet("font-weight: bold; font-size: 14px;")
+
+        toolbar_widget = QWidget()
+        toolbar_widget.setLayout(toolbar)
+        toolbar_widget.setFixedHeight(60)
+        main_layout.addWidget(toolbar_widget)
+
+        # --- Partie centrale : palette + éditeur ---
+        center_layout = QHBoxLayout()
 
         # Palette latérale
         palette_frame = QFrame()
@@ -43,17 +66,27 @@ class MainWindow(QMainWindow):
                 btn.clicked.connect(lambda _, cls=plugin_class: self._add_node(cls))
                 palette_layout.addWidget(btn)
 
+        # dev_button = QPushButton("🛠️ Dev Mode")
+        # dev_button.clicked.connect(self.open_lowcode_editor)
+        # palette_layout.addWidget(dev_button)
+
         palette_scroll = QScrollArea()
         palette_scroll.setWidgetResizable(True)
         palette_scroll.setWidget(palette_frame)
         palette_scroll.setFixedWidth(220)
 
-        # Layout final
-        central_layout.addWidget(palette_scroll)
-        central_layout.addWidget(self.view, stretch=1)
+        center_layout.addWidget(palette_scroll)
+        center_layout.addWidget(self.view, stretch=1)
+
+        main_layout.addLayout(center_layout)
+
+        # Connexions des boutons
+        btn_new.clicked.connect(self._new_workflow)
+        btn_load.clicked.connect(self._load_workflow)
+        btn_save.clicked.connect(self._save_workflow)
+        btn_lowcode.clicked.connect(self._show_lowcode_creator)
 
     def _add_node(self, plugin_class):
-
         try:
             print(f">>> Ajout du nœud : {plugin_class.name}")
             node_item = NodeItem(plugin_class)
@@ -66,7 +99,6 @@ class MainWindow(QMainWindow):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Delete:
             for item in self.scene.selectedItems():
-                # ✅ Suppression d'un nœud (ex: Adder)
                 if hasattr(item, "plugin"):
                     to_remove = []
                     for obj in self.scene.items():
@@ -77,8 +109,6 @@ class MainWindow(QMainWindow):
                     for conn in to_remove:
                         if hasattr(conn, "cleanup"):
                             conn.cleanup()
-
-                            # 🔁 Mise à jour du nœud cible même si la source est supprimée
                             if hasattr(conn, "input_pin") and conn.input_pin and hasattr(conn.input_pin, "node"):
                                 input_node = conn.input_pin.node
                                 if hasattr(input_node, "plugin"):
@@ -86,11 +116,9 @@ class MainWindow(QMainWindow):
 
                         self.scene.removeItem(conn)
 
-                    # Nettoie le plugin (ex: BehaviorSubject)
                     item.plugin.cleanup()
                     self.scene.removeItem(item)
 
-                # ✅ Suppression d’un lien directement sélectionné
                 elif isinstance(item, QGraphicsPathItem):
                     if hasattr(item, "cleanup"):
                         item.cleanup()
@@ -101,3 +129,19 @@ class MainWindow(QMainWindow):
                     self.scene.removeItem(item)
         else:
             super().keyPressEvent(event)
+
+    def open_lowcode_editor(self):
+        self.lowcode_window = LowCodeCreator()
+        self.lowcode_window.show()
+
+    def _new_workflow(self):
+        print("🆕 Nouveau workflow")
+
+    def _load_workflow(self):
+        print("📂 Charger workflow")
+
+    def _save_workflow(self):
+        print("💾 Sauvegarder workflow")
+
+    def _show_lowcode_creator(self):
+        self.open_lowcode_editor()
