@@ -1,18 +1,22 @@
-from plugins.base import BasePlugin
+from core.node_base import BasePlugin
+from rx.subject import BehaviorSubject
 
-class AdderPlugin(BasePlugin):
+class Adder(BasePlugin):
     name = "Adder"
-    inputs = ["a", "b"]
-    outputs = ["sum"]
+    category = "Processing Nodes"
     language = "Python"
 
-    def __init__(self):
-        super().__init__()
+    def setup(self):
+        self.inputs = {
+            "a": BehaviorSubject(None),
+            "b": BehaviorSubject(None)
+        }
+        self.outputs = {
+            "sum": BehaviorSubject(None)
+        }
 
-    def execute(self, inputs):
-        a = inputs.get("a", 0.0)
-        b = inputs.get("b", 0.0)
-        try:
-            return {"sum": float(a) + float(b)}
-        except Exception:
-            return {"sum": 0.0}
+    def execute(self, a=0, b=0):
+        if a is None or b is None:
+            return {"sum": None}
+        return {"sum": a + b}
+

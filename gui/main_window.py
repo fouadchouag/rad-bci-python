@@ -1,134 +1,103 @@
 from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QHBoxLayout, QListWidget, QGraphicsView,
-    QGraphicsScene, QVBoxLayout, QSplitter
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
+    QGraphicsView, QGraphicsScene, QLabel, QScrollArea, QFrame, QGraphicsPathItem
 )
 from PyQt5.QtCore import Qt
-from gui.node_item import NodeItem
-from runtime.graph_executor import GraphExecutor
+from core.plugin_registry import discover_plugins
+from .node_item import NodeItem  # à créer juste après
+
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("RAD BCI Python")
-        self.setGeometry(100, 100, 1000, 600)
+        self.setWindowTitle("RBciAD – Reactive BCI Builder")
+        self.setGeometry(100, 100, 1200, 800)
+
+        self.scene = QGraphicsScene()
+        self.scene.setSceneRect(0, 0, 3000, 3000)
+        self.view = QGraphicsView(self.scene)
+
+        self.plugins_by_category = discover_plugins()
 
         self._init_ui()
-        self._load_plugins()
-
-        self.pending_connection = None
 
     def _init_ui(self):
-        main_widget = QWidget()
-        main_layout = QHBoxLayout(main_widget)
-        self.setCentralWidget(main_widget)
-
-        splitter = QSplitter()
+        central_widget = QWidget()
+        central_layout = QHBoxLayout()
+        central_widget.setLayout(central_layout)
+        self.setCentralWidget(central_widget)
 
         # Palette latérale
-        self.palette = QListWidget()
-        self.palette.setMaximumWidth(200)
-        self.palette.itemDoubleClicked.connect(self._add_node_from_palette)
+        palette_frame = QFrame()
+        palette_layout = QVBoxLayout(palette_frame)
+        palette_frame.setLayout(palette_layout)
 
-        # Vue graphique
-        self.scene = QGraphicsScene()
-        self.scene.main_window = self
-        self.scene.setSceneRect(0, 0, 2000, 2000)
+        for category, plugin_list in self.plugins_by_category.items():
+            cat_label = QLabel(f"📁 {category}")
+            cat_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+            palette_layout.addWidget(cat_label)
 
-        self.view = QGraphicsView(self.scene)
-        self.view.setRenderHints(self.view.renderHints())
+            for plugin_class in plugin_list:
+                btn = QPushButton(plugin_class.name)
+                btn.clicked.connect(lambda _, cls=plugin_class: self._add_node(cls))
+                palette_layout.addWidget(btn)
 
-        # Gestion des connexions
-        self.scene.mouseReleaseEvent = self._handle_scene_mouse_release
+        palette_scroll = QScrollArea()
+        palette_scroll.setWidgetResizable(True)
+        palette_scroll.setWidget(palette_frame)
+        palette_scroll.setFixedWidth(220)
 
-        splitter.addWidget(self.palette)
-        splitter.addWidget(self.view)
-        splitter.setStretchFactor(1, 1)
+        # Layout final
+        central_layout.addWidget(palette_scroll)
+        central_layout.addWidget(self.view, stretch=1)
 
-        main_layout.addWidget(splitter)
-        self.view.setStyleSheet("background-color: white;")
-        self.view.keyPressEvent = self._handle_key_press
+    def _add_node(self, plugin_class):
 
-    def _load_plugins(self):
-        from plugins.registry import PLUGIN_REGISTRY
-        self.plugins = [cls() for cls in PLUGIN_REGISTRY]
-        for plugin in self.plugins:
-            self.palette.addItem(f"{plugin.name} [{plugin.language}]")
+        try:
+            print(f">>> Ajout du nœud : {plugin_class.name}")
+            node_item = NodeItem(plugin_class)
+            node_item.setPos(200, 200)
+            self.scene.addItem(node_item)
+            self.view.centerOn(node_item)
+        except Exception as e:
+            print(f"[ERROR] Failed to create node: {e}")
 
-    def _add_node_from_palette(self, item):
-        name = item.text()
-        for plugin in self.plugins:
-            if plugin.name in name:
-                node = NodeItem(plugin)
-                plugin._node_item = node  # ✅ Lien essentiel !
-                node.setPos(300, 300)
-                self.scene.addItem(node)
-                self.view.centerOn(node)
-                break
-
-
-    def _handle_scene_mouse_release(self, event):
-        if self.pending_connection:
-            items = self.scene.items(event.scenePos())
-            found_valid_pin = False
-
-            for item in items:
-                if hasattr(item, "is_output") and item != self.pending_connection.start_pin:
-                    if item.is_output == self.pending_connection.start_pin.is_output:
-                        print("[DEBUG] Connexion refusée : même type de pin")
-                        break
-
-                    if not item.is_output:
-                        for conn in self.scene.items():
-                            if hasattr(conn, "end_pin") and conn.end_pin == item:
-                                print("[DEBUG] Connexion refusée : entrée déjà connectée")
-                                break
-                        else:
-                            self.pending_connection.set_end_pin(item)
-                            self.pending_connection.track_both_pins()
-                            found_valid_pin = True
-                            break
-                    else:
-                        self.pending_connection.set_end_pin(item)
-                        self.pending_connection.track_both_pins()
-                        found_valid_pin = True
-                        break
-
-            if not found_valid_pin:
-                print("[DEBUG] Connexion annulée")
-                self.scene.removeItem(self.pending_connection)
-            else:
-                pass
-
-                # ✅ Propagation immédiate après ajout du lien
-                start_pin = self.pending_connection.start_pin
-                if start_pin:
-                    start_node = start_pin.parentItem()
-                    if hasattr(start_node.plugin, "on_input_updated"):
-                        print(f"[DEBUG] Propagation depuis {start_node.plugin.name}")
-                        start_node.plugin.on_input_updated()
-
-            self.pending_connection = None
-
-        QGraphicsScene.mouseReleaseEvent(self.scene, event)
-
-    def _handle_key_press(self, event):
+    def keyPressEvent(self, event):
         if event.key() == Qt.Key_Delete:
-            selected_items = self.scene.selectedItems()
-            for item in selected_items:
+            for item in self.scene.selectedItems():
+                # ✅ Suppression d'un nœud (ex: Adder)
                 if hasattr(item, "plugin"):
-                    for conn in self.scene.items():
-                        if hasattr(conn, "start_pin") and hasattr(conn, "end_pin"):
-                            if conn.start_pin and conn.start_pin.parentItem() == item:
-                                self.scene.removeItem(conn)
-                            elif conn.end_pin and conn.end_pin.parentItem() == item:
-                                self.scene.removeItem(conn)
-                    self.scene.removeItem(item)
-                elif hasattr(item, "start_pin") and hasattr(item, "end_pin"):
+                    to_remove = []
+                    for obj in self.scene.items():
+                        if isinstance(obj, QGraphicsPathItem) and hasattr(obj, "output_pin") and hasattr(obj, "input_pin"):
+                            if obj.output_pin.node == item or obj.input_pin.node == item:
+                                to_remove.append(obj)
+
+                    for conn in to_remove:
+                        if hasattr(conn, "cleanup"):
+                            conn.cleanup()
+
+                            # 🔁 Mise à jour du nœud cible même si la source est supprimée
+                            if hasattr(conn, "input_pin") and conn.input_pin and hasattr(conn.input_pin, "node"):
+                                input_node = conn.input_pin.node
+                                if hasattr(input_node, "plugin"):
+                                    input_node.plugin.set_input(conn.input_pin.name, None)
+
+                        self.scene.removeItem(conn)
+
+                    # Nettoie le plugin (ex: BehaviorSubject)
+                    item.plugin.cleanup()
                     self.scene.removeItem(item)
 
+                # ✅ Suppression d’un lien directement sélectionné
+                elif isinstance(item, QGraphicsPathItem):
+                    if hasattr(item, "cleanup"):
+                        item.cleanup()
+                        if hasattr(item, "input_pin") and item.input_pin and hasattr(item.input_pin, "node"):
+                            input_node = item.input_pin.node
+                            if hasattr(input_node, "plugin"):
+                                input_node.plugin.set_input(item.input_pin.name, None)
+                    self.scene.removeItem(item)
         else:
-            QGraphicsView.keyPressEvent(self.view, event)
-
-    def set_pending_connection(self, connection):
-        self.pending_connection = connection
+            super().keyPressEvent(event)

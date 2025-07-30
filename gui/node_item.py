@@ -1,101 +1,59 @@
-from PyQt5.QtWidgets import QGraphicsItem, QGraphicsTextItem, QGraphicsProxyWidget
+# gui/node_item.py
+
+from PyQt5.QtWidgets import (
+    QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem,
+    QGraphicsProxyWidget
+)
 from PyQt5.QtGui import QBrush, QColor, QPen
-from PyQt5.QtCore import QRectF, Qt
-from gui.pin_item import PinItem
+from PyQt5.QtCore import Qt
+from .pin_item import PinItem
 
 
-class NodeItem(QGraphicsItem):
-    def __init__(self, plugin):
-        super().__init__()
-        self.plugin = plugin
-        self.plugin._node_item = self
-        self.setFlags(
-            QGraphicsItem.ItemIsMovable |
-            QGraphicsItem.ItemIsSelectable |
-            QGraphicsItem.ItemSendsGeometryChanges
-        )
+class NodeItem(QGraphicsRectItem):
+    def __init__(self, plugin_class):
+        super().__init__(-60, -30, 120, 60)
+        self.setBrush(QBrush(QColor(50, 50, 70)))
+        self.setPen(QPen(Qt.black))
+        self.setFlag(QGraphicsItem.ItemIsMovable)
+        self.setFlag(QGraphicsItem.ItemIsSelectable)
 
-        self.input_pins = []
-        self.output_pins = []
+        self.plugin = plugin_class()
 
-        # 🔷 Titre principal
-        label_title = QGraphicsTextItem(plugin.name, self)
-        label_title.setDefaultTextColor(QColor("white"))
-        label_title.setPos(10, 5)
+        self._draw_label(plugin_class.name)
+        self._draw_pins()
+        self._add_custom_widget()  # ✅ Ajoute le widget du plugin si disponible
 
-        # 🔷 Langage
-        label_lang = QGraphicsTextItem(f"[{plugin.language}]", self)
-        label_lang.setDefaultTextColor(QColor("lightgray"))
-        label_lang.setPos(10, 20)
+        print(f">>> Création du NodeItem pour : {plugin_class.__name__}")
 
-        pin_start_y = 45
-        y_offset = pin_start_y
+    def _draw_label(self, name):
+        self.label = QGraphicsTextItem(name, self)
+        self.label.setDefaultTextColor(Qt.white)
+        self.label.setPos(-50, -25)
 
-        for inp in plugin.inputs:
-            pin = PinItem(self, inp, is_output=False)
-            pin.setPos(0, y_offset)
-            self.input_pins.append(pin)
-            y_offset += 20
+    def _draw_pins(self):
+        spacing = 20
 
-        y_offset = pin_start_y
-        for out in plugin.outputs:
-            pin = PinItem(self, out, is_output=True)
-            pin.setPos(140, y_offset)
-            self.output_pins.append(pin)
-            y_offset += 20
+        # Entrées
+        for i, input_name in enumerate(self.plugin.inputs):
+            pin = PinItem(name=input_name, is_output=False, parent=self)
+            pin.setPos(-65, i * spacing)
+            pin.setToolTip(f"Input: {input_name}")
+            pin.node = self
+            pin.pin_name = input_name
 
-        total_pins = max(len(self.input_pins), len(self.output_pins))
-        base_height = pin_start_y + total_pins * 20 + 10
-        self.rect = QRectF(0, 0, 150, base_height)
+        # Sorties
+        for i, output_name in enumerate(self.plugin.outputs):
+            pin = PinItem(name=output_name, is_output=True, parent=self)
+            pin.setPos(65, i * spacing)
+            pin.setToolTip(f"Output: {output_name}")
+            pin.node = self
+            pin.pin_name = output_name
 
-        # ✅ Créer un nouveau widget via build_widget() si disponible
-        widget = plugin.build_widget() if hasattr(plugin, "build_widget") else None
-        if widget:
-            proxy = QGraphicsProxyWidget(self)
-            proxy.setWidget(widget)
-
-            widget_height = widget.sizeHint().height()
-            proxy.setPos(10, base_height)
-            self.rect.setHeight(self.rect.height() + widget_height + 10)
-
-    def boundingRect(self):
-        return self.rect
-
-    def paint(self, painter, option, widget=None):
-        painter.setBrush(QBrush(QColor("#2980b9")))
-        painter.setPen(QPen(Qt.black, 1))
-        painter.drawRoundedRect(self.rect, 5, 5)
-
-    def itemChange(self, change, value):
-        if change == QGraphicsItem.ItemPositionChange:
-            scene = self.scene()
-            if scene is not None:
-                for pin in self.input_pins + self.output_pins:
-                    for conn in scene.items():
-                        if hasattr(conn, "start_pin") and conn.start_pin == pin:
-                            conn.update_path()
-                        if hasattr(conn, "end_pin") and conn.end_pin == pin:
-                            conn.update_path()
-        return super().itemChange(change, value)
-
-    def propagate(self, value_map):
-        if not hasattr(self.plugin, "execute"):
-            return
-
-        inputs = {}
-        for pin in self.input_pins:
-            key = (self, pin.name)
-            inputs[pin.name] = value_map.get(key, None)
-
-        outputs = self.plugin.execute(inputs)
-        print(f"Node: {self.plugin.name} -> Output: {outputs}")
-
-        for output_pin in self.output_pins:
-            val = outputs.get(output_pin.name)
-            for item in self.scene().items():
-                if hasattr(item, "start_pin") and hasattr(item, "end_pin"):
-                    if item.start_pin == output_pin:
-                        dest_pin = item.end_pin
-                        dest_node = dest_pin.parentItem()
-                        value_map[(dest_node, dest_pin.name)] = val
-                        dest_node.propagate(value_map)
+    def _add_custom_widget(self):
+        """Ajoute un widget custom (ex: bouton, matplotlib, etc) si le plugin en fournit un."""
+        if hasattr(self.plugin, "build_widget"):
+            widget = self.plugin.build_widget()
+            if widget:
+                self.proxy = QGraphicsProxyWidget(self)
+                self.proxy.setWidget(widget)
+                self.proxy.setPos(-55, 20)  # Position ajustable

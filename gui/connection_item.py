@@ -1,53 +1,67 @@
-# gui/connection_item.py
-
 from PyQt5.QtWidgets import QGraphicsPathItem
-from PyQt5.QtGui import QPainterPath, QPen
-from PyQt5.QtCore import Qt, QPointF
-
+from PyQt5.QtGui import QPainterPath, QPen, QColor
+from PyQt5.QtCore import Qt, QTimer, QPointF
 
 class ConnectionItem(QGraphicsPathItem):
-    def __init__(self, start_pin, end_pos):
+    def __init__(self, output_pin, input_pin):
         super().__init__()
-        self.start_pin = start_pin
-        self.end_pin = None
-        self.end_pos = end_pos  # Peut être remplacée par un pin plus tard
         self.setZValue(-1)
-        self.setPen(QPen(Qt.black, 2))
-        self.setFlags(self.flags() | self.ItemIsSelectable)
-        self.track_pin(start_pin)
+        self.output_pin = output_pin
+        self.input_pin = input_pin
+        self.subscription = None
 
-    def track_pin(self, pin):
-        self.start_pin = pin
+        self.setPen(QPen(QColor(240, 200, 20), 2))
         self.update_path()
 
-    def set_end_pos(self, pos):
-        self.end_pos = pos
-        self.update_path()
+        # 🔁 Animation si tu veux
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_path)
+        self.timer.start(30)
 
-    def set_end_pin(self, pin):
-        self.end_pin = pin
-        self.end_pos = pin.scenePos()
+        self.scene = output_pin.scene()
+        if self.scene:
+            self.scene.addItem(self)
 
-    def track_both_pins(self):
-        if self.start_pin and self.end_pin:
-            self.update_path()
+        self.setFlag(QGraphicsPathItem.ItemIsSelectable)
+
+        # 🔁 Active Rx
+        self._connect_rx()
+
+    def _connect_rx(self):
+        out_node = self.output_pin.parentItem().plugin
+        in_node = self.input_pin.parentItem().plugin
+        out_pin_name = self.output_pin.name
+        in_pin_name = self.input_pin.name
+
+        source = out_node.get_output(out_pin_name)
+        if source:
+            print(f"[Connection] Subscribe: {out_node.name}.{out_pin_name} → {in_node.name}.{in_pin_name}")
+            self.subscription = source.subscribe(
+                lambda val: in_node.set_input(in_pin_name, val)
+            )
+
+    def cleanup(self):
+        if self.subscription:
+            print(f"[Connection] Cleanup subscription")
+            self.subscription.dispose()
+            self.subscription = None
+
+        # 🔁 Force update logique : entrée = None
+        plugin = self.input_pin.parentItem().plugin
+        pin_name = self.input_pin.name
+        plugin.set_input(pin_name, None)
+
+
 
     def update_path(self):
-        if not self.start_pin:
-            return
+        p1 = self.output_pin.scenePos()
+        p2 = self.input_pin.scenePos()
 
-        start_pos = self.start_pin.scenePos()
-        end_pos = self.end_pos
-
-        if self.end_pin:
-            end_pos = self.end_pin.scenePos()
+        dx = (p2.x() - p1.x()) * 0.5
+        ctrl1 = p1 + QPointF(dx, 0)
+        ctrl2 = p2 - QPointF(dx, 0)
 
         path = QPainterPath()
-        path.moveTo(start_pos)
-
-        dx = (end_pos.x() - start_pos.x()) * 0.5
-        ctrl1 = QPointF(start_pos.x() + dx, start_pos.y())
-        ctrl2 = QPointF(end_pos.x() - dx, end_pos.y())
-
-        path.cubicTo(ctrl1, ctrl2, end_pos)
+        path.moveTo(p1)
+        path.cubicTo(ctrl1, ctrl2, p2)
         self.setPath(path)

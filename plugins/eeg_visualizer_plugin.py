@@ -1,65 +1,87 @@
 # plugins/eeg_visualizer_plugin.py
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton
+from core.node_base import BasePlugin
+from rx.subject import BehaviorSubject
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QDialog, QLabel
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from plugins.base import BasePlugin
-import numpy as np
+
 
 class EEGVisualizerPlugin(BasePlugin):
-    name = "EEG Visualizer"
-    inputs = ["raw"]
-    outputs = []
+    name = "EEGVisualizer"
     language = "Python"
+    category = "Output Nodes"
 
-    def __init__(self):
-        super().__init__()
-        self.raw = None
-        self.canvas = None
-        self.ax = None
-        self.label = None
+    def setup(self):
+        self.inputs["raw"] = BehaviorSubject(None)
 
-    def build_widget(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(5, 5, 5, 5)
+    def execute(self, **kwargs):
+        raw = kwargs.get("raw", None)
 
-        self.label = QLabel("Waiting for data...")
-        layout.addWidget(self.label)
-
-        self.canvas = FigureCanvas(Figure(figsize=(3, 2)))
-        layout.addWidget(self.canvas)
-        self.ax = self.canvas.figure.add_subplot(111)
-
-        button = QPushButton("Agrandir")
-        button.clicked.connect(self._open_interactive_plot)
-        layout.addWidget(button)
-
-        return widget
-
-    def _open_interactive_plot(self):
-        if self.raw:
-            self.raw.plot(show=True, block=False)
-
-    def execute(self, inputs):
-        self.raw = inputs.get("raw", None)
-        if not (self.canvas and self.ax and self.label):
+        if not hasattr(self, "canvas") or not hasattr(self, "axes") or not hasattr(self, "label"):
             return {}
 
-        self.ax.clear()
-        if self.raw:
+        self.axes.clear()
+        if raw is not None:
             self.label.setText("Signal EEG reçu")
             try:
-                data, times = self.raw[:, :500]
+                data, times = raw[:, :500]  # ✅ Utilise la même logique que ta version stable
                 if data.shape[0] > 0:
                     signal = data[0]
-                    self.ax.plot(times, signal)
-                    self.ax.set_title("Canal 0")
+                    self.axes.plot(times, signal)
+                    self.axes.set_title("Canal 0")
                     self.canvas.draw()
             except Exception as e:
-                print(f"[EEG Visualizer] Erreur d'affichage : {e}")
+                print(f"[EEGVisualizer] Erreur d'affichage : {e}")
                 self.label.setText("Erreur d'affichage")
         else:
             self.label.setText("Aucun signal EEG")
+            self.axes.set_title("No Data")
+            self.canvas.draw()
 
         return {}
+
+    def build_widget(self):
+        self.figure = Figure(figsize=(5, 2))
+        self.axes = self.figure.add_subplot(111)
+        self.canvas = FigureCanvas(self.figure)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.canvas)
+
+        self.label = QLabel("Aucun signal EEG")
+        layout.addWidget(self.label)
+
+        self.button = QPushButton("Agrandir")
+        self.button.clicked.connect(self._show_large_plot)
+        layout.addWidget(self.button)
+
+        container = QWidget()
+        container.setLayout(layout)
+        return container
+
+    def _show_large_plot(self):
+        raw = self._values.get("raw")
+        dialog = QDialog()
+        dialog.setWindowTitle("Aperçu complet EEG")
+        layout = QVBoxLayout(dialog)
+
+        fig = Figure(figsize=(10, 4))
+        ax = fig.add_subplot(111)
+
+        if raw is not None:
+            try:
+                data, times = raw[:, :1000]
+                if data.shape[0] > 0:
+                    ax.plot(times, data[0])
+                    ax.set_title("Aperçu complet - Canal 0")
+            except Exception as e:
+                print(f"[EEGVisualizer] Full plot error: {e}")
+                ax.set_title("Erreur lors du tracé")
+        else:
+            ax.set_title("Pas de données EEG")
+
+        canvas = FigureCanvas(fig)
+        layout.addWidget(canvas)
+        dialog.setLayout(layout)
+        dialog.exec_()
