@@ -21,70 +21,95 @@ class MainWindow(QMainWindow):
         self.plugins_by_category = discover_plugins()
 
         self._init_ui()
+        self.category_widgets = {}
 
     def _init_ui(self):
-        # --- Conteneur principal vertical ---
         main_widget = QWidget()
         main_layout = QVBoxLayout()
         main_widget.setLayout(main_layout)
         self.setCentralWidget(main_widget)
 
-        # --- Barre d’outils horizontale ---
+        # --- Barre d’outils ---
         toolbar = QHBoxLayout()
-
         btn_new = QPushButton("🆕 Nouveau")
         btn_load = QPushButton("📂 Charger")
         btn_save = QPushButton("💾 Sauvegarder")
         btn_lowcode = QPushButton("🛠️ Dev Mode (➕ Ajouter un Node)")
 
         for btn in [btn_new, btn_load, btn_save, btn_lowcode]:
-            toolbar.addSpacing(10)
-            toolbar.addWidget(btn)
             btn.setMinimumHeight(40)
             btn.setStyleSheet("font-weight: bold; font-size: 14px;")
+            toolbar.addWidget(btn)
 
         toolbar_widget = QWidget()
         toolbar_widget.setLayout(toolbar)
         toolbar_widget.setFixedHeight(60)
         main_layout.addWidget(toolbar_widget)
 
-        # --- Partie centrale : palette + éditeur ---
+        # --- Partie centrale ---
         center_layout = QHBoxLayout()
 
-        # Palette latérale
-        palette_frame = QFrame()
-        palette_layout = QVBoxLayout(palette_frame)
-        palette_frame.setLayout(palette_layout)
+        # --- Palette latérale ---
+        self.palette_frame = QFrame()
+        self.palette_layout = QVBoxLayout(self.palette_frame)
+        self.palette_frame.setLayout(self.palette_layout)
 
-        for category, plugin_list in self.plugins_by_category.items():
-            cat_label = QLabel(f"📁 {category}")
-            cat_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
-            palette_layout.addWidget(cat_label)
-
-            for plugin_class in plugin_list:
-                btn = QPushButton(plugin_class.name)
-                btn.clicked.connect(lambda _, cls=plugin_class: self._add_node(cls))
-                palette_layout.addWidget(btn)
-
-        # dev_button = QPushButton("🛠️ Dev Mode")
-        # dev_button.clicked.connect(self.open_lowcode_editor)
-        # palette_layout.addWidget(dev_button)
+        self._populate_palette()
 
         palette_scroll = QScrollArea()
         palette_scroll.setWidgetResizable(True)
-        palette_scroll.setWidget(palette_frame)
+        palette_scroll.setWidget(self.palette_frame)
         palette_scroll.setFixedWidth(220)
 
         center_layout.addWidget(palette_scroll)
         center_layout.addWidget(self.view, stretch=1)
-
         main_layout.addLayout(center_layout)
 
-        # Connexions des boutons
+        # Connexions
         btn_new.clicked.connect(self._new_workflow)
         btn_load.clicked.connect(self._load_workflow)
         btn_save.clicked.connect(self._save_workflow)
         btn_lowcode.clicked.connect(self._show_lowcode_creator)
+
+    def _populate_palette(self):
+        self.plugins_by_category = discover_plugins()
+        for i in reversed(range(self.palette_layout.count())):
+            widget = self.palette_layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+
+        for category, plugin_list in self.plugins_by_category.items():
+            cat_label = QLabel(f"📁 {category}")
+            cat_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+            self.palette_layout.addWidget(cat_label)
+
+            for plugin_class in plugin_list:
+                btn = QPushButton(plugin_class.name)
+                btn.clicked.connect(lambda _, cls=plugin_class: self._add_node(cls))
+                self.palette_layout.addWidget(btn)
+
+    def add_plugin_to_palette(self, category, plugin_class):
+        # Vérifie si la catégorie existe déjà
+        if category not in self.category_widgets:
+            # Nouveau layout pour cette catégorie
+            label = QLabel(f"📁 {category}")
+            label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+            self.palette_layout.addWidget(label)
+
+            layout = QVBoxLayout()
+            container = QWidget()
+            container.setLayout(layout)
+            self.palette_layout.addWidget(container)
+
+            self.category_widgets[category] = layout  # Sauvegarde le layout
+
+        # Ajoute le plugin dans la catégorie correspondante
+        layout = self.category_widgets[category]
+        btn = QPushButton(plugin_class.name)
+        btn.clicked.connect(lambda _, cls=plugin_class: self._add_node(cls))
+        layout.addWidget(btn)
+
+
 
     def _add_node(self, plugin_class):
         try:
@@ -130,10 +155,6 @@ class MainWindow(QMainWindow):
         else:
             super().keyPressEvent(event)
 
-    def open_lowcode_editor(self):
-        self.lowcode_window = LowCodeCreator()
-        self.lowcode_window.show()
-
     def _new_workflow(self):
         print("🆕 Nouveau workflow")
 
@@ -144,4 +165,5 @@ class MainWindow(QMainWindow):
         print("💾 Sauvegarder workflow")
 
     def _show_lowcode_creator(self):
-        self.open_lowcode_editor()
+        self.lowcode_window = LowCodeCreator(main_window=self)
+        self.lowcode_window.show()

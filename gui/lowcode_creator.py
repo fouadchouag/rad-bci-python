@@ -1,105 +1,253 @@
 import os
-import uuid
+import shutil
+import json
+import subprocess
 from PyQt5.QtWidgets import (
-    QApplication, QDialog, QVBoxLayout, QFormLayout, QLineEdit,
-    QSpinBox, QComboBox, QPushButton, QTextEdit, QLabel, QFileDialog
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
+    QTextEdit, QComboBox, QFileDialog, QMessageBox, QApplication
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QClipboard
 
-class LowCodeCreatorWindow(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("🧠 Création de Node Polyglotte")
-        self.resize(500, 450)
-        self.setup_ui()
+class LowCodeCreator(QWidget):
+    def __init__(self, main_window=None):
+        super().__init__()
+        self.setWindowTitle("🧐 Création de Node")
+        self.setMinimumWidth(600)
+        self.main_window = main_window
 
-    def setup_ui(self):
         layout = QVBoxLayout()
-        form_layout = QFormLayout()
+        layout.setSpacing(10)
 
         self.name_input = QLineEdit()
-        self.inputs_spin = QSpinBox(); self.inputs_spin.setRange(0, 10)
-        self.outputs_spin = QSpinBox(); self.outputs_spin.setRange(0, 10)
-        self.language_combo = QComboBox()
-        self.language_combo.addItems(["Python", "Bash", "R", "Julia", "C", "C++", "NodeJS", "Rust"])
+        self.inputs_input = QLineEdit("1")
+        self.outputs_input = QLineEdit("1")
+        self.lang_combo = QComboBox()
+        self.lang_combo.addItems(["Python", "R", "Julia", "NodeJS", "Shell", "Octave", "C", "C++", "Rust"])
 
-        form_layout.addRow("🔤 Nom du Node :", self.name_input)
-        form_layout.addRow("🔢 Nombre d'Entrées :", self.inputs_spin)
-        form_layout.addRow("🔢 Nombre de Sorties :", self.outputs_spin)
-        form_layout.addRow("🌐 Langage :", self.language_combo)
+        layout.addLayout(self._form_row("Nom du node", self.name_input))
+        layout.addLayout(self._form_row("Nombre d'entrées", self.inputs_input))
+        layout.addLayout(self._form_row("Nombre de sorties", self.outputs_input))
+        layout.addLayout(self._form_row("Langage", self.lang_combo))
 
-        layout.addLayout(form_layout)
+        btn_generate = QPushButton("🛠️ Générer et copier squelette")
+        btn_load = QPushButton("📂 Choisir le fichier source")
+        btn_add = QPushButton("➕ Ajouter à la palette")
 
-        self.copy_skeleton_btn = QPushButton("📋 Copier le Squelette")
-        self.choose_file_btn = QPushButton("📂 Choisir le fichier source")
-        self.add_to_palette_btn = QPushButton("➕ Ajouter à la palette")
+        btn_generate.clicked.connect(self._generate_skeleton)
+        btn_load.clicked.connect(self._load_script)
+        btn_add.clicked.connect(self._add_to_palette)
 
-        layout.addWidget(self.copy_skeleton_btn)
-        layout.addWidget(self.choose_file_btn)
-        layout.addWidget(self.add_to_palette_btn)
+        layout.addWidget(btn_generate)
+        layout.addWidget(btn_load)
+        layout.addWidget(btn_add)
 
-        self.info_log = QTextEdit()
-        self.info_log.setReadOnly(True)
-        layout.addWidget(QLabel("📋 Log / Instructions :"))
-        layout.addWidget(self.info_log)
+        self.log = QTextEdit()
+        self.log.setReadOnly(True)
+        layout.addWidget(QLabel("Log / Info :"))
+        layout.addWidget(self.log)
 
         self.setLayout(layout)
 
-        self.copy_skeleton_btn.clicked.connect(self.copy_skeleton)
-        self.choose_file_btn.clicked.connect(self.choose_file)
-        self.add_to_palette_btn.clicked.connect(self.add_to_palette)
+    def _form_row(self, label_text, widget):
+        row = QHBoxLayout()
+        label = QLabel(f"{label_text} :")
+        label.setFixedWidth(150)
+        row.addWidget(label)
+        row.addWidget(widget)
+        return row
 
-    def copy_skeleton(self):
-        name = self.name_input.text().strip() or "MyNode"
-        lang = self.language_combo.currentText().lower()
-        inputs = self.inputs_spin.value()
-        outputs = self.outputs_spin.value()
+    def _generate_skeleton(self):
+        name = self.name_input.text().strip()
+        n_inputs = int(self.inputs_input.text().strip())
+        n_outputs = int(self.outputs_input.text().strip())
+        lang = self.lang_combo.currentText()
 
-        code = f'''"""
-Plugin : {name}
-Langage : {lang}
-Instructions :
-- Collez ce squelette dans votre IDE.
-- Complétez la fonction `execute` selon la logique de votre node.
-- Placez ensuite le fichier dans plugins/ ou chargez-le via le bouton 'Choisir le fichier source'.
-"""
+        if not name:
+            QMessageBox.warning(self, "Erreur", "Veuillez indiquer un nom.")
+            return
 
-from core.reactive_node import ReactiveNode
+        if lang == "Python":
+            skeleton = self._generate_python_skeleton(name, n_inputs, n_outputs)
+        else:
+            skeleton = self._generate_polyglot_skeleton(name, lang)
 
-class {name}Plugin(ReactiveNode):
-    def __init__(self):
-        super().__init__(name="{name}")
-        self.language = "{lang}"
-        self.add_inputs({[f"input{i}" for i in range(inputs)]})
-        self.add_outputs({[f"output{i}" for i in range(outputs)]})
+        QApplication.clipboard().setText(skeleton)
+        self.log.append(f"✅ Squelette généré pour {name} en {lang}.")
+        self.log.append("📋 Copié dans le presse-papiers.")
 
-    def execute(self, *args):
-        # TODO : Implémentez la logique ici
-        result = ...  # votre traitement
-        self.emit('output0', result)  # Exemple
+    def _generate_python_skeleton(self, name, n_inputs, n_outputs):
+        input_lines = "\n        ".join([f'self.inputs["input{i+1}"] = BehaviorSubject(None)' for i in range(n_inputs)])
+        output_lines = "\n        ".join([f'self.outputs["output{i+1}"] = BehaviorSubject(None)' for i in range(n_outputs)])
+        results = "\n        ".join([f'result["output{i+1}"] = None  # Remplacer' for i in range(n_outputs)])
+
+        return f'''# custom_plugins/{name.lower()}_plugin.py
+from core.node_base import BasePlugin
+from rx.subject import BehaviorSubject
+
+class {name}Plugin(BasePlugin):
+    name = "{name}"
+    language = "Python"
+    category = "Custom"
+
+    def setup(self):
+        {input_lines}
+        {output_lines}
+
+    def execute(self, **kwargs):
+        # 💡 Implémentez ici votre logique
+        result = {{}}
+        {results}
+        return result
 '''
 
-        QApplication.clipboard().setText(code)
-        self.info_log.append("✅ Squelette copié dans le presse-papiers. Collez-le dans votre IDE, complétez-le, puis chargez-le avec le bouton ci-dessous.")
+    def _generate_polyglot_skeleton(self, name, lang):
+        templates = {
+            "C": f"""// {name}.c – Compiler avec: gcc {name}.c -o {name}
+#include <stdio.h>
+#include <stdlib.h>
 
-    def choose_file(self):
-        file_name, _ = QFileDialog.getOpenFileName(self, "Choisir un fichier source", "", "Fichiers Python (*.py);;Tous les fichiers (*)")
-        if file_name:
-            self.selected_file = file_name
-            self.info_log.append(f"📂 Fichier sélectionné : {file_name}")
+int main() {{
+    // Lire input.json
+    // TODO: logique de traitement
+    // Écrire output.json
+    return 0;
+}}""",
 
-    def add_to_palette(self):
-        if hasattr(self, "selected_file"):
-            self.info_log.append("✅ Ajout du fichier à la palette (à implémenter)")
-            # TODO : Import dynamique ou reload
+            "C++": f"""// {name}.cpp – Compiler avec: g++ {name}.cpp -o {name}
+#include <iostream>
+
+int main() {{
+    // Lire input.json
+    // TODO: logique de traitement
+    // Écrire output.json
+    return 0;
+}}""",
+
+            "Rust": f"""// {name}.rs – Compiler avec: rustc {name}.rs
+fn main() {{
+    // Lire input.json
+    // TODO: logique de traitement
+    // Écrire output.json
+}}""",
+
+            "NodeJS": f"""#!/usr/bin/env node
+// {name}.js
+console.log("🔧 Implémentez la lecture de input.json et écriture de output.json");""",
+
+            "Shell": f"""#!/bin/bash
+# {name}.sh
+echo "🔧 Implémentez votre logique shell ici" """,
+
+            "R": f"""#!/usr/bin/env Rscript
+# {name}.R
+cat("🔧 Implémentez votre logique R ici\\n")""",
+
+            "Julia": f"""#!/usr/bin/env julia
+# {name}.jl
+println("🔧 Implémentez votre logique Julia ici")""",
+
+            "Octave": f"""#!/usr/bin/env octave
+% {name}.m
+disp("🔧 Implémentez votre logique Octave ici");"""
+        }
+
+        return templates.get(lang, f"// Langage {lang} non pris en charge")
+
+    def _load_script(self):
+        filepath, _ = QFileDialog.getOpenFileName(self, "Choisir un fichier script", "", "Tous (*.*)")
+        if filepath:
+            self.selected_file = filepath
+            self.log.append(f"📂 Fichier sélectionné : {filepath}")
+
+    def _add_to_palette(self):
+        if not hasattr(self, "selected_file"):
+            QMessageBox.warning(self, "Erreur", "Veuillez d’abord charger un script.")
+            return
+
+        name = self.name_input.text().strip()
+        lang = self.lang_combo.currentText()
+        if not name:
+            QMessageBox.warning(self, "Erreur", "Veuillez spécifier un nom.")
+            return
+
+        dest_script_dir = os.path.join("custom_plugins", "external_scripts")
+        os.makedirs(dest_script_dir, exist_ok=True)
+        script_name = os.path.basename(self.selected_file)
+        dest_script_path = os.path.join(dest_script_dir, script_name)
+        shutil.copy(self.selected_file, dest_script_path)
+
+        # ✅ Génération du wrapper Python
+        wrapper_code = self._generate_wrapper_code(name, dest_script_path)
+        wrapper_path = os.path.join("custom_plugins", f"{name.lower()}_plugin.py")
+        with open(wrapper_path, "w", encoding="utf-8") as f:
+            f.write(wrapper_code)
+
+        self.log.append(f"📦 Wrapper Python généré : {wrapper_path}")
+        self.log.append(f"✅ Script externe copié : {dest_script_path}")
+
+        try:
+            from importlib import import_module
+            module = import_module(f"custom_plugins.{name.lower()}_plugin")
+            plugin_class = getattr(module, f"{name}Plugin")
+            if self.main_window:
+                self.main_window.add_plugin_to_palette("Custom", plugin_class)
+            self.log.append("🎉 Plugin ajouté dynamiquement à la palette.")
+        except Exception as e:
+            self.log.append(f"[ERREUR] Ajout échoué : {e}")
+
+    def _generate_wrapper_code(self, name, script_path):
+        script_path = script_path.replace("\\", "/")
+        return f'''# Wrapper auto-généré pour {name}
+import os
+import subprocess
+import json
+from core.node_base import BasePlugin
+from rx.subject import BehaviorSubject
+
+class {name}Plugin(BasePlugin):
+    name = "{name}"
+    language = "external"
+    category = "Custom"
+    executable = r"{script_path}"
+
+    def setup(self):
+        self.inputs["input1"] = BehaviorSubject(None)
+        self.outputs["output1"] = BehaviorSubject(None)
+
+    def _build_command(self):
+        ext = os.path.splitext(self.executable)[1].lower()
+        if ext == ".js":
+            return ["node", self.executable]
+        elif ext == ".sh":
+            return ["bash", self.executable]
+        elif ext == ".py":
+            return ["python", self.executable]
+        elif ext == ".r":
+            return ["Rscript", self.executable]
+        
+        elif ext == ".m":
+            return ["octave", "--quiet", "--eval", f"run('{{self.executable}}')"]
+        elif ext == ".jl":
+            return ["julia", self.executable]          
+        elif ext in [".exe"]:
+            return [self.executable]
         else:
-            self.info_log.append("❌ Aucun fichier source sélectionné.")
+            raise Exception("Type de script non pris en charge.")
 
-# Test manuel
-if __name__ == "__main__":
-    import sys
-    app = QApplication(sys.argv)
-    window = LowCodeCreatorWindow()
-    window.show()
-    sys.exit(app.exec_())
+    def execute(self, **kwargs):
+        try:
+            with open("input.json", "w") as f:
+                json.dump(kwargs, f)
+
+            cmd = self._build_command()
+            subprocess.run(cmd, check=True)
+
+            with open("output.json", "r") as f:
+                result = json.load(f)
+
+            return result
+        except Exception as e:
+            print(f"[ERREUR] Subprocess échoué: {'{e}'}")
+            return {{}}
+'''
