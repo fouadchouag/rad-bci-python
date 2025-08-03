@@ -1,0 +1,56 @@
+{
+  "nodes": [
+    {
+      "name": "Constant_88f4ee",
+      "type": "Constant",
+      "position": [
+        200.0,
+        200.0
+      ]
+    },
+    {
+      "name": "SignalLogger_98ea2a",
+      "type": "SignalLogger",
+      "position": [
+        666.0,
+        249.0
+      ]
+    },
+    {
+      "name": "Constant_ee176b",
+      "type": "Constant",
+      "position": [
+        166.0,
+        406.0
+      ]
+    },
+    {
+      "name": "Adder_6b7809",
+      "type": "Adder",
+      "position": [
+        455.0,
+        399.0
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "Constant_88f4ee",
+      "from_pin": "value",
+      "to": "Adder_6b7809",
+      "to_pin": "a"
+    },
+    {
+      "from": "Constant_ee176b",
+      "from_pin": "value",
+      "to": "Adder_6b7809",
+      "to_pin": "b"
+    },
+    {
+      "from": "Adder_6b7809",
+      "from_pin": "sum",
+      "to": "SignalLogger_98ea2a",
+      "to_pin": "input"
+    }
+  ]
+}

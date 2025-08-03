@@ -19,6 +19,7 @@ class PinItem(QGraphicsEllipseItem):
         self.setFlag(self.ItemSendsScenePositionChanges)
 
         self.drag_path_item = None
+        self._connected = False
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -67,3 +68,6 @@ class PinItem(QGraphicsEllipseItem):
         ctrl2 = end_pos - QPointF(dx, 0)
         path.cubicTo(ctrl1, ctrl2, end_pos)
         return path
+
+    def set_connected(self, connected: bool):
+        self._connected = connected

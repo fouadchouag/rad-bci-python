@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
 from rx.subject import BehaviorSubject
+import uuid
 
 class BasePlugin(ABC):
     def __init__(self):
+        self.name = f"{self.__class__.__name__}_{uuid.uuid4().hex[:6]}"
         self.inputs = {}   # str → BehaviorSubject
         self.outputs = {}  # str → BehaviorSubject
         self._values = {}  # cache local pour les entrées

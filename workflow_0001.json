@@ -1,0 +1,28 @@
+{
+  "nodes": [
+    {
+      "name": "Constant_2543b8",
+      "type": "Constant",
+      "position": [
+        274.0,
+        196.0
+      ]
+    },
+    {
+      "name": "Adder_25ed7c",
+      "type": "Adder",
+      "position": [
+        470.0,
+        231.0
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "Constant_2543b8",
+      "from_pin": "value",
+      "to": "Adder_25ed7c",
+      "to_pin": "a"
+    }
+  ]
+}

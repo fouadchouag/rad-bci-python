@@ -27,7 +27,8 @@ def discover_plugins():
                     spec.loader.exec_module(module)
 
                     for name, obj in inspect.getmembers(module, inspect.isclass):
-                        if hasattr(obj, "name") and hasattr(obj, "execute"):
+                        #if hasattr(obj, "name") and hasattr(obj, "execute"):
+                        if hasattr(obj, "name") and hasattr(obj, "setup"):
                             category = getattr(obj, "category", "Uncategorized")
                             registry.setdefault(category, []).append(obj)
                 except Exception as e:

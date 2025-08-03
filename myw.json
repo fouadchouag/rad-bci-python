@@ -1,0 +1,42 @@
+{
+  "nodes": [
+    {
+      "name": "Constant_67f033",
+      "type": "Constant",
+      "position": [
+        200.0,
+        200.0
+      ]
+    },
+    {
+      "name": "SignalLogger_0a4ddc",
+      "type": "SignalLogger",
+      "position": [
+        563.0,
+        226.0
+      ]
+    },
+    {
+      "name": "Adder_c64be8",
+      "type": "Adder",
+      "position": [
+        385.0,
+        207.0
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "Adder_c64be8",
+      "from_pin": "sum",
+      "to": "SignalLogger_0a4ddc",
+      "to_pin": "input"
+    },
+    {
+      "from": "Constant_67f033",
+      "from_pin": "value",
+      "to": "Adder_c64be8",
+      "to_pin": "a"
+    }
+  ]
+}

@@ -19,9 +19,13 @@ class NodeItem(QGraphicsRectItem):
 
         self.plugin = plugin_class()
 
+        # ✅ Initialiser les listes de pins
+        self.input_pins = []
+        self.output_pins = []
+
         self._draw_label(plugin_class.name)
         self._draw_pins()
-        self._add_custom_widget()  # ✅ Ajoute le widget du plugin si disponible
+        self._add_custom_widget()
 
         print(f">>> Création du NodeItem pour : {plugin_class.__name__}")
 
@@ -40,6 +44,7 @@ class NodeItem(QGraphicsRectItem):
             pin.setToolTip(f"Input: {input_name}")
             pin.node = self
             pin.pin_name = input_name
+            self.input_pins.append(pin)  # ✅ Ajout à la liste
 
         # Sorties
         for i, output_name in enumerate(self.plugin.outputs):
@@ -48,6 +53,7 @@ class NodeItem(QGraphicsRectItem):
             pin.setToolTip(f"Output: {output_name}")
             pin.node = self
             pin.pin_name = output_name
+            self.output_pins.append(pin)  # ✅ Ajout à la liste
 
     def _add_custom_widget(self):
         """Ajoute un widget custom (ex: bouton, matplotlib, etc) si le plugin en fournit un."""
@@ -57,3 +63,15 @@ class NodeItem(QGraphicsRectItem):
                 self.proxy = QGraphicsProxyWidget(self)
                 self.proxy.setWidget(widget)
                 self.proxy.setPos(-55, 20)  # Position ajustable
+
+    def get_input_pin_by_name(self, name):
+        for pin in self.input_pins:
+            if pin.name == name:
+                return pin
+        return None
+
+    def get_output_pin_by_name(self, name):
+        for pin in self.output_pins:
+            if pin.name == name:
+                return pin
+        return None

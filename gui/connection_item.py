@@ -2,9 +2,13 @@ from PyQt5.QtWidgets import QGraphicsPathItem
 from PyQt5.QtGui import QPainterPath, QPen, QColor
 from PyQt5.QtCore import Qt, QTimer, QPointF
 
+
+
 class ConnectionItem(QGraphicsPathItem):
     def __init__(self, output_pin, input_pin):
         super().__init__()
+
+
         self.setZValue(-1)
         self.output_pin = output_pin
         self.input_pin = input_pin
@@ -53,15 +57,41 @@ class ConnectionItem(QGraphicsPathItem):
 
 
 
-    def update_path(self):
-        p1 = self.output_pin.scenePos()
-        p2 = self.input_pin.scenePos()
+    # def update_path(self):
+    #     p1 = self.output_pin.scenePos()
+    #     p2 = self.input_pin.scenePos()
 
-        dx = (p2.x() - p1.x()) * 0.5
-        ctrl1 = p1 + QPointF(dx, 0)
-        ctrl2 = p2 - QPointF(dx, 0)
+    #     dx = (p2.x() - p1.x()) * 0.5
+    #     ctrl1 = p1 + QPointF(dx, 0)
+    #     ctrl2 = p2 - QPointF(dx, 0)
+
+    #     path = QPainterPath()
+    #     path.moveTo(p1)
+    #     path.cubicTo(ctrl1, ctrl2, p2)
+    #     self.setPath(path)
+
+    def track_both_pins(self):
+        self.track_pin(self.input_pin)
+        self.track_pin(self.output_pin)
+
+    def track_pin(self, pin):
+        pin_position = pin.scenePos()
+        self.update_path()
+
+    def update_path(self):
+        if not self.input_pin or not self.output_pin:
+            return
+
+        start_point = self.input_pin.scenePos()
+        end_point = self.output_pin.scenePos()
 
         path = QPainterPath()
-        path.moveTo(p1)
-        path.cubicTo(ctrl1, ctrl2, p2)
+        path.moveTo(start_point)
+        dx = (end_point.x() - start_point.x()) * 0.5
+        ctrl1 = start_point + QPointF(dx, 0)
+        ctrl2 = end_point - QPointF(dx, 0)
+        path.cubicTo(ctrl1, ctrl2, end_point)
         self.setPath(path)
+
+
+    
