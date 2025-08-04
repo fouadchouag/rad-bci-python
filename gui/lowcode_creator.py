@@ -237,14 +237,26 @@ class {name}Plugin(BasePlugin):
 
     def execute(self, **kwargs):
         try:
-            with open("input.json", "w") as f:
+            temp_dir = "temp_io"
+            os.makedirs(temp_dir, exist_ok=True)
+            input_path = os.path.join(temp_dir, f"input_{name}.json")
+            output_path = os.path.join(temp_dir, f"output_{name}.json")
+            
+            
+            os.makedirs(temp_dir, exist_ok=True)
+
+            with open(input_path, "w") as f:
                 json.dump(kwargs, f)
 
             cmd = self._build_command()
             subprocess.run(cmd, check=True)
 
-            with open("output.json", "r") as f:
+            with open(output_path, "r") as f:
                 result = json.load(f)
+
+            # (facultatif mais conseillé)
+            #if os.path.exists(input_path): os.remove(input_path)
+            #if os.path.exists(output_path): os.remove(output_path)
 
             return result
         except Exception as e:
