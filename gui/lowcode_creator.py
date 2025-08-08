@@ -102,6 +102,8 @@ class {name}Plugin(BasePlugin):
 '''
 
     def _generate_polyglot_skeleton(self, name, lang):
+        input_file = f"temp_io/input_{name}.json"
+        output_file = f"temp_io/output_{name}.json"
         templates = {
             "C": f"""// {name}.c – Compiler avec: gcc {name}.c -o {name}
 #include <stdio.h>
@@ -124,16 +126,42 @@ int main() {{
     return 0;
 }}""",
 
-            "Rust": f"""// {name}.rs – Compiler avec: rustc {name}.rs
-fn main() {{
-    // Lire input.json
-    // TODO: logique de traitement
-    // Écrire output.json
-}}""",
+            "Rust": f"""use std::fs::File;
+use std::io::Read;
+use std::io::Write;
+use std::collections::HashMap;
 
-            "NodeJS": f"""#!/usr/bin/env node
-// {name}.js
-console.log("🔧 Implémentez la lecture de input.json et écriture de output.json");""",
+fn main() {{
+    let mut file = File::open("{input_file}").expect("Impossible d'ouvrir input");
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+
+    let data: HashMap<String, i32> = serde_json::from_str(&contents).unwrap();
+    let input1 = data.get("input1").unwrap();
+
+    // 👉 Logique métier à compléter ici
+    let output1 = input1 * 2;
+
+    let mut file = File::create("{output_file}").unwrap();
+    let result = serde_json::json!({{"output1": output1}});
+    write!(file, "{{}}", result.to_string()).unwrap();
+}}
+""",
+
+            "NodeJS": f"""const fs = require('fs');
+const path = require('path');
+
+const inputPath = path.join(__dirname, '..', '{input_file}');
+const outputPath = path.join(__dirname, '..', '{output_file}');
+
+const data = JSON.parse(fs.readFileSync(inputPath));
+
+// 👉 Logique métier à compléter ici
+const input1 = data.input1;
+const output1 = input1 * 2; // exemple
+
+fs.writeFileSync(outputPath, JSON.stringify({{ output1 }}));
+""",
 
             "Shell": f"""#!/bin/bash
 # {name}.sh
@@ -149,7 +177,9 @@ println("🔧 Implémentez votre logique Julia ici")""",
 
             "Octave": f"""#!/usr/bin/env octave
 % {name}.m
-disp("🔧 Implémentez votre logique Octave ici");"""
+disp("🔧 Implémentez votre logique Octave ici");""",
+
+            
         }
 
         return templates.get(lang, f"// Langage {lang} non pris en charge")
