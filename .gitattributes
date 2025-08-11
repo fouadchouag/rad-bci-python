@@ -1,0 +1,15 @@
+*.bdf filter=lfs diff=lfs merge=lfs -text
+*.pt filter=lfs diff=lfs merge=lfs -text
+*.bin filter=lfs diff=lfs merge=lfs -text
+*.npy filter=lfs diff=lfs merge=lfs -text
+*.npz filter=lfs diff=lfs merge=lfs -text
+*.pkl filter=lfs diff=lfs merge=lfs -text
+*.onnx filter=lfs diff=lfs merge=lfs -text
+*.fif filter=lfs diff=lfs merge=lfs -text
+*.gdf filter=lfs diff=lfs merge=lfs -text
+*.vhdr filter=lfs diff=lfs merge=lfs -text
+*.vmrk filter=lfs diff=lfs merge=lfs -text
+*.mat filter=lfs diff=lfs merge=lfs -text
+*.edf filter=lfs diff=lfs merge=lfs -text
+*.xdf filter=lfs diff=lfs merge=lfs -text
+*.eeg filter=lfs diff=lfs merge=lfs -text
