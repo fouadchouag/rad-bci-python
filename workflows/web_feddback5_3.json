@@ -1,0 +1,128 @@
+{
+  "nodes": [
+    {
+      "name": "WebFeedbackClient_d47267",
+      "type": "WebFeedbackClient",
+      "position": [
+        786.0,
+        460.0
+      ]
+    },
+    {
+      "name": "SyntheticLRPlugin_331a0e",
+      "type": "SyntheticLRPlugin",
+      "position": [
+        42.0,
+        16.0
+      ]
+    },
+    {
+      "name": "ClassifierMetricsPlugin_632f51",
+      "type": "ClassifierMetricsPlugin",
+      "position": [
+        1219.0,
+        60.0
+      ]
+    },
+    {
+      "name": "BandpowerExtPlugin_a3d84c",
+      "type": "BandpowerExtPlugin",
+      "position": [
+        704.0,
+        49.0
+      ]
+    },
+    {
+      "name": "EEGClassifierPlugin_219294",
+      "type": "EEGClassifierPlugin",
+      "position": [
+        84.0,
+        340.0
+      ]
+    },
+    {
+      "name": "ServerHttpLauncherPlugin_4fdadd",
+      "type": "ServerHttpLauncherPlugin",
+      "position": [
+        1085.0,
+        444.0
+      ]
+    },
+    {
+      "name": "RawWindowSlicerPlugin_f13754",
+      "type": "RawWindowSlicerPlugin",
+      "position": [
+        329.0,
+        39.0
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "SyntheticLRPlugin_331a0e",
+      "from_pin": "run",
+      "to": "RawWindowSlicerPlugin_f13754",
+      "to_pin": "run"
+    },
+    {
+      "from": "SyntheticLRPlugin_331a0e",
+      "from_pin": "reset",
+      "to": "RawWindowSlicerPlugin_f13754",
+      "to_pin": "reset"
+    },
+    {
+      "from": "EEGClassifierPlugin_219294",
+      "from_pin": "pred_conf",
+      "to": "WebFeedbackClient_d47267",
+      "to_pin": "confidence"
+    },
+    {
+      "from": "EEGClassifierPlugin_219294",
+      "from_pin": "pred_label",
+      "to": "WebFeedbackClient_d47267",
+      "to_pin": "label"
+    },
+    {
+      "from": "EEGClassifierPlugin_219294",
+      "from_pin": "dataset",
+      "to": "ClassifierMetricsPlugin_632f51",
+      "to_pin": "dataset"
+    },
+    {
+      "from": "BandpowerExtPlugin_a3d84c",
+      "from_pin": "features",
+      "to": "EEGClassifierPlugin_219294",
+      "to_pin": "features"
+    },
+    {
+      "from": "BandpowerExtPlugin_a3d84c",
+      "from_pin": "band_labels",
+      "to": "EEGClassifierPlugin_219294",
+      "to_pin": "band_labels"
+    },
+    {
+      "from": "SyntheticLRPlugin_331a0e",
+      "from_pin": "raw",
+      "to": "RawWindowSlicerPlugin_f13754",
+      "to_pin": "raw"
+    },
+    {
+      "from": "RawWindowSlicerPlugin_f13754",
+      "from_pin": "segment",
+      "to": "BandpowerExtPlugin_a3d84c",
+      "to_pin": "segment"
+    },
+    {
+      "from": "RawWindowSlicerPlugin_f13754",
+      "from_pin": "sfreq",
+      "to": "BandpowerExtPlugin_a3d84c",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "RawWindowSlicerPlugin_f13754",
+      "from_pin": "ch_names",
+      "to": "BandpowerExtPlugin_a3d84c",
+      "to_pin": "ch_names"
+    }
+  ]
+}

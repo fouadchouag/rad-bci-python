@@ -1,0 +1,85 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Environment
+venv/
+.env/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+*.log
+
+# PyInstaller
+dist/
+build/
+*.spec
+
+# article
+article/
+
+# backup
+backup/
+
+# demo web feedback
+servers/web_feedback/node_modules/
+
+# out
+out/
+
+# temp_io
+temp_io/
+
+# eeg_recording
+eeg_recording/
+
+
+@'
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.build/
+dist/
+build/
+
+# Environnements
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Projet RAD-BCI
+temp_io/
+logs/
+outputs/
+.cache/
+.mne/
+.mne-cache/
+*.log
+
+# Données / modèles lourds (gardés hors git normal)
+data/
+datasets/
+models/
+checkpoints/
+
+# Artefacts Qt / PyInstaller éventuels
+*.spec
+
+# Fichiers temporaires
+*.tmp
+'@ | Set-Content .gitignore -Encoding utf8

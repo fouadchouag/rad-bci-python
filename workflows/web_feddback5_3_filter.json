@@ -1,0 +1,154 @@
+{
+  "nodes": [
+    {
+      "name": "RawWindowSlicerPlugin_285b4f",
+      "type": "RawWindowSlicerPlugin",
+      "position": [
+        289.0,
+        24.0
+      ]
+    },
+    {
+      "name": "WebFeedbackClient_9f1c15",
+      "type": "WebFeedbackClient",
+      "position": [
+        789.0,
+        462.0
+      ]
+    },
+    {
+      "name": "SyntheticLRPlugin_41ce12",
+      "type": "SyntheticLRPlugin",
+      "position": [
+        55.0,
+        75.0
+      ]
+    },
+    {
+      "name": "ClassifierMetricsPlugin_26a29b",
+      "type": "ClassifierMetricsPlugin",
+      "position": [
+        1339.0,
+        123.0
+      ]
+    },
+    {
+      "name": "BandpowerExtPlugin_ff3ab7",
+      "type": "BandpowerExtPlugin",
+      "position": [
+        973.0,
+        -27.0
+      ]
+    },
+    {
+      "name": "EEGClassifierPlugin_c529a5",
+      "type": "EEGClassifierPlugin",
+      "position": [
+        306.0,
+        429.0
+      ]
+    },
+    {
+      "name": "ServerHttpLauncherPlugin_3e78fb",
+      "type": "ServerHttpLauncherPlugin",
+      "position": [
+        1089.0,
+        413.0
+      ]
+    },
+    {
+      "name": "EEGFilterPlugin_11ef79",
+      "type": "EEGFilterPlugin",
+      "position": [
+        540.0,
+        31.0
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "EEGFilterPlugin_11ef79",
+      "from_pin": "ch_names",
+      "to": "BandpowerExtPlugin_ff3ab7",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "EEGFilterPlugin_11ef79",
+      "from_pin": "sfreq",
+      "to": "BandpowerExtPlugin_ff3ab7",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "EEGFilterPlugin_11ef79",
+      "from_pin": "info",
+      "to": "BandpowerExtPlugin_ff3ab7",
+      "to_pin": "info"
+    },
+    {
+      "from": "RawWindowSlicerPlugin_285b4f",
+      "from_pin": "info",
+      "to": "EEGFilterPlugin_11ef79",
+      "to_pin": "info"
+    },
+    {
+      "from": "RawWindowSlicerPlugin_285b4f",
+      "from_pin": "segment",
+      "to": "EEGFilterPlugin_11ef79",
+      "to_pin": "segment"
+    },
+    {
+      "from": "SyntheticLRPlugin_41ce12",
+      "from_pin": "raw",
+      "to": "RawWindowSlicerPlugin_285b4f",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGClassifierPlugin_c529a5",
+      "from_pin": "pred_conf",
+      "to": "WebFeedbackClient_9f1c15",
+      "to_pin": "confidence"
+    },
+    {
+      "from": "EEGClassifierPlugin_c529a5",
+      "from_pin": "pred_label",
+      "to": "WebFeedbackClient_9f1c15",
+      "to_pin": "label"
+    },
+    {
+      "from": "EEGClassifierPlugin_c529a5",
+      "from_pin": "dataset",
+      "to": "ClassifierMetricsPlugin_26a29b",
+      "to_pin": "dataset"
+    },
+    {
+      "from": "BandpowerExtPlugin_ff3ab7",
+      "from_pin": "features",
+      "to": "EEGClassifierPlugin_c529a5",
+      "to_pin": "features"
+    },
+    {
+      "from": "BandpowerExtPlugin_ff3ab7",
+      "from_pin": "band_labels",
+      "to": "EEGClassifierPlugin_c529a5",
+      "to_pin": "band_labels"
+    },
+    {
+      "from": "EEGFilterPlugin_11ef79",
+      "from_pin": "segment",
+      "to": "BandpowerExtPlugin_ff3ab7",
+      "to_pin": "segment"
+    },
+    {
+      "from": "SyntheticLRPlugin_41ce12",
+      "from_pin": "run",
+      "to": "RawWindowSlicerPlugin_285b4f",
+      "to_pin": "run"
+    },
+    {
+      "from": "SyntheticLRPlugin_41ce12",
+      "from_pin": "reset",
+      "to": "RawWindowSlicerPlugin_285b4f",
+      "to_pin": "reset"
+    }
+  ]
+}

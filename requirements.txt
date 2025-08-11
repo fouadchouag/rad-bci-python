@@ -1,0 +1,13 @@
+PySide6
+PyQt5
+mne
+matplotlib
+rx
+scikit-learn
+pyqtgraph
+requests
+PyQtWebEngine
+mne-lsl
+numpy
+pylsl
+scipy
