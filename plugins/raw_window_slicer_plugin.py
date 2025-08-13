@@ -5,15 +5,75 @@
 # Ajouts:
 #  - "Honor ext run" (ignore les commandes run/reset si décoché)
 #  - Auto-unpause à l'arrivée d'un nouveau raw (relance le timer)
+#  - Section UI repliable "Paramètres" (zéro espace résiduel)
+#  - Le label de statut est aussi replié (caché en même temps)
 
 import numpy as np
 from rx.subject import BehaviorSubject
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QDoubleSpinBox, QSpinBox, QCheckBox, QPushButton
+    QDoubleSpinBox, QSpinBox, QCheckBox, QPushButton,
+    QLayout, QSizePolicy, QToolButton
 )
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, Qt
 from core.node_base import BasePlugin
+
+
+class _CollapsibleSection(QWidget):
+    """Section repliable qui retire vraiment la hauteur quand fermée."""
+    def __init__(self, title="Paramètres", content: QWidget = None, collapsed=True, parent=None):
+        super().__init__(parent)
+        self._btn = QToolButton(text=title, checkable=True, autoRaise=True)
+        self._btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
+        self._wrap = QWidget()
+        self._wrap_l = QVBoxLayout(self._wrap)
+        self._wrap_l.setContentsMargins(0, 0, 0, 0)
+        self._wrap_l.setSpacing(0)
+        self._content = content or QWidget()
+        self._content.setStyleSheet("background: transparent;")
+        self._wrap_l.addWidget(self._content)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(4)
+        root.addWidget(self._btn)
+        root.addWidget(self._wrap)
+
+        self._btn.toggled.connect(self._on_toggled)
+        self._btn.setChecked(not collapsed)
+        self._on_toggled(self._btn.isChecked())
+
+    def _poke_ancestors(self):
+        w = self
+        while w is not None:
+            if w.layout():
+                w.layout().invalidate()
+            w.adjustSize()
+            w.updateGeometry()
+            w = w.parentWidget()
+
+    def _on_toggled(self, expanded: bool):
+        self._btn.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self._wrap.setVisible(expanded)
+
+        if expanded:
+            self.setMaximumHeight(16777215)
+            self.setMinimumHeight(0)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            self._wrap.setMaximumHeight(16777215)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        else:
+            header_h = self._btn.sizeHint().height() + 6
+            self._wrap.setMaximumHeight(0)
+            self._wrap.setMinimumHeight(0)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.setMaximumHeight(header_h)
+            self.setMinimumHeight(header_h)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        self._poke_ancestors()
+
 
 class RawWindowSlicerPlugin(BasePlugin):
     name = "RawWindowSlicer"
@@ -71,6 +131,13 @@ class RawWindowSlicerPlugin(BasePlugin):
     def build_widget(self) -> QWidget:
         w = QWidget()
         v = QVBoxLayout(w)
+        v.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+
+        # --- contenu paramètres ---
+        panel = QWidget()
+        pv = QVBoxLayout(panel)
+        pv.setContentsMargins(8, 8, 8, 8)
 
         row = QHBoxLayout()
         row.addWidget(QLabel("Window (s):"))
@@ -99,7 +166,6 @@ class RawWindowSlicerPlugin(BasePlugin):
         self._chk_pause.stateChanged.connect(self._on_params_changed)
         row.addWidget(self._chk_pause)
 
-        # nouveau: honorer (ou pas) le run externe
         self._chk_honor_run = QCheckBox("Honor ext run")
         self._chk_honor_run.setChecked(self._honor_ext_run)
         self._chk_honor_run.stateChanged.connect(self._on_params_changed)
@@ -110,10 +176,18 @@ class RawWindowSlicerPlugin(BasePlugin):
         row.addWidget(btn_reset)
 
         row.addStretch(1)
-        v.addLayout(row)
+        pv.addLayout(row)
 
+        # --- label statut (désormais *dans* la section, donc replié aussi) ---
         self._lbl = QLabel("Idle")
-        v.addWidget(self._lbl)
+        pv.addWidget(self._lbl)
+
+        # section repliable (fermée par défaut)
+        section = _CollapsibleSection("Paramètres", panel, collapsed=True)
+        v.addWidget(section)
+
+        # nettoyage quand le widget principal est détruit
+        w.destroyed.connect(self._on_main_widget_destroyed)
 
         return w
 
@@ -134,7 +208,8 @@ class RawWindowSlicerPlugin(BasePlugin):
                     self._chk_pause.blockSignals(True)
                     self._chk_pause.setChecked(True)
                     self._chk_pause.blockSignals(False)
-                if self._lbl: self._lbl.setText("Paused (ext)")
+                if self._lbl:
+                    self._lbl.setText("Paused (ext)")
             else:  # True
                 self._paused = False
                 if self._chk_pause:
@@ -190,7 +265,7 @@ class RawWindowSlicerPlugin(BasePlugin):
             # reset lecture
             self._idx = 0
 
-            # >>> Auto-unpause à l'arrivée d'un nouveau raw <<<
+            # Auto-unpause à l'arrivée d'un nouveau raw
             self._paused = False
             if self._chk_pause:
                 self._chk_pause.blockSignals(True)
@@ -207,13 +282,15 @@ class RawWindowSlicerPlugin(BasePlugin):
                 self._lbl.setText("Idle (no raw)")
             else:
                 state = "paused" if self._paused else "play"
-                self._lbl.setText(f"{state} | Fs={self._sfreq:.1f} Hz | win={self._n_win} | step={self._step} | idx={self._idx}/{self._n_times}")
+                self._lbl.setText(
+                    f"{state} | Fs={self._sfreq:.2f} Hz | win={self._n_win} | step={self._step} | idx={self._idx}/{self._n_times}"
+                )
 
         return {}
 
     def _on_params_changed(self, *a):
         self._win_s = float(self._spn_win.value()) if self._spn_win else self._win_s
-        self._overlap = max(0.0, min(0.95, (self._spn_overlap.value() if self._spn_overlap else int(self._overlap*100)) / 100.0))
+        self._overlap = max(0.0, min(0.95, (self._spn_overlap.value() if self._spn_overlap else int(self._overlap * 100)) / 100.0))
         self._loop = bool(self._chk_loop.isChecked()) if self._chk_loop else self._loop
         self._paused = bool(self._chk_pause.isChecked()) if self._chk_pause else self._paused
         self._honor_ext_run = bool(self._chk_honor_run.isChecked()) if self._chk_honor_run else self._honor_ext_run
@@ -283,3 +360,20 @@ class RawWindowSlicerPlugin(BasePlugin):
         self._idx = end_step
         if self._idx >= self._n_times and not self._loop:
             self._timer.stop()
+
+    # --------------------- CLEANUP UI ----------------------
+    def _on_main_widget_destroyed(self, *a):
+        try:
+            if self._timer and self._timer.isActive():
+                self._timer.stop()
+        except Exception:
+            pass
+        # Oublie les refs UI (sécurité)
+        for attr in [
+            "_spn_win", "_spn_overlap", "_chk_loop", "_chk_pause",
+            "_chk_honor_run", "_lbl"
+        ]:
+            try:
+                setattr(self, attr, None)
+            except Exception:
+                pass

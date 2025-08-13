@@ -5,24 +5,70 @@ import mne
 from rx.subject import BehaviorSubject
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QDoubleSpinBox, QSpinBox, QCheckBox
+    QDoubleSpinBox, QSpinBox, QCheckBox, QLayout, QSizePolicy, QToolButton
 )
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, Qt
 from core.node_base import BasePlugin
+
+
+class _CollapsibleSection(QWidget):
+    """Section repliable qui retire vraiment la hauteur quand fermée."""
+    def __init__(self, title="Paramètres", content: QWidget = None, collapsed=True, parent=None):
+        super().__init__(parent)
+        self._btn = QToolButton(text=title, checkable=True, autoRaise=True)
+        self._btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
+        self._wrap = QWidget()
+        self._wrap_l = QVBoxLayout(self._wrap)
+        self._wrap_l.setContentsMargins(0, 0, 0, 0)
+        self._wrap_l.setSpacing(0)
+        self._content = content or QWidget()
+        self._content.setStyleSheet("background: transparent;")
+        self._wrap_l.addWidget(self._content)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(4)
+        root.addWidget(self._btn)
+        root.addWidget(self._wrap)
+
+        self._btn.toggled.connect(self._on_toggled)
+        self._btn.setChecked(not collapsed)
+        self._on_toggled(self._btn.isChecked())
+
+    def _poke_ancestors(self):
+        w = self
+        while w is not None:
+            if w.layout():
+                w.layout().invalidate()
+            w.adjustSize()
+            w.updateGeometry()
+            w = w.parentWidget()
+
+    def _on_toggled(self, expanded: bool):
+        self._btn.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self._wrap.setVisible(expanded)
+        if expanded:
+            self.setMaximumHeight(16777215)
+            self.setMinimumHeight(0)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            self._wrap.setMaximumHeight(16777215)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        else:
+            header_h = self._btn.sizeHint().height() + 6
+            self._wrap.setMaximumHeight(0)
+            self._wrap.setMinimumHeight(0)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.setMaximumHeight(header_h)
+            self.setMinimumHeight(header_h)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self._poke_ancestors()
 
 
 class SyntheticLRPlugin(BasePlugin):
     """
     Génère un Raw MNE synthétique avec blocs alternés 'Left' / 'Right'.
-    8 canaux (C3, C4, CZ, PZ, F3, F4, O1, O2), 200 Hz, 120 s, blocs de 2 s.
-
-    + Mode streaming avec contrôle Start/Stop :
-      - Sorties:
-          raw       : mne.io.Raw (one-shot)
-          segment   : ndarray (n_ch, n_samples) en Volts (stream)
-          info      : dict {"sfreq","ch_names",...}
-          run       : bool (True = play, False = pause) pour piloter un slicer/aval
-          reset     : bool (True ponctuel) pour remettre l'index aval à 0
+    + Mode streaming avec contrôle Start/Stop.
     """
     name = "SyntheticLR"
     language = "Python"
@@ -34,7 +80,7 @@ class SyntheticLRPlugin(BasePlugin):
         self.outputs["raw"] = BehaviorSubject(None)
         self.outputs["segment"] = BehaviorSubject(None)
         self.outputs["info"] = BehaviorSubject(None)
-        # Contrôle aval (à relier au slicer)
+        # Contrôle aval
         self.outputs["run"] = BehaviorSubject(None)     # bool
         self.outputs["reset"] = BehaviorSubject(None)   # bool (pulse)
 
@@ -46,7 +92,7 @@ class SyntheticLRPlugin(BasePlugin):
         self._spn_ov = None
         self._chk_loop = None
 
-        # Données synthétiques mises en cache (pour streaming)
+        # Données synthétiques (cache)
         self._sfreq = 200.0
         self._duration_s = 120
         self._block_s = 2
@@ -73,8 +119,16 @@ class SyntheticLRPlugin(BasePlugin):
     # ----------------- UI -----------------
     def build_widget(self):
         w = QWidget()
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(6, 6, 6, 6)
+        root = QVBoxLayout(w)
+        root.setContentsMargins(6, 6, 6, 6)
+        root.setSpacing(6)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+
+        # Panneau repliable (inclut label statut + tous les contrôles)
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(8, 8, 8, 8)
         lay.setSpacing(6)
 
         self._label = QLabel("No data (synthetic)")
@@ -110,7 +164,6 @@ class SyntheticLRPlugin(BasePlugin):
         self._chk_loop.setChecked(self._loop)
         self._chk_loop.stateChanged.connect(self._on_params_changed)
         row1.addWidget(self._chk_loop)
-
         row1.addStretch(1)
         lay.addLayout(row1)
 
@@ -125,6 +178,9 @@ class SyntheticLRPlugin(BasePlugin):
         row2.addWidget(self._btn_stop)
         row2.addStretch(1)
         lay.addLayout(row2)
+
+        sec = _CollapsibleSection("Paramètres & Statut", panel, collapsed=True)
+        root.addWidget(sec)
 
         return w
 

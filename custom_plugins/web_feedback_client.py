@@ -4,7 +4,7 @@
 
 from core.node_base import BasePlugin
 from rx.subject import BehaviorSubject
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel, QHBoxLayout
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel, QHBoxLayout, QToolButton, QLayout, QSizePolicy
 from PyQt5.QtCore import Qt
 import time
 
@@ -12,6 +12,61 @@ try:
     import requests
 except Exception:
     requests = None
+
+
+class _CollapsibleSection(QWidget):
+    """Section repliable qui retire vraiment la hauteur quand fermée."""
+    def __init__(self, title="Paramètres", content: QWidget = None, collapsed=True, parent=None):
+        super().__init__(parent)
+        self._btn = QToolButton(text=title, checkable=True, autoRaise=True)
+        self._btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
+        self._wrap = QWidget()
+        from PyQt5.QtWidgets import QVBoxLayout as _V
+        self._wrap_l = _V(self._wrap)
+        self._wrap_l.setContentsMargins(0, 0, 0, 0)
+        self._wrap_l.setSpacing(0)
+        self._content = content or QWidget()
+        self._content.setStyleSheet("background: transparent;")
+        self._wrap_l.addWidget(self._content)
+
+        root = _V(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(4)
+        root.addWidget(self._btn)
+        root.addWidget(self._wrap)
+
+        self._btn.toggled.connect(self._on_toggled)
+        self._btn.setChecked(not collapsed)
+        self._on_toggled(self._btn.isChecked())
+
+    def _poke_ancestors(self):
+        w = self
+        while w is not None:
+            if w.layout():
+                w.layout().invalidate()
+            w.adjustSize()
+            w.updateGeometry()
+            w = w.parentWidget()
+
+    def _on_toggled(self, expanded: bool):
+        self._btn.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self._wrap.setVisible(expanded)
+        if expanded:
+            self.setMaximumHeight(16777215)
+            self.setMinimumHeight(0)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            self._wrap.setMaximumHeight(16777215)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        else:
+            header_h = self._btn.sizeHint().height() + 6
+            self._wrap.setMaximumHeight(0)
+            self._wrap.setMinimumHeight(0)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.setMaximumHeight(header_h)
+            self.setMinimumHeight(header_h)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self._poke_ancestors()
 
 
 class WebFeedbackClient(BasePlugin):
@@ -42,7 +97,15 @@ class WebFeedbackClient(BasePlugin):
         self._ui = {}
 
     def build_widget(self):
-        w = QWidget(); v = QVBoxLayout(w)
+        w = QWidget()
+        root = QVBoxLayout(w)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+
+        # panneau repliable
+        panel = QWidget()
+        v = QVBoxLayout(panel); v.setContentsMargins(8, 8, 8, 8); v.setSpacing(6)
+
         row = QHBoxLayout()
         self.host_edit = QLineEdit("127.0.0.1")
         self.port_edit = QLineEdit("8000")
@@ -52,7 +115,11 @@ class WebFeedbackClient(BasePlugin):
 
         self.btn_test = QPushButton("Test")
         self.lbl_status = QLabel("status: —"); self.lbl_status.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        v.addWidget(self.btn_test); v.addWidget(self.lbl_status)
+        v.addWidget(self.btn_test)
+        v.addWidget(self.lbl_status)
+
+        sec = _CollapsibleSection("Paramètres & Statut", panel, collapsed=True)
+        root.addWidget(sec)
 
         self.btn_test.clicked.connect(self._on_test)
         self._ui = dict(host=self.host_edit, port=self.port_edit, status=self.lbl_status)
@@ -80,8 +147,11 @@ class WebFeedbackClient(BasePlugin):
         payload = inp.get("payload", self._values.get("payload"))
 
         # sync UI
-        try: self._ui["host"].setText(host); self._ui["port"].setText(str(port))
-        except Exception: pass
+        try:
+            self._ui["host"].setText(host)
+            self._ui["port"].setText(str(port))
+        except Exception:
+            pass
 
         status = "missing_fields"
         if label is None or not host or not port:

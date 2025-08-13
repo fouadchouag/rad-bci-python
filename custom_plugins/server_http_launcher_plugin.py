@@ -8,7 +8,7 @@ from typing import Optional
 from core.node_base import BasePlugin
 from rx.subject import BehaviorSubject
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QLineEdit, QPushButton,
-                             QLabel, QHBoxLayout, QFileDialog)
+                             QLabel, QHBoxLayout, QFileDialog, QToolButton, QLayout, QSizePolicy)
 from PyQt5.QtCore import Qt
 
 
@@ -60,9 +60,63 @@ class _FeedbackHandler(SimpleHTTPRequestHandler):
         self.wfile.write(json.dumps({"status": "ok", "received": data}).encode("utf-8"))
 
 
+class _CollapsibleSection(QWidget):
+    """Section repliable qui retire vraiment la hauteur quand fermée."""
+    def __init__(self, title="Paramètres", content: QWidget = None, collapsed=True, parent=None):
+        super().__init__(parent)
+        self._btn = QToolButton(text=title, checkable=True, autoRaise=True)
+        self._btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
+        self._wrap = QWidget()
+        self._wrap_l = QVBoxLayout(self._wrap)
+        self._wrap_l.setContentsMargins(0, 0, 0, 0)
+        self._wrap_l.setSpacing(0)
+        self._content = content or QWidget()
+        self._content.setStyleSheet("background: transparent;")
+        self._wrap_l.addWidget(self._content)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(4)
+        root.addWidget(self._btn)
+        root.addWidget(self._wrap)
+
+        self._btn.toggled.connect(self._on_toggled)
+        self._btn.setChecked(not collapsed if isinstance(collapsed, bool) else True)  # backward-safe
+        self._on_toggled(self._btn.isChecked())
+
+    def _poke_ancestors(self):
+        w = self
+        while w is not None:
+            if w.layout():
+                w.layout().invalidate()
+            w.adjustSize()
+            w.updateGeometry()
+            w = w.parentWidget()
+
+    def _on_toggled(self, expanded: bool):
+        self._btn.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self._wrap.setVisible(expanded)
+        if expanded:
+            self.setMaximumHeight(16777215)
+            self.setMinimumHeight(0)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            self._wrap.setMaximumHeight(16777215)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        else:
+            header_h = self._btn.sizeHint().height() + 6
+            self._wrap.setMaximumHeight(0)
+            self._wrap.setMinimumHeight(0)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.setMaximumHeight(header_h)
+            self.setMinimumHeight(header_h)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self._poke_ancestors()
+
+
 class ServerHttpLauncherPlugin(BasePlugin):
     """
-    UI: Host, Port, Dossier, Démarrer/Arrêter, Log
+    UI: Host, Port, Dossier, Démarrer/Arrêter, Log (repliables)
     Sorties:
       - http_url: str | None
       - is_running: bool
@@ -95,7 +149,15 @@ class ServerHttpLauncherPlugin(BasePlugin):
         self._ui = {}
 
     def build_widget(self):
-        w = QWidget(); v = QVBoxLayout(w)
+        w = QWidget()
+        root = QVBoxLayout(w)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+
+        # Panel repliable
+        panel = QWidget()
+        v = QVBoxLayout(panel); v.setContentsMargins(8, 8, 8, 8); v.setSpacing(6)
+
         form = QFormLayout()
         self.host_edit = QLineEdit("127.0.0.1")
         self.port_edit = QLineEdit("8000")
@@ -116,6 +178,9 @@ class ServerHttpLauncherPlugin(BasePlugin):
         self.lbl_url = QLabel("http://127.0.0.1:8000/"); self.lbl_url.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.lbl_log = QLabel("—"); self.lbl_log.setTextInteractionFlags(Qt.TextSelectableByMouse)
         v.addWidget(self.lbl_url); v.addWidget(self.lbl_log)
+
+        sec = _CollapsibleSection("Paramètres & Statut", panel, collapsed=True)
+        root.addWidget(sec)
 
         self.btn_dir.clicked.connect(self._on_browse)
         self.btn_start.clicked.connect(self._on_start_clicked)
@@ -249,3 +314,8 @@ class ServerHttpLauncherPlugin(BasePlugin):
     def _emit(self, name, value):
         if name in self.outputs:
             self.outputs[name].on_next(value)
+
+    def on_remove(self):
+        # assurer l’arrêt propre si le node est supprimé
+        try: self._stop_server()
+        except Exception: pass

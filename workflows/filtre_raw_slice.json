@@ -1,23 +1,31 @@
 {
   "nodes": [
     {
-      "name": "EEGRawFilterPlugin_aa97c2",
-      "type": "EEGRawFilterPlugin",
+      "name": "RawWindowSlicerPlugin_7dc50c",
+      "type": "RawWindowSlicerPlugin",
       "position": [
-        166.0,
-        353.0
+        226.0,
+        33.0
       ]
     },
     {
-      "name": "EEGLiveDisplayPlugin_f2a278",
+      "name": "EEGLiveDisplayPlugin_edbb96",
       "type": "EEGLiveDisplayPlugin",
       "position": [
-        803.0,
-        251.0
+        903.0,
+        25.0
       ]
     },
     {
-      "name": "EEGReaderPlugin_cd3aa2",
+      "name": "EEGFilterPlugin_d3c24b",
+      "type": "EEGFilterPlugin",
+      "position": [
+        495.0,
+        45.0
+      ]
+    },
+    {
+      "name": "EEGReaderPlugin_a7be07",
       "type": "EEGReaderPlugin",
       "position": [
         -2.0,
@@ -25,90 +33,82 @@
       ]
     },
     {
-      "name": "EEGFilterPlugin_d92826",
-      "type": "EEGFilterPlugin",
-      "position": [
-        677.0,
-        19.0
-      ]
-    },
-    {
-      "name": "EEGLiveDisplayPlugin_d7b1da",
+      "name": "EEGLiveDisplayPlugin_e496ad",
       "type": "EEGLiveDisplayPlugin",
       "position": [
-        1376.0,
-        -112.0
+        281.0,
+        286.0
       ]
     },
     {
-      "name": "RawWindowSlicerPlugin_fb3aa2",
-      "type": "RawWindowSlicerPlugin",
+      "name": "EEGRawFilterPlugin_c051f0",
+      "type": "EEGRawFilterPlugin",
       "position": [
-        271.0,
-        23.0
+        42.0,
+        306.0
       ]
     }
   ],
   "connections": [
     {
-      "from": "EEGFilterPlugin_d92826",
-      "from_pin": "ch_names",
-      "to": "EEGLiveDisplayPlugin_d7b1da",
-      "to_pin": "ch_names"
-    },
-    {
-      "from": "EEGFilterPlugin_d92826",
-      "from_pin": "sfreq",
-      "to": "EEGLiveDisplayPlugin_d7b1da",
-      "to_pin": "sfreq"
-    },
-    {
-      "from": "EEGRawFilterPlugin_aa97c2",
-      "from_pin": "ch_names",
-      "to": "EEGLiveDisplayPlugin_f2a278",
-      "to_pin": "ch_names"
-    },
-    {
-      "from": "EEGRawFilterPlugin_aa97c2",
-      "from_pin": "sfreq",
-      "to": "EEGLiveDisplayPlugin_f2a278",
-      "to_pin": "sfreq"
-    },
-    {
-      "from": "EEGRawFilterPlugin_aa97c2",
-      "from_pin": "raw",
-      "to": "EEGLiveDisplayPlugin_f2a278",
-      "to_pin": "raw"
-    },
-    {
-      "from": "EEGReaderPlugin_cd3aa2",
-      "from_pin": "raw",
-      "to": "EEGRawFilterPlugin_aa97c2",
-      "to_pin": "raw"
-    },
-    {
-      "from": "EEGFilterPlugin_d92826",
-      "from_pin": "segment",
-      "to": "EEGLiveDisplayPlugin_d7b1da",
-      "to_pin": "segment"
-    },
-    {
-      "from": "EEGReaderPlugin_cd3aa2",
-      "from_pin": "raw",
-      "to": "RawWindowSlicerPlugin_fb3aa2",
-      "to_pin": "raw"
-    },
-    {
-      "from": "RawWindowSlicerPlugin_fb3aa2",
-      "from_pin": "segment",
-      "to": "EEGFilterPlugin_d92826",
-      "to_pin": "segment"
-    },
-    {
-      "from": "RawWindowSlicerPlugin_fb3aa2",
+      "from": "RawWindowSlicerPlugin_7dc50c",
       "from_pin": "info",
-      "to": "EEGFilterPlugin_d92826",
+      "to": "EEGFilterPlugin_d3c24b",
       "to_pin": "info"
+    },
+    {
+      "from": "RawWindowSlicerPlugin_7dc50c",
+      "from_pin": "segment",
+      "to": "EEGFilterPlugin_d3c24b",
+      "to_pin": "segment"
+    },
+    {
+      "from": "EEGReaderPlugin_a7be07",
+      "from_pin": "raw",
+      "to": "RawWindowSlicerPlugin_7dc50c",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGFilterPlugin_d3c24b",
+      "from_pin": "segment",
+      "to": "EEGLiveDisplayPlugin_edbb96",
+      "to_pin": "segment"
+    },
+    {
+      "from": "EEGReaderPlugin_a7be07",
+      "from_pin": "raw",
+      "to": "EEGRawFilterPlugin_c051f0",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGRawFilterPlugin_c051f0",
+      "from_pin": "raw",
+      "to": "EEGLiveDisplayPlugin_e496ad",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGRawFilterPlugin_c051f0",
+      "from_pin": "sfreq",
+      "to": "EEGLiveDisplayPlugin_e496ad",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "EEGRawFilterPlugin_c051f0",
+      "from_pin": "ch_names",
+      "to": "EEGLiveDisplayPlugin_e496ad",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "EEGFilterPlugin_d3c24b",
+      "from_pin": "sfreq",
+      "to": "EEGLiveDisplayPlugin_edbb96",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "EEGFilterPlugin_d3c24b",
+      "from_pin": "ch_names",
+      "to": "EEGLiveDisplayPlugin_edbb96",
+      "to_pin": "ch_names"
     }
   ]
 }

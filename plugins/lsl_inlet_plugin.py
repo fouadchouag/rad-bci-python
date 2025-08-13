@@ -5,7 +5,7 @@ import numpy as np
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QComboBox, QSpinBox
+    QComboBox, QSpinBox, QLayout, QSizePolicy, QToolButton
 )
 from PyQt5.QtCore import QObject, pyqtSignal, Qt
 
@@ -21,8 +21,7 @@ except Exception:
 
 
 class _QtBridge(QObject):
-    """Porte d'entrée vers le thread GUI. On émet depuis le worker,
-    Qt queue le signal et appelle les slots ci-dessous dans le thread UI."""
+    """Porte d'entrée vers le thread GUI."""
     sig_info = pyqtSignal(dict)
     sig_chunk = pyqtSignal(object, object)  # (arr, timestamps)
 
@@ -34,7 +33,6 @@ class _QtBridge(QObject):
     def connect_callbacks(self, emit_info_cb, emit_chunk_cb):
         self._emit_info_cb = emit_info_cb
         self._emit_chunk_cb = emit_chunk_cb
-        # Forcer l'exécution dans le thread GUI
         self.sig_info.connect(self._on_info, Qt.QueuedConnection)
         self.sig_chunk.connect(self._on_chunk, Qt.QueuedConnection)
 
@@ -47,12 +45,66 @@ class _QtBridge(QObject):
             self._emit_chunk_cb(arr, timestamps)
 
 
+class _CollapsibleSection(QWidget):
+    """Section repliable qui retire vraiment la hauteur quand fermée."""
+    def __init__(self, title="Paramètres", content: QWidget = None, collapsed=True, parent=None):
+        super().__init__(parent)
+        self._btn = QToolButton(text=title, checkable=True, autoRaise=True)
+        self._btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
+        self._wrap = QWidget()
+        self._wrap_l = QVBoxLayout(self._wrap)
+        self._wrap_l.setContentsMargins(0, 0, 0, 0)
+        self._wrap_l.setSpacing(0)
+        self._content = content or QWidget()
+        self._content.setStyleSheet("background: transparent;")
+        self._wrap_l.addWidget(self._content)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(4)
+        root.addWidget(self._btn)
+        root.addWidget(self._wrap)
+
+        self._btn.toggled.connect(self._on_toggled)
+        self._btn.setChecked(not collapsed)
+        self._on_toggled(self._btn.isChecked())
+
+    def _poke_ancestors(self):
+        w = self
+        while w is not None:
+            if w.layout():
+                w.layout().invalidate()
+            w.adjustSize()
+            w.updateGeometry()
+            w = w.parentWidget()
+
+    def _on_toggled(self, expanded: bool):
+        self._btn.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self._wrap.setVisible(expanded)
+        if expanded:
+            self.setMaximumHeight(16777215)
+            self.setMinimumHeight(0)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            self._wrap.setMaximumHeight(16777215)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        else:
+            header_h = self._btn.sizeHint().height() + 6
+            self._wrap.setMaximumHeight(0)
+            self._wrap.setMinimumHeight(0)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.setMaximumHeight(header_h)
+            self.setMinimumHeight(header_h)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self._poke_ancestors()
+
+
 class LSLInletPlugin(BasePlugin):
     name = "LSL Inlet"
     category = "Input Nodes"
 
     def setup(self):
-        # IMPORTANT : pour compat LiveDisplay, on émet 'segment' (et pas 'chunk')
+        # IMPORTANT : pour compat LiveDisplay, on émet 'segment'
         self.inputs = {}
         self.outputs = {
             "segment": BehaviorSubject(None),       # np.ndarray (n_channels, n_samples)
@@ -67,17 +119,27 @@ class LSLInletPlugin(BasePlugin):
         self._chunk_len = 50
         self._status_cb = None
 
+        # UI refs
+        self.cmb_streams = None
+        self.btn_refresh = None
+        self.btn_connect = None
+        self.btn_disconnect = None
+        self.spn_chunk = None
+        self.lbl_status = None
+
         # Bridge vers le thread GUI
         self._bridge = _QtBridge()
         self._bridge.connect_callbacks(self._emit_info_gui, self._emit_chunk_gui)
 
     def execute(self, inputs=None):
-        return  # nœud source
+        return {}  # nœud source
 
     # ---------- UI ----------
     def build_widget(self) -> QWidget:
         w = QWidget()
-        v = QVBoxLayout(w)
+        root = QVBoxLayout(w)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
 
         if StreamInlet is None or resolve_streams is None:
             msg = QLabel(
@@ -85,8 +147,14 @@ class LSLInletPlugin(BasePlugin):
                 "    pip install pylsl\n"
                 "Ensuite relance l’application."
             )
-            v.addWidget(msg)
+            root.addWidget(msg)
             return w
+
+        # Panneau complet (widgets + statut) à replier
+        panel = QWidget()
+        v = QVBoxLayout(panel)
+        v.setContentsMargins(8, 8, 8, 8)
+        v.setSpacing(6)
 
         top = QHBoxLayout()
         self.cmb_streams = QComboBox()
@@ -94,7 +162,6 @@ class LSLInletPlugin(BasePlugin):
         self.btn_connect = QPushButton("▶️ Connecter")
         self.btn_disconnect = QPushButton("⏹️ Stop")
         self.btn_disconnect.setEnabled(False)
-
         top.addWidget(self.cmb_streams, 1)
         top.addWidget(self.btn_refresh)
         top.addWidget(self.btn_connect)
@@ -111,6 +178,10 @@ class LSLInletPlugin(BasePlugin):
         row2.addWidget(self.lbl_status, 1)
         v.addLayout(row2)
 
+        sec = _CollapsibleSection("Paramètres & Statut", panel, collapsed=True)
+        root.addWidget(sec)
+
+        # Connexions
         self.btn_refresh.clicked.connect(self._refresh_streams)
         self.btn_connect.clicked.connect(self._start)
         self.btn_disconnect.clicked.connect(self._stop)
@@ -199,7 +270,6 @@ class LSLInletPlugin(BasePlugin):
                 if samples and len(samples) > 0:
                     # (n_samples, n_channels) -> (n_channels, n_samples)
                     arr = np.asarray(samples, dtype=np.float64).T
-                    # → GUI thread
                     self._bridge.sig_chunk.emit(arr, timestamps)
                 else:
                     time.sleep(0.01)
@@ -217,14 +287,13 @@ class LSLInletPlugin(BasePlugin):
         self.outputs["info"].on_next(info)
 
     def _emit_chunk_gui(self, arr, timestamps):
-        # NOTE: on émet 'segment' pour coller au LiveDisplay
         self.outputs["segment"].on_next(arr)
         self.outputs["timestamps"].on_next(timestamps)
 
     def _stop(self):
         self._running = False
-        self.btn_connect.setEnabled(True)
-        self.btn_disconnect.setEnabled(False)
+        if self.btn_connect: self.btn_connect.setEnabled(True)
+        if self.btn_disconnect: self.btn_disconnect.setEnabled(False)
 
     def _cleanup_inlet(self):
         try:

@@ -6,10 +6,66 @@ from core.node_base import BasePlugin
 from rx.subject import BehaviorSubject
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QDialog, QLabel,
-    QListWidget, QListWidgetItem, QCheckBox
+    QListWidget, QListWidgetItem, QCheckBox, QToolButton, QLayout, QSizePolicy
 )
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+
+
+class _CollapsibleSection(QWidget):
+    """Section repliable qui retire vraiment la hauteur quand fermée."""
+    def __init__(self, title="Paramètres", content: QWidget = None, collapsed=True, parent=None):
+        super().__init__(parent)
+        self._btn = QToolButton(text=title, checkable=True, autoRaise=True)
+        self._btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
+        self._wrap = QWidget()
+        self._wrap_l = QVBoxLayout(self._wrap)
+        self._wrap_l.setContentsMargins(0, 0, 0, 0)
+        self._wrap_l.setSpacing(0)
+        self._content = content or QWidget()
+        self._content.setStyleSheet("background: transparent;")
+        self._wrap_l.addWidget(self._content)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(4)
+        root.addWidget(self._btn)
+        root.addWidget(self._wrap)
+
+        self._btn.toggled.connect(self._on_toggled)
+        self._btn.setChecked(not collapsed)
+        self._on_toggled(self._btn.isChecked())
+
+    def _poke_ancestors(self):
+        w = self
+        while w is not None:
+            if w.layout():
+                w.layout().invalidate()
+            w.adjustSize()
+            w.updateGeometry()
+            w = w.parentWidget()
+
+    def _on_toggled(self, expanded: bool):
+        self._btn.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self._wrap.setVisible(expanded)
+
+        if expanded:
+            self.setMaximumHeight(16777215)
+            self.setMinimumHeight(0)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            self._wrap.setMaximumHeight(16777215)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        else:
+            header_h = self._btn.sizeHint().height() + 6
+            self._wrap.setMaximumHeight(0)
+            self._wrap.setMinimumHeight(0)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.setMaximumHeight(header_h)
+            self.setMinimumHeight(header_h)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        self._poke_ancestors()
 
 
 class EEGVisualizerPlugin(BasePlugin):
@@ -33,15 +89,17 @@ class EEGVisualizerPlugin(BasePlugin):
         raw = kwargs.get("raw", None)
         self._raw = raw
 
-        if not (self.canvas and self.axes and self.label):
+        if not (self.canvas and self.axes):
             return {}
 
-        # Peupler la liste de canaux au premier raw (ou si nb canaux change)
+        # Peupler/repeupler la liste de canaux au premier raw ou si nb canaux change
         if raw is not None:
-            if (not self._channels_populated) or (
-                self.channel_list.count() != len(raw.ch_names)
-            ):
-                self._populate_channels(raw.ch_names)
+            try:
+                ch_names = list(raw.ch_names)
+            except Exception:
+                ch_names = []
+            if (not self._channels_populated) or (self.channel_list.count() != len(ch_names)):
+                self._populate_channels(ch_names)
                 self._channels_populated = True
 
         # Mettre à jour le tracé selon sélection
@@ -50,13 +108,22 @@ class EEGVisualizerPlugin(BasePlugin):
 
     # ---------------- UI ----------------
     def build_widget(self):
-        # Figure
+        root = QWidget()
+        outer = QVBoxLayout(root)
+        outer.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        root.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+
+        # Figure principale (toujours visible)
         self.figure = Figure(figsize=(5, 2))
         self.axes = self.figure.add_subplot(111)
         self.canvas = FigureCanvas(self.figure)
+        outer.addWidget(self.canvas, 1)
 
-        # Label d’état
-        self.label = QLabel("Aucun signal EEG")
+        # --- Panneau repliable: contrôles + statut ---
+        panel = QWidget()
+        pv = QVBoxLayout(panel)
+        pv.setContentsMargins(8, 8, 8, 8)
+        pv.setSpacing(6)
 
         # Liste des canaux + “Tout afficher”
         self.channel_list = QListWidget()
@@ -68,34 +135,37 @@ class EEGVisualizerPlugin(BasePlugin):
         self.chk_all.setChecked(True)
         self.chk_all.stateChanged.connect(self._on_toggle_all)
 
-        # Bouton agrandir
-        self.button = QPushButton("Agrandir")
-        self.button.clicked.connect(self._show_large_plot)
-
-        # Layouts
         channels_bar = QHBoxLayout()
         channels_bar.addWidget(self.chk_all)
         channels_bar.addStretch(1)
+        pv.addLayout(channels_bar)
+        pv.addWidget(self.channel_list)
 
-        controls = QVBoxLayout()
-        controls.addLayout(channels_bar)
-        controls.addWidget(self.channel_list)
-        controls.addWidget(self.canvas)
-        controls.addWidget(self.label)
-        controls.addWidget(self.button)
+        # Label d’état (rangé dans la section)
+        self.label = QLabel("Aucun signal EEG")
+        pv.addWidget(self.label)
 
-        container = QWidget()
-        container.setLayout(controls)
-        return container
+        # Bouton agrandir
+        self.button = QPushButton("Agrandir")
+        self.button.clicked.connect(self._show_large_plot)
+        pv.addWidget(self.button)
+
+        # Section repliable (fermée par défaut)
+        sec = _CollapsibleSection("Paramètres & Contrôles", panel, collapsed=True)
+        outer.addWidget(sec)
+
+        return root
 
     def _populate_channels(self, ch_names):
+        if self.channel_list is None:
+            return
         self.channel_list.blockSignals(True)
         self.channel_list.clear()
+        check_all = (self.chk_all and self.chk_all.isChecked())
         for name in ch_names:
             it = QListWidgetItem(name)
             it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
-            # Par défaut: coché si “Tout afficher”
-            it.setCheckState(Qt.Checked if (self.chk_all and self.chk_all.isChecked()) else Qt.Unchecked)
+            it.setCheckState(Qt.Checked if check_all else Qt.Unchecked)
             self.channel_list.addItem(it)
         self.channel_list.blockSignals(False)
 
@@ -104,9 +174,7 @@ class EEGVisualizerPlugin(BasePlugin):
         if not self.channel_list:
             return []
         if self.chk_all and self.chk_all.isChecked():
-            # Tous les canaux
             return list(range(self.channel_list.count()))
-        # Sinon, seulement ceux cochés
         picks = []
         for i in range(self.channel_list.count()):
             if self.channel_list.item(i).checkState() == Qt.Checked:
@@ -118,37 +186,47 @@ class EEGVisualizerPlugin(BasePlugin):
 
         raw = self._raw
         if raw is None:
-            self.label.setText("Aucun signal EEG")
+            if self.label:
+                self.label.setText("Aucun signal EEG")
             self.axes.set_title("No Data")
+            self.axes.set_xlabel("Temps (s)")
             self.canvas.draw()
             return
 
         picks = self._selected_indices()
         if len(picks) == 0:
-            self.label.setText("Aucun canal sélectionné")
+            if self.label:
+                self.label.setText("Aucun canal sélectionné")
             self.axes.set_title("No Channels")
+            self.axes.set_xlabel("Temps (s)")
             self.canvas.draw()
             return
 
-        # Limiter le nombre d’échantillons affichés (perf/visu)
-        N = min(1500, raw.n_times)  # ~3s à 500 Hz
+        try:
+            n_times = int(getattr(raw, "n_times", 0))
+        except Exception:
+            n_times = 0
+        N = min(1500, n_times) if n_times and n_times > 0 else 1500
+
         try:
             data, times = raw[picks, :N]  # data: (n_ch, n_times)
         except Exception as e:
             print(f"[EEGVisualizer] Erreur d'accès aux données: {e}")
-            self.label.setText("Erreur d'accès aux données")
+            if self.label:
+                self.label.setText("Erreur d'accès aux données")
+            self.axes.set_title("Data error")
             self.canvas.draw()
             return
 
-        n_ch = data.shape[0]
+        n_ch = int(data.shape[0]) if data is not None else 0
         if n_ch == 0:
-            self.label.setText("Aucun canal sélectionné")
+            if self.label:
+                self.label.setText("Aucun canal sélectionné")
             self.axes.set_title("No Channels")
             self.canvas.draw()
             return
 
         # Empilement vertical propre
-        # Échelle basée sur l'écart-type global (évite chevauchement)
         std = float(np.nanstd(data)) if np.isfinite(data).any() else 1.0
         spacing = std * 4 if std > 0 else 1.0
         offsets = np.arange(n_ch) * spacing
@@ -161,15 +239,17 @@ class EEGVisualizerPlugin(BasePlugin):
         self.axes.set_yticks(offsets)
         self.axes.set_yticklabels(sel_names)
         self.axes.set_xlabel("Temps (s)")
-        self.axes.set_title(f"EEG ({n_ch} canal{'x' if n_ch>1 else ''})")
+        self.axes.set_title(f"EEG ({n_ch} canal{'x' if n_ch > 1 else ''})")
 
-        self.label.setText("Signal EEG reçu")
+        if self.label:
+            self.label.setText("Signal EEG reçu")
         self.canvas.draw()
 
     # ------------- Événements UI ---------------
-    def _on_toggle_all(self, state):
-        # (Dé)cocher tous les items selon la case "Afficher tous"
-        check = Qt.Checked if self.chk_all.isChecked() else Qt.Unchecked
+    def _on_toggle_all(self, _state):
+        if not self.channel_list:
+            return
+        check = Qt.Checked if (self.chk_all and self.chk_all.isChecked()) else Qt.Unchecked
         self.channel_list.blockSignals(True)
         for i in range(self.channel_list.count()):
             self.channel_list.item(i).setCheckState(check)
@@ -178,7 +258,7 @@ class EEGVisualizerPlugin(BasePlugin):
 
     def _on_item_changed(self, _item):
         # Si un item change manuellement, on désactive "Tout afficher"
-        if self.chk_all.isChecked():
+        if self.chk_all and self.chk_all.isChecked():
             self.chk_all.blockSignals(True)
             self.chk_all.setChecked(False)
             self.chk_all.blockSignals(False)
@@ -200,7 +280,11 @@ class EEGVisualizerPlugin(BasePlugin):
                 if len(picks) == 0:
                     ax.set_title("Aucun canal sélectionné")
                 else:
-                    N = min(3000, raw.n_times)  # un peu plus long en vue large
+                    try:
+                        n_times = int(getattr(raw, "n_times", 0))
+                    except Exception:
+                        n_times = 0
+                    N = min(3000, n_times) if n_times and n_times > 0 else 3000
                     data, times = raw[picks, :N]
                     n_ch = data.shape[0]
                     std = float(np.nanstd(data)) if np.isfinite(data).any() else 1.0

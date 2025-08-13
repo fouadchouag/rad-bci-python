@@ -6,7 +6,7 @@ from rx.subject import BehaviorSubject
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QDoubleSpinBox,
     QSpinBox, QPushButton, QCheckBox, QListWidget, QListWidgetItem,
-    QDialog, QVBoxLayout as QVBoxLayout2
+    QDialog, QVBoxLayout as QVBoxLayout2, QLayout, QSizePolicy, QToolButton
 )
 from PyQt5.QtCore import Qt, QTimer
 from core.node_base import BasePlugin
@@ -46,6 +46,62 @@ def _qdead(obj):
         except Exception:
             return True
     return False
+
+
+class _CollapsibleSection(QWidget):
+    """Section repliable qui retire vraiment la hauteur quand fermée."""
+    def __init__(self, title="Paramètres", content: QWidget = None, collapsed=True, parent=None):
+        super().__init__(parent)
+        self._btn = QToolButton(text=title, checkable=True, autoRaise=True)
+        self._btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
+        self._wrap = QWidget()
+        self._wrap_l = QVBoxLayout(self._wrap)
+        self._wrap_l.setContentsMargins(8, 8, 8, 8)
+        self._wrap_l.setSpacing(6)
+        self._content = content or QWidget()
+        self._content.setStyleSheet("background: transparent;")
+        self._wrap_l.addWidget(self._content)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(4)
+        root.addWidget(self._btn)
+        root.addWidget(self._wrap)
+
+        self._btn.toggled.connect(self._on_toggled)
+        self._btn.setChecked(not collapsed)
+        self._on_toggled(self._btn.isChecked())
+
+    def _poke_ancestors(self):
+        w = self
+        while w is not None:
+            if w.layout():
+                w.layout().invalidate()
+            w.adjustSize()
+            w.updateGeometry()
+            w = w.parentWidget()
+
+    def _on_toggled(self, expanded: bool):
+        self._btn.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self._wrap.setVisible(expanded)
+
+        if expanded:
+            self.setMaximumHeight(16777215)
+            self.setMinimumHeight(0)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            self._wrap.setMaximumHeight(16777215)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        else:
+            header_h = self._btn.sizeHint().height() + 6
+            self._wrap.setMaximumHeight(0)
+            self._wrap.setMinimumHeight(0)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.setMaximumHeight(header_h)
+            self.setMinimumHeight(header_h)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        self._poke_ancestors()
 
 
 class EEGLiveDisplayPlugin(BasePlugin):
@@ -114,7 +170,8 @@ class EEGLiveDisplayPlugin(BasePlugin):
 
         # État data
         self._sfreq = 0.0
-        self._ch_names = []
+        no_ch = []
+        self._ch_names = no_ch
         self._buf = None            # (n_ch, buf_len) en µV
         self._buf_len = 0
         self._x = None              # axe temps [-win, 0]
@@ -171,11 +228,19 @@ class EEGLiveDisplayPlugin(BasePlugin):
         lay = QVBoxLayout(w)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.setSpacing(6)
+        lay.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
 
         if not PG_OK:
             lay.addWidget(QLabel("pyqtgraph non installé. `pip install pyqtgraph`"))
             w.destroyed.connect(self._on_main_widget_destroyed)
             return w
+
+        # ------- Panneau Paramètres (repliable) -------
+        panel = QWidget()
+        pv = QVBoxLayout(panel)
+        pv.setContentsMargins(8, 8, 8, 8)
+        pv.setSpacing(6)
 
         # Ligne paramètres de base
         row = QHBoxLayout()
@@ -220,7 +285,7 @@ class EEGLiveDisplayPlugin(BasePlugin):
         row.addWidget(btn_big)
 
         row.addStretch(1)
-        lay.addLayout(row)
+        pv.addLayout(row)
 
         # Ligne RAW streaming
         rowR = QHBoxLayout()
@@ -245,7 +310,7 @@ class EEGLiveDisplayPlugin(BasePlugin):
         rowR.addWidget(self._chk_loop)
 
         rowR.addStretch(1)
-        lay.addLayout(rowR)
+        pv.addLayout(rowR)
 
         # Ligne sélection canaux
         row2 = QHBoxLayout()
@@ -259,7 +324,10 @@ class EEGLiveDisplayPlugin(BasePlugin):
         self._lst_channels.itemSelectionChanged.connect(self._refresh_curves_list)
         self._lst_channels.setMaximumHeight(100)
         row2.addWidget(self._lst_channels, 1)
-        lay.addLayout(row2)
+        pv.addLayout(row2)
+
+        # Ajoute la section repliable
+        lay.addWidget(_CollapsibleSection("Paramètres", panel, collapsed=True))
 
         # Plot principal
         pg.setConfigOptions(antialias=False)

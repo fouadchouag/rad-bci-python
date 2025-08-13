@@ -7,8 +7,10 @@ import numpy as np
 from rx.subject import BehaviorSubject
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QLineEdit, QFileDialog, QComboBox
+    QLineEdit, QFileDialog, QComboBox,
+    QLayout, QSizePolicy, QToolButton
 )
+from PyQt5.QtCore import Qt
 from core.node_base import BasePlugin
 
 try:
@@ -18,6 +20,60 @@ try:
     SKLEARN_OK = True
 except Exception:
     SKLEARN_OK = False
+
+
+class _CollapsibleSection(QWidget):
+    """Section repliable qui retire vraiment la hauteur quand fermée."""
+    def __init__(self, title="Paramètres", content: QWidget = None, collapsed=True, parent=None):
+        super().__init__(parent)
+        self._btn = QToolButton(text=title, checkable=True, autoRaise=True)
+        self._btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
+        self._wrap = QWidget()
+        self._wrap_l = QVBoxLayout(self._wrap)
+        self._wrap_l.setContentsMargins(0, 0, 0, 0)
+        self._wrap_l.setSpacing(0)
+        self._content = content or QWidget()
+        self._content.setStyleSheet("background: transparent;")
+        self._wrap_l.addWidget(self._content)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(4)
+        root.addWidget(self._btn)
+        root.addWidget(self._wrap)
+
+        self._btn.toggled.connect(self._on_toggled)
+        self._btn.setChecked(not collapsed)
+        self._on_toggled(self._btn.isChecked())
+
+    def _poke_ancestors(self):
+        w = self
+        while w is not None:
+            if w.layout(): w.layout().invalidate()
+            w.adjustSize(); w.updateGeometry()
+            w = w.parentWidget()
+
+    def _on_toggled(self, expanded: bool):
+        self._btn.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self._wrap.setVisible(expanded)
+
+        if expanded:
+            self.setMaximumHeight(16777215)
+            self.setMinimumHeight(0)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            self._wrap.setMaximumHeight(16777215)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        else:
+            header_h = self._btn.sizeHint().height() + 6
+            self._wrap.setMaximumHeight(0)
+            self._wrap.setMinimumHeight(0)
+            self._wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.setMaximumHeight(header_h)
+            self.setMinimumHeight(header_h)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        self._poke_ancestors()
 
 
 class EEGClassifierPlugin(BasePlugin):
@@ -31,10 +87,7 @@ class EEGClassifierPlugin(BasePlugin):
       - pred_conf: float (0..1)
       - dataset: dict {X, y, y_names, feature_mode, bands}  (pour ClassifierMetrics)
     UI :
-      - Feature mode (MeanAll ou C3/C4 alpha+beta)
-      - Record A / Record B
-      - Train / Save / Load / Clear dataset
-      - Status
+      - Tout le panneau est repliable pour ne pas surcharger le montage.
     """
     name = "EEGClassifier"
     language = "Python"
@@ -74,8 +127,16 @@ class EEGClassifierPlugin(BasePlugin):
     # ------------------------- UI -------------------------
     def build_widget(self):
         w = QWidget()
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(6, 6, 6, 6)
+        root = QVBoxLayout(w)
+        root.setContentsMargins(6, 6, 6, 6)
+        root.setSpacing(6)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+
+        # ---- panneau complet dans une section repliable ----
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(8, 8, 8, 8)
         lay.setSpacing(6)
 
         # Feature mode
@@ -134,6 +195,10 @@ class EEGClassifierPlugin(BasePlugin):
         self._lbl_status = QLabel("No data | sklearn: " + ("OK" if SKLEARN_OK else "missing"))
         lay.addWidget(self._lbl_status)
 
+        # Section repliable (fermée par défaut)
+        sec = _CollapsibleSection("Paramètres & Enregistrement", panel, collapsed=True)
+        root.addWidget(sec)
+
         return w
 
     # ------------------------- RUNTIME -------------------------
@@ -175,6 +240,9 @@ class EEGClassifierPlugin(BasePlugin):
     def _on_mode_changed(self, _idx):
         txt = self._combo_mode.currentText().strip().lower()
         self._feature_mode = "c3c4_ab" if "c3/c4" in txt else "mean_all"
+
+        # (optionnel) reset enregistrement pour éviter mélange de features hétérogènes
+        # self._X.clear(); self._y.clear(); self._emit_dataset()
 
     def _vector_from_features(self, features_dict, bands):
         """
@@ -369,8 +437,6 @@ class EEGClassifierPlugin(BasePlugin):
         self.outputs["dataset"].on_next(None)
         self._emit_dataset()
         self._set_status("Dataset cleared.")
-
-
 
     def _set_status(self, msg):
         if self._lbl_status:
