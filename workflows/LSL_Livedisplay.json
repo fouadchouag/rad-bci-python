@@ -1,34 +1,92 @@
 {
   "nodes": [
     {
-      "name": "LSLInletPlugin_803f91",
-      "type": "LSLInletPlugin",
+      "name": "EEGLiveDisplay_278140",
+      "type": "EEGLiveDisplay",
       "position": [
-        87.0,
-        424.0
+        1171.0,
+        359.0
       ]
     },
     {
-      "name": "EEGLiveDisplayPlugin_0a325d",
-      "type": "EEGLiveDisplayPlugin",
+      "name": "EEGFilterPlugin_28a1b3",
+      "type": "EEGFilterPlugin",
       "position": [
-        876.0,
-        57.0
+        310.0,
+        450.0
+      ]
+    },
+    {
+      "name": "EEGLiveDisplay_fb43e0",
+      "type": "EEGLiveDisplay",
+      "position": [
+        749.0,
+        13.0
+      ]
+    },
+    {
+      "name": "LSLInletPlugin_184c68",
+      "type": "LSLInletPlugin",
+      "position": [
+        71.0,
+        41.0
       ]
     }
   ],
   "connections": [
     {
-      "from": "LSLInletPlugin_803f91",
-      "from_pin": "info",
-      "to": "EEGLiveDisplayPlugin_0a325d",
-      "to_pin": "info"
+      "from": "EEGFilterPlugin_28a1b3",
+      "from_pin": "ch_names",
+      "to": "EEGLiveDisplay_278140",
+      "to_pin": "ch_names"
     },
     {
-      "from": "LSLInletPlugin_803f91",
+      "from": "EEGFilterPlugin_28a1b3",
+      "from_pin": "sfreq",
+      "to": "EEGLiveDisplay_278140",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "EEGFilterPlugin_28a1b3",
       "from_pin": "segment",
-      "to": "EEGLiveDisplayPlugin_0a325d",
+      "to": "EEGLiveDisplay_278140",
       "to_pin": "segment"
+    },
+    {
+      "from": "LSLInletPlugin_184c68",
+      "from_pin": "ch_names",
+      "to": "EEGFilterPlugin_28a1b3",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "LSLInletPlugin_184c68",
+      "from_pin": "sfreq",
+      "to": "EEGFilterPlugin_28a1b3",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "LSLInletPlugin_184c68",
+      "from_pin": "segment",
+      "to": "EEGFilterPlugin_28a1b3",
+      "to_pin": "segment"
+    },
+    {
+      "from": "LSLInletPlugin_184c68",
+      "from_pin": "segment",
+      "to": "EEGLiveDisplay_fb43e0",
+      "to_pin": "segment"
+    },
+    {
+      "from": "LSLInletPlugin_184c68",
+      "from_pin": "ch_names",
+      "to": "EEGLiveDisplay_fb43e0",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "LSLInletPlugin_184c68",
+      "from_pin": "sfreq",
+      "to": "EEGLiveDisplay_fb43e0",
+      "to_pin": "sfreq"
     }
   ]
 }

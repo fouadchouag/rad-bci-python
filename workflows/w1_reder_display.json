@@ -1,0 +1,108 @@
+{
+  "nodes": [
+    {
+      "name": "EEGLiveDisplay_ac78f5",
+      "type": "EEGLiveDisplay",
+      "position": [
+        358.0,
+        472.0
+      ]
+    },
+    {
+      "name": "EEGRawFilterPlugin_247a3f",
+      "type": "EEGRawFilterPlugin",
+      "position": [
+        43.0,
+        372.0
+      ]
+    },
+    {
+      "name": "EEGLiveDisplay_e49a1a",
+      "type": "EEGLiveDisplay",
+      "position": [
+        991.0,
+        140.0
+      ]
+    },
+    {
+      "name": "EEGFilterPlugin_eb7581",
+      "type": "EEGFilterPlugin",
+      "position": [
+        374.0,
+        167.0
+      ]
+    },
+    {
+      "name": "EEGLiveDisplay_4de4a3",
+      "type": "EEGLiveDisplay",
+      "position": [
+        682.0,
+        -44.0
+      ]
+    },
+    {
+      "name": "EEGUniversalReader_38cc0c",
+      "type": "EEGUniversalReader",
+      "position": [
+        59.0,
+        69.0
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "EEGRawFilterPlugin_247a3f",
+      "from_pin": "raw",
+      "to": "EEGLiveDisplay_ac78f5",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGUniversalReader_38cc0c",
+      "from_pin": "raw",
+      "to": "EEGRawFilterPlugin_247a3f",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGFilterPlugin_eb7581",
+      "from_pin": "sfreq",
+      "to": "EEGLiveDisplay_e49a1a",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "EEGUniversalReader_38cc0c",
+      "from_pin": "sfreq",
+      "to": "EEGFilterPlugin_eb7581",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "EEGFilterPlugin_eb7581",
+      "from_pin": "ch_names",
+      "to": "EEGLiveDisplay_e49a1a",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "EEGUniversalReader_38cc0c",
+      "from_pin": "ch_names",
+      "to": "EEGFilterPlugin_eb7581",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "EEGFilterPlugin_eb7581",
+      "from_pin": "segment",
+      "to": "EEGLiveDisplay_e49a1a",
+      "to_pin": "segment"
+    },
+    {
+      "from": "EEGUniversalReader_38cc0c",
+      "from_pin": "segment",
+      "to": "EEGFilterPlugin_eb7581",
+      "to_pin": "segment"
+    },
+    {
+      "from": "EEGUniversalReader_38cc0c",
+      "from_pin": "raw",
+      "to": "EEGLiveDisplay_4de4a3",
+      "to_pin": "raw"
+    }
+  ]
+}

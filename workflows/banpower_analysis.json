@@ -1,23 +1,15 @@
 {
   "nodes": [
     {
-      "name": "BandpowerExtPlugin_8cf6af",
-      "type": "BandpowerExtPlugin",
+      "name": "EEGUniversalReader_fe359f",
+      "type": "EEGUniversalReader",
       "position": [
-        598.0,
-        82.0
+        34.0,
+        76.0
       ]
     },
     {
-      "name": "BandpowerInspectorPlugin_cb7a62",
-      "type": "BandpowerInspectorPlugin",
-      "position": [
-        916.0,
-        74.0
-      ]
-    },
-    {
-      "name": "RawWindowSlicerPlugin_947534",
+      "name": "RawWindowSlicerPlugin_cf87bf",
       "type": "RawWindowSlicerPlugin",
       "position": [
         322.0,
@@ -25,50 +17,58 @@
       ]
     },
     {
-      "name": "EEGReaderPlugin_72c60a",
-      "type": "EEGReaderPlugin",
+      "name": "BandpowerInspectorPlugin_b8069a",
+      "type": "BandpowerInspectorPlugin",
       "position": [
-        102.0,
-        60.0
+        916.0,
+        74.0
+      ]
+    },
+    {
+      "name": "BandpowerExtPlugin_4adc70",
+      "type": "BandpowerExtPlugin",
+      "position": [
+        598.0,
+        82.0
       ]
     }
   ],
   "connections": [
     {
-      "from": "BandpowerExtPlugin_8cf6af",
-      "from_pin": "band_labels",
-      "to": "BandpowerInspectorPlugin_cb7a62",
-      "to_pin": "band_labels"
+      "from": "EEGUniversalReader_fe359f",
+      "from_pin": "raw",
+      "to": "RawWindowSlicerPlugin_cf87bf",
+      "to_pin": "raw"
     },
     {
-      "from": "BandpowerExtPlugin_8cf6af",
-      "from_pin": "features",
-      "to": "BandpowerInspectorPlugin_cb7a62",
-      "to_pin": "features"
-    },
-    {
-      "from": "RawWindowSlicerPlugin_947534",
-      "from_pin": "ch_names",
-      "to": "BandpowerExtPlugin_8cf6af",
-      "to_pin": "ch_names"
-    },
-    {
-      "from": "RawWindowSlicerPlugin_947534",
-      "from_pin": "sfreq",
-      "to": "BandpowerExtPlugin_8cf6af",
-      "to_pin": "sfreq"
-    },
-    {
-      "from": "RawWindowSlicerPlugin_947534",
+      "from": "RawWindowSlicerPlugin_cf87bf",
       "from_pin": "segment",
-      "to": "BandpowerExtPlugin_8cf6af",
+      "to": "BandpowerExtPlugin_4adc70",
       "to_pin": "segment"
     },
     {
-      "from": "EEGReaderPlugin_72c60a",
-      "from_pin": "raw",
-      "to": "RawWindowSlicerPlugin_947534",
-      "to_pin": "raw"
+      "from": "RawWindowSlicerPlugin_cf87bf",
+      "from_pin": "sfreq",
+      "to": "BandpowerExtPlugin_4adc70",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "RawWindowSlicerPlugin_cf87bf",
+      "from_pin": "ch_names",
+      "to": "BandpowerExtPlugin_4adc70",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "BandpowerExtPlugin_4adc70",
+      "from_pin": "features",
+      "to": "BandpowerInspectorPlugin_b8069a",
+      "to_pin": "features"
+    },
+    {
+      "from": "BandpowerExtPlugin_4adc70",
+      "from_pin": "band_labels",
+      "to": "BandpowerInspectorPlugin_b8069a",
+      "to_pin": "band_labels"
     }
   ]
 }
