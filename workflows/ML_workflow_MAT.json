@@ -1,0 +1,74 @@
+{
+  "nodes": [
+    {
+      "name": "ClassifierMetricsPlugin_e55942",
+      "type": "ClassifierMetricsPlugin",
+      "position": [
+        1367.0,
+        59.0
+      ]
+    },
+    {
+      "name": "EEGClassifierPlugin_88e12b",
+      "type": "EEGClassifierPlugin",
+      "position": [
+        835.0,
+        88.0
+      ]
+    },
+    {
+      "name": "BandpowerExt_61ae1d",
+      "type": "BandpowerExt",
+      "position": [
+        433.0,
+        143.0
+      ]
+    },
+    {
+      "name": "EEGMatReader_5e4d43",
+      "type": "EEGMatReader",
+      "position": [
+        84.0,
+        37.0
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "EEGClassifierPlugin_88e12b",
+      "from_pin": "dataset",
+      "to": "ClassifierMetricsPlugin_e55942",
+      "to_pin": "dataset"
+    },
+    {
+      "from": "BandpowerExt_61ae1d",
+      "from_pin": "band_labels",
+      "to": "EEGClassifierPlugin_88e12b",
+      "to_pin": "band_labels"
+    },
+    {
+      "from": "BandpowerExt_61ae1d",
+      "from_pin": "features",
+      "to": "EEGClassifierPlugin_88e12b",
+      "to_pin": "features"
+    },
+    {
+      "from": "EEGMatReader_5e4d43",
+      "from_pin": "segment",
+      "to": "BandpowerExt_61ae1d",
+      "to_pin": "segment"
+    },
+    {
+      "from": "EEGMatReader_5e4d43",
+      "from_pin": "ch_names",
+      "to": "BandpowerExt_61ae1d",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "EEGMatReader_5e4d43",
+      "from_pin": "sfreq",
+      "to": "BandpowerExt_61ae1d",
+      "to_pin": "sfreq"
+    }
+  ]
+}

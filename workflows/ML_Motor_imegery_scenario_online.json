@@ -1,0 +1,186 @@
+{
+  "nodes": [
+    {
+      "name": "BCI_BallController_337a7c",
+      "type": "BCI_BallController",
+      "position": [
+        2348.0,
+        34.0
+      ]
+    },
+    {
+      "name": "BCI_Features_405c89",
+      "type": "BCI_Features",
+      "position": [
+        1062.0,
+        164.0
+      ]
+    },
+    {
+      "name": "BCIEpochNode_d09a80",
+      "type": "BCIEpochNode",
+      "position": [
+        641.0,
+        76.0
+      ]
+    },
+    {
+      "name": "BCIPreprocNode_5d0f6a",
+      "type": "BCIPreprocNode",
+      "position": [
+        421.0,
+        38.0
+      ]
+    },
+    {
+      "name": "LSL_Markers_Inlet_4ee64b",
+      "type": "LSL_Markers_Inlet",
+      "position": [
+        20.0,
+        535.0
+      ]
+    },
+    {
+      "name": "LSL_EEG_Inlet_Fast_891d11",
+      "type": "LSL_EEG_Inlet_Fast",
+      "position": [
+        35.0,
+        51.0
+      ]
+    },
+    {
+      "name": "MarkersToClassIdx_b2efcf",
+      "type": "MarkersToClassIdx",
+      "position": [
+        829.0,
+        646.0
+      ]
+    },
+    {
+      "name": "BCI_Predictor_a01b14",
+      "type": "BCI_Predictor",
+      "position": [
+        1500.0,
+        240.0
+      ]
+    },
+    {
+      "name": "BCI_OnlineMetrics_aa64f6",
+      "type": "BCI_OnlineMetrics",
+      "position": [
+        1782.0,
+        626.0
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "BCI_Predictor_a01b14",
+      "from_pin": "pred_idx",
+      "to": "BCI_BallController_337a7c",
+      "to_pin": "pred_idx"
+    },
+    {
+      "from": "MarkersToClassIdx_b2efcf",
+      "from_pin": "y_idx",
+      "to": "BCI_OnlineMetrics_aa64f6",
+      "to_pin": "y_idx"
+    },
+    {
+      "from": "BCI_Features_405c89",
+      "from_pin": "band_labels",
+      "to": "BCI_Predictor_a01b14",
+      "to_pin": "band_labels"
+    },
+    {
+      "from": "BCI_Features_405c89",
+      "from_pin": "features",
+      "to": "BCI_Predictor_a01b14",
+      "to_pin": "features"
+    },
+    {
+      "from": "LSL_EEG_Inlet_Fast_891d11",
+      "from_pin": "ch_names",
+      "to": "BCIPreprocNode_5d0f6a",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "LSL_EEG_Inlet_Fast_891d11",
+      "from_pin": "sfreq",
+      "to": "BCIPreprocNode_5d0f6a",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "LSL_EEG_Inlet_Fast_891d11",
+      "from_pin": "data",
+      "to": "BCIPreprocNode_5d0f6a",
+      "to_pin": "segment"
+    },
+    {
+      "from": "LSL_Markers_Inlet_4ee64b",
+      "from_pin": "events",
+      "to": "MarkersToClassIdx_b2efcf",
+      "to_pin": "events"
+    },
+    {
+      "from": "BCIPreprocNode_5d0f6a",
+      "from_pin": "segment",
+      "to": "BCIEpochNode_d09a80",
+      "to_pin": "chunk"
+    },
+    {
+      "from": "BCIPreprocNode_5d0f6a",
+      "from_pin": "sfreq",
+      "to": "BCIEpochNode_d09a80",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "BCIPreprocNode_5d0f6a",
+      "from_pin": "ch_names",
+      "to": "BCIEpochNode_d09a80",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "BCIEpochNode_d09a80",
+      "from_pin": "ch_names",
+      "to": "BCI_Features_405c89",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "BCIEpochNode_d09a80",
+      "from_pin": "sfreq",
+      "to": "BCI_Features_405c89",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "BCIEpochNode_d09a80",
+      "from_pin": "segment",
+      "to": "BCI_Features_405c89",
+      "to_pin": "X"
+    },
+    {
+      "from": "BCI_Predictor_a01b14",
+      "from_pin": "proba",
+      "to": "BCI_BallController_337a7c",
+      "to_pin": "proba"
+    },
+    {
+      "from": "BCI_Predictor_a01b14",
+      "from_pin": "y_names",
+      "to": "BCI_BallController_337a7c",
+      "to_pin": "y_names"
+    },
+    {
+      "from": "MarkersToClassIdx_b2efcf",
+      "from_pin": "y_name",
+      "to": "BCI_OnlineMetrics_aa64f6",
+      "to_pin": "y_names"
+    },
+    {
+      "from": "BCI_Predictor_a01b14",
+      "from_pin": "pred_idx",
+      "to": "BCI_OnlineMetrics_aa64f6",
+      "to_pin": "pred_idx"
+    }
+  ]
+}

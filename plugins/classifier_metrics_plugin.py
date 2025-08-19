@@ -1,4 +1,5 @@
 # plugins/classifier_metrics_plugin.py
+# -*- coding: utf-8 -*-
 
 import numpy as np
 from rx.subject import BehaviorSubject
@@ -22,7 +23,6 @@ except Exception:
 
 
 class _CollapsibleSection(QWidget):
-    """Section repliable qui retire vraiment la hauteur quand fermée."""
     def __init__(self, title="Paramètres", content: QWidget = None, collapsed=True, parent=None):
         super().__init__(parent)
         self._btn = QToolButton(text=title, checkable=True, autoRaise=True)
@@ -78,11 +78,17 @@ class _CollapsibleSection(QWidget):
 class ClassifierMetricsPlugin(BasePlugin):
     """
     Évalue un dataset publié par EEGClassifier (X/y) via CV.
-    Entrée:
+    Entrées:
       - dataset: dict {X: np.ndarray[N, d], y: np.ndarray[N], y_names: [str,str], ...}
-    UI (tout repliable):
+      - config_in (dict, optionnel)
+      - metrics_conf (dict, optionnel)
+
+    UI (repliable):
       - Folds (2..10), bouton Evaluate (CV)
-      - Statut, métriques texte, matrice de confusion 2x2
+      - Statut, métriques, matrice de confusion
+
+    Sorties:
+      - (UI only) + config_out (dict)
     """
     name = "ClassifierMetrics"
     language = "Python"
@@ -90,6 +96,10 @@ class ClassifierMetricsPlugin(BasePlugin):
 
     def setup(self):
         self.inputs["dataset"] = BehaviorSubject(None)
+        self.inputs["config_in"] = BehaviorSubject(None)
+        self.inputs["metrics_conf"] = BehaviorSubject(None)
+
+        self.outputs["config_out"] = BehaviorSubject(None)
 
         self._dataset = None
         self._lbl_status = None
@@ -97,6 +107,28 @@ class ClassifierMetricsPlugin(BasePlugin):
         self._table_cm = None
         self._spn_folds = None
         self._btn_eval = None
+
+        self._folds = 5
+
+    # ----- config -----
+    def export_config(self) -> dict:
+        return {"folds": int(self._folds)}
+
+    def import_config(self, cfg: dict):
+        if not isinstance(cfg, dict): return
+        if "folds" in cfg:
+            try:
+                self._folds = int(cfg["folds"])
+                if self._spn_folds: self._spn_folds.setValue(self._folds)
+            except Exception:
+                pass
+        self._emit_config()
+
+    def _emit_config(self):
+        try:
+            self.outputs["config_out"].on_next(self.export_config())
+        except Exception:
+            pass
 
     def build_widget(self):
         w = QWidget()
@@ -106,18 +138,17 @@ class ClassifierMetricsPlugin(BasePlugin):
         root.setSizeConstraint(QLayout.SetMinAndMaxSize)
         w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
 
-        # ----- panneau complet (params + résultats) dans une section repliable -----
         panel = QWidget()
         pv = QVBoxLayout(panel)
         pv.setContentsMargins(8, 8, 8, 8)
         pv.setSpacing(6)
 
-        # Ligne folds + bouton
         row = QHBoxLayout()
         row.addWidget(QLabel("Folds:"))
         self._spn_folds = QSpinBox()
         self._spn_folds.setRange(2, 10)
-        self._spn_folds.setValue(5)
+        self._spn_folds.setValue(self._folds)
+        self._spn_folds.valueChanged.connect(lambda v: self._on_set_folds(int(v)))
         row.addWidget(self._spn_folds)
 
         self._btn_eval = QPushButton("Evaluate (CV)")
@@ -126,15 +157,12 @@ class ClassifierMetricsPlugin(BasePlugin):
         row.addStretch(1)
         pv.addLayout(row)
 
-        # Status / counts (dans la section)
         self._lbl_status = QLabel("Waiting dataset")
         pv.addWidget(self._lbl_status)
 
-        # Metrics text (dans la section)
         self._lbl_metrics = QLabel("No metrics yet")
         pv.addWidget(self._lbl_metrics)
 
-        # Confusion matrix 2x2 (dans la section)
         self._table_cm = QTableWidget(2, 2)
         self._table_cm.setHorizontalHeaderLabels(["Pred A", "Pred B"])
         self._table_cm.setVerticalHeaderLabels(["True A", "True B"])
@@ -143,9 +171,22 @@ class ClassifierMetricsPlugin(BasePlugin):
         sec = _CollapsibleSection("Paramètres & Résultats", panel, collapsed=True)
         root.addWidget(sec)
 
+        # push initial config
+        self._emit_config()
         return w
 
+    def _on_set_folds(self, v: int):
+        self._folds = int(v)
+        self._emit_config()
+
     def execute(self, **kwargs):
+        # merge config
+        merged = {}
+        c1 = kwargs.get("config_in"); c2 = kwargs.get("metrics_conf")
+        if isinstance(c1, dict): merged.update(c1)
+        if isinstance(c2, dict): merged.update(c2)
+        if merged: self.import_config(merged)
+
         ds = kwargs.get("dataset", None)
         self._dataset = ds
 
@@ -162,12 +203,10 @@ class ClassifierMetricsPlugin(BasePlugin):
             y_names = ["A", "B"]
         y_names = list(y_names[:2])
 
-        # Met à jour les entêtes tout de suite
         if self._table_cm:
             self._table_cm.setHorizontalHeaderLabels(y_names)
             self._table_cm.setVerticalHeaderLabels(y_names)
 
-        # Dataset vide / invalide
         if X is None or y is None or len(np.atleast_1d(y)) == 0:
             if self._lbl_status:
                 self._lbl_status.setText("Empty dataset")
@@ -190,7 +229,6 @@ class ClassifierMetricsPlugin(BasePlugin):
         if self._lbl_status:
             self._lbl_status.setText(f"Dataset ready | N={N}, d={d} | {y_names[0]}={n0} / {y_names[1]}={n1}")
 
-        # On laisse l’utilisateur cliquer “Evaluate (CV)”
         self._reset_metrics_ui(y_names)
         return {}
 
@@ -230,7 +268,7 @@ class ClassifierMetricsPlugin(BasePlugin):
 
         counts = [np.sum(y == 0), np.sum(y == 1)]
         max_folds = int(max(2, min(counts)))
-        n_folds_req = int(self._spn_folds.value() if self._spn_folds else 5)
+        n_folds_req = int(self._folds)
         n_folds = min(n_folds_req, max_folds)
 
         try:
@@ -260,8 +298,7 @@ class ClassifierMetricsPlugin(BasePlugin):
                 self._table_cm.setVerticalHeaderLabels(y_names)    # True
                 for i in range(2):
                     for j in range(2):
-                        item = QTableWidgetItem(str(int(cm[i, j])))
-                        item.setTextAlignment(int(Qt.AlignCenter))
+                        item = QTableWidgetItem(str(int(cm[i, j]))); item.setTextAlignment(int(Qt.AlignCenter))
                         self._table_cm.setItem(i, j, item)
                 self._table_cm.resizeColumnsToContents()
 

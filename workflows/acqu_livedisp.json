@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "EEGLiveDisplay_411778",
+      "type": "EEGLiveDisplay",
+      "position": [
+        665.0,
+        35.0
+      ],
+      "config": {
+        "loop": true,
+        "window_s": 10.0,
+        "step_s": 0.2,
+        "seg_len_auto": true,
+        "seg_len_manual": null,
+        "force_nch": 0,
+        "max_points": 3000,
+        "max_fps": 20
+      }
+    },
+    {
+      "name": "AcquisitionManager_ad2d6c",
+      "type": "AcquisitionManager",
+      "position": [
+        34.0,
+        34.0
+      ],
+      "config": {}
+    }
+  ],
+  "connections": [
+    {
+      "from": "AcquisitionManager_ad2d6c",
+      "from_pin": "segment",
+      "to": "EEGLiveDisplay_411778",
+      "to_pin": "segment"
+    },
+    {
+      "from": "AcquisitionManager_ad2d6c",
+      "from_pin": "ch_names",
+      "to": "EEGLiveDisplay_411778",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "AcquisitionManager_ad2d6c",
+      "from_pin": "sfreq",
+      "to": "EEGLiveDisplay_411778",
+      "to_pin": "sfreq"
+    }
+  ]
+}

@@ -1,7 +1,9 @@
 # plugins/eeg_raw_filter_plugin.py
+# -*- coding: utf-8 -*-
 # EEGRawFilter : filtrage "offline" sur mne.io.Raw (FIR/IIR zero-phase)
-# Version AUTO : pas de bouton "Apply" — applique en tâche de fond à chaque modification.
-# Sorties : raw (filtré), info, sfreq, ch_names
+# Version AUTO : applique en tâche de fond (QThread) à chaque modification.
+# Sorties : raw (filtré), info, sfreq, ch_names, config_out
+# + Compatibilité ConfigNode (export_config/import_config/config_hints)
 
 from rx.subject import BehaviorSubject
 from PyQt5.QtWidgets import (
@@ -75,6 +77,7 @@ class _FilterWorker(QObject):
 class EEGRawFilterPlugin(BasePlugin):
     name = "EEGRawFilter"
     category = "Processing Nodes"
+    language = "Python"
 
     def __del__(self):
         # filet de sécurité si GC sans on_destroy
@@ -90,6 +93,7 @@ class EEGRawFilterPlugin(BasePlugin):
             "info": BehaviorSubject(None),
             "sfreq": BehaviorSubject(None),
             "ch_names": BehaviorSubject(None),
+            "config_out": BehaviorSubject(None),
         }
 
         # paramètres
@@ -118,6 +122,131 @@ class EEGRawFilterPlugin(BasePlugin):
 
         # cleanup à l'extinction Python
         atexit.register(self._stop_thread_blocking)
+
+    # ---------- Config I/O ----------
+    def export_config(self) -> dict:
+        # liste notch: renvoyer floats (le ConfigNode sait éditer en CSV)
+        try:
+            notch_list = [float(x) for x in self._notch_str.replace(";", ",").split(",") if x.strip()]
+        except Exception:
+            notch_list = []
+        return {
+            "enable_hp": bool(self._enable_hp),
+            "hp": float(self._hp),
+            "enable_lp": bool(self._enable_lp),
+            "lp": float(self._lp),
+            "enable_notch": bool(self._enable_notch),
+            "notch_freqs": notch_list,
+            "method": str(self._method),
+            "phase": str(self._phase),
+            "picks": str(self._picks_mode),
+            "in_place": bool(self._in_place),
+        }
+
+    def _emit_config(self):
+        try:
+            self.outputs["config_out"].on_next(self.export_config())
+        except Exception:
+            pass
+
+    def import_config(self, cfg: dict):
+        if not isinstance(cfg, dict):
+            return
+
+        def set_bool(attr, key):
+            v = cfg.get(key, getattr(self, attr))
+            try:
+                setattr(self, attr, bool(v))
+            except Exception:
+                pass
+
+        def set_float(attr, key, mn=None, mx=None):
+            v = cfg.get(key, getattr(self, attr))
+            try:
+                fv = float(v)
+                if mn is not None: fv = max(mn, fv)
+                if mx is not None: fv = min(mx, fv)
+                setattr(self, attr, fv)
+            except Exception:
+                pass
+
+        def set_str(attr, key, allowed=None):
+            v = cfg.get(key, getattr(self, attr))
+            if v is None:
+                return
+            s = str(v)
+            if allowed and s not in allowed:
+                return
+            setattr(self, attr, s)
+
+        set_bool("_enable_hp", "enable_hp")
+        set_float("_hp", "hp", 0.0, 300.0)
+        set_bool("_enable_lp", "enable_lp")
+        set_float("_lp", "lp", 0.0, 1000.0)
+        set_bool("_enable_notch", "enable_notch")
+
+        nf = cfg.get("notch_freqs", None)
+        if nf is not None:
+            try:
+                if isinstance(nf, (list, tuple)):
+                    vals = [float(x) for x in nf]
+                else:
+                    # peut venir en CSV depuis ConfigNode
+                    vals = [float(x) for x in str(nf).replace(";", ",").split(",") if str(x).strip()]
+                self._notch_str = ", ".join(str(x) for x in vals)
+            except Exception:
+                pass
+
+        set_str("_method", "method", allowed=["fir","iir"])
+        set_str("_phase", "phase", allowed=["zero","zero-double"])
+        set_str("_picks_mode", "picks", allowed=["all","eeg"])
+        set_bool("_in_place", "in_place")
+
+        # pousser UI si construite
+        try:
+            if hasattr(self, "chk_hp") and self.chk_hp:
+                self.chk_hp.blockSignals(True); self.chk_hp.setChecked(self._enable_hp); self.chk_hp.blockSignals(False)
+            if hasattr(self, "spn_hp") and self.spn_hp:
+                self.spn_hp.blockSignals(True); self.spn_hp.setValue(self._hp); self.spn_hp.blockSignals(False)
+            if hasattr(self, "chk_lp") and self.chk_lp:
+                self.chk_lp.blockSignals(True); self.chk_lp.setChecked(self._enable_lp); self.chk_lp.blockSignals(False)
+            if hasattr(self, "spn_lp") and self.spn_lp:
+                self.spn_lp.blockSignals(True); self.spn_lp.setValue(self._lp); self.spn_lp.blockSignals(False)
+            if hasattr(self, "chk_notch") and self.chk_notch:
+                self.chk_notch.blockSignals(True); self.chk_notch.setChecked(self._enable_notch); self.chk_notch.blockSignals(False)
+            if hasattr(self, "ed_notch") and self.ed_notch:
+                self.ed_notch.blockSignals(True); self.ed_notch.setText(self._notch_str); self.ed_notch.blockSignals(False)
+            if hasattr(self, "cmb_method") and self.cmb_method:
+                self.cmb_method.blockSignals(True); self.cmb_method.setCurrentText(self._method); self.cmb_method.blockSignals(False)
+            if hasattr(self, "cmb_phase") and self.cmb_phase:
+                self.cmb_phase.blockSignals(True); self.cmb_phase.setCurrentText(self._phase); self.cmb_phase.blockSignals(False)
+            if hasattr(self, "cmb_picks") and self.cmb_picks:
+                self.cmb_picks.blockSignals(True); self.cmb_picks.setCurrentText(self._picks_mode); self.cmb_picks.blockSignals(False)
+            if hasattr(self, "chk_inplace") and self.chk_inplace:
+                self.chk_inplace.blockSignals(True); self.chk_inplace.setChecked(self._in_place); self.chk_inplace.blockSignals(False)
+        except Exception:
+            pass
+
+        self._emit_config()
+        # relancer le worker si Raw présent
+        self._schedule_apply()
+
+    def config_hints(self) -> dict:
+        return {
+            "fields": {
+                "enable_hp": {"type": "bool", "label": "HP on"},
+                "hp": {"type": "float", "min": 0.01, "max": 300.0, "step": 0.1, "label": "HP (Hz)"},
+                "enable_lp": {"type": "bool", "label": "LP on"},
+                "lp": {"type": "float", "min": 0.5, "max": 1000.0, "step": 0.5, "label": "LP (Hz)"},
+                "enable_notch": {"type": "bool", "label": "Notch on"},
+                "notch_freqs": {"type": "list", "help": "Fréquences notch (CSV)", "label": "Notch freqs"},
+                "method": {"type": "enum", "enum": ["fir", "iir"], "label": "Méthode"},
+                "phase": {"type": "enum", "enum": ["zero","zero-double"], "label": "Phase"},
+                "picks": {"type": "enum", "enum": ["all","eeg"], "label": "Picks"},
+                "in_place": {"type": "bool", "label": "In-place"},
+            },
+            "_order": ["enable_hp","hp","enable_lp","lp","enable_notch","notch_freqs","method","phase","picks","in_place"],
+        }
 
     def build_widget(self) -> QWidget:
         w = QWidget()
@@ -199,6 +328,8 @@ class EEGRawFilterPlugin(BasePlugin):
         # S'enregistrer aussi sur aboutToQuit de Qt (si possible)
         self._register_about_to_quit_once()
 
+        # pousser config initiale
+        self._emit_config()
         return w
 
     # --------- Runtime ----------
@@ -278,6 +409,19 @@ class EEGRawFilterPlugin(BasePlugin):
         }
 
     def _on_params_changed(self, *args):
+        # maj état interne
+        self._enable_hp = self.chk_hp.isChecked()
+        self._hp = float(self.spn_hp.value())
+        self._enable_lp = self.chk_lp.isChecked()
+        self._lp = float(self.spn_lp.value())
+        self._enable_notch = self.chk_notch.isChecked()
+        self._notch_str = self.ed_notch.text().strip()
+        self._method = self.cmb_method.currentText()
+        self._phase = self.cmb_phase.currentText()
+        self._in_place = self.chk_inplace.isChecked()
+        self._picks_mode = self.cmb_picks.currentText()
+
+        self._emit_config()
         self._schedule_apply()
 
     def _schedule_apply(self):

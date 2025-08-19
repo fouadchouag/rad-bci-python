@@ -11,3 +11,8 @@ mne-lsl
 numpy
 pylsl
 scipy
+brainflow
+h5py
+pyyaml
+psutil
+pandas

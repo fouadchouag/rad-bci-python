@@ -2,16 +2,11 @@
 # -*- coding: utf-8 -*-
 """
 EEGLiveDisplay — affichage RAW/SEGMENT avec défilement fluide (Matplotlib+Qt)
-
-- Entrées (réactives): raw (mne.Raw), segment (2D), ch_names (list|None), sfreq (float|None), info (dict|None)
-- Affiche soit une fenêtre glissante de RAW, soit un ring-buffer en mode SEGMENT
-- Détecte automatiquement l’orientation des segments (n_ch, n_s) vs (n_s, n_ch)
-- Liste de canaux sélectionnable + option “Afficher tous”
-- Throttling: draw() limité en FPS + draw_idle() entre les frames pour ne pas bloquer l’UI
-- Grande vue “Agrandir” avec scroll si beaucoup de canaux
+• Optimisations anti-lag: décimation, throttling FPS, maj différée via singleShot(0)
+• Compatibilité ConfigNode: export_config / import_config / config_hints + config_out
 """
 
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSignal
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QDialog, QLabel,
     QListWidget, QListWidgetItem, QCheckBox, QToolButton, QLayout,
@@ -24,6 +19,12 @@ from core.node_base import BasePlugin
 from rx.subject import BehaviorSubject
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+
+# BENCH HOOK: logger d’événements (fallback silencieux si absent)
+try:
+    from utils.eval_log import log_evt
+except Exception:
+    def log_evt(*_a, **_k): pass
 
 try:
     import mne  # noqa: F401
@@ -52,7 +53,7 @@ class _CollapsibleSection(QWidget):
         root.addWidget(self._wrap)
 
         self._btn.toggled.connect(self._on_toggled)
-        self._btn.setChecked(not collapsed)
+        self._btn.setChecked(not collapsed if isinstance(collapsed,bool) else True)
         self._on_toggled(self._btn.isChecked())
 
     def _poke(self):
@@ -78,6 +79,11 @@ class _CollapsibleSection(QWidget):
         self._poke()
 
 
+# BENCH: petit émetteur pour compter les frames côté MainWindow
+class _BenchEmitter(QObject):
+    frameRendered = pyqtSignal()
+
+
 class EEGLiveDisplay(BasePlugin):
     name = "EEGLiveDisplay"
     language = "Python"
@@ -92,6 +98,8 @@ class EEGLiveDisplay(BasePlugin):
             "sfreq": BehaviorSubject(None),
             "info": BehaviorSubject(None),
         }
+        # sortie pour ConfigNode
+        self.outputs["config_out"] = BehaviorSubject(None)
 
         # UI
         self.figure = None
@@ -100,6 +108,7 @@ class EEGLiveDisplay(BasePlugin):
         self.label = None
         self.channel_list = None
         self.chk_all = None
+        self.chk_loop = None
 
         # popup
         self._popup = None
@@ -123,7 +132,7 @@ class EEGLiveDisplay(BasePlugin):
         self._timer.setInterval(100)
         self._timer.timeout.connect(self._on_tick)
 
-        # Horloge RAW monotone (LSL qui “reset” les temps)
+        # Horloge RAW monotone
         self._raw_time_shift = 0.0
         self._raw_prev_times_last = None
         self._raw_prev_times_first = None
@@ -166,6 +175,112 @@ class EEGLiveDisplay(BasePlugin):
         # micro-planification
         self._pending_update = False
 
+        # BENCH HOOKS
+        self._bench = _BenchEmitter()
+        self._bench_first_done = False
+        self._frame_count = 0
+
+    # --------------- config I/O ----------------
+    def export_config(self) -> dict:
+        return {
+            "loop": bool(self._loop),
+            "window_s": float(self._window_s),
+            "step_s": float(self._step_s),
+            "seg_len_auto": bool(self._seg_len_auto),
+            "seg_len_manual": (float(self._seg_len_manual) if (self._seg_len_manual is not None and not self._seg_len_auto) else None),
+            "force_nch": int(self._force_nch),
+            "max_points": int(self._max_points),
+            "max_fps": int(self._max_fps),
+        }
+
+    def _emit_config(self):
+        try:
+            self.outputs["config_out"].on_next(self.export_config())
+        except Exception:
+            pass
+
+    def import_config(self, cfg: dict):
+        if not isinstance(cfg, dict):
+            return
+        def _get(k, typ=None, d=None):
+            v = cfg.get(k, d)
+            if typ is None or v is None: return v
+            try:
+                return typ(v)
+            except Exception:
+                return d
+
+        loop = _get("loop", bool, self._loop)
+        if loop is not None and loop != self._loop:
+            self._loop = bool(loop)
+            if self.chk_loop:
+                self.chk_loop.blockSignals(True)
+                self.chk_loop.setChecked(self._loop)
+                self.chk_loop.blockSignals(False)
+
+        win = _get("window_s", float, self._window_s)
+        if win is not None and win != self._window_s:
+            self._window_s = float(win)
+
+        step = _get("step_s", float, self._step_s)
+        if step is not None and step != self._step_s:
+            self._step_s = float(step)
+
+        auto = _get("seg_len_auto", bool, self._seg_len_auto)
+        if auto is not None and auto != self._seg_len_auto:
+            self._seg_len_auto = bool(auto)
+            if self._chk_seg_auto:
+                self._chk_seg_auto.blockSignals(True)
+                self._chk_seg_auto.setChecked(self._seg_len_auto)
+                self._chk_seg_auto.blockSignals(False)
+            if self._sp_seg_len:
+                self._sp_seg_len.setEnabled(not self._seg_len_auto)
+
+        manual = cfg.get("seg_len_manual", None)
+        if manual is not None:
+            try:
+                mv = float(manual)
+                self._seg_len_manual = mv if not self._seg_len_auto else None
+                self._seg_len_effective = (mv if not self._seg_len_auto else self._seg_len_effective)
+                if self._sp_seg_len:
+                    self._sp_seg_len.blockSignals(True)
+                    self._sp_seg_len.setValue(max(0.0, mv))
+                    self._sp_seg_len.blockSignals(False)
+            except Exception:
+                pass
+
+        fn = _get("force_nch", int, self._force_nch)
+        if fn is not None and fn != self._force_nch:
+            self._force_nch = int(fn)
+            if self._sp_force_nch:
+                self._sp_force_nch.blockSignals(True)
+                self._sp_force_nch.setValue(self._force_nch)
+                self._sp_force_nch.blockSignals(False)
+
+        mp = _get("max_points", int, self._max_points)
+        if mp is not None: self._max_points = int(mp)
+
+        fps = _get("max_fps", int, self._max_fps)
+        if fps is not None: self._max_fps = int(fps)
+
+        self._emit_config()
+        self._schedule_update(mode=self._mode)
+
+    def config_hints(self) -> dict:
+        return {
+            "fields": {
+                "loop": {"type": "bool", "help": "Lecture RAW en boucle"},
+                "window_s": {"type": "float", "min": 0.5, "max": 60.0, "step": 0.5, "label": "Fenêtre (s)"},
+                "step_s": {"type": "float", "min": 0.05, "max": 5.0, "step": 0.05, "label": "Pas RAW (s)"},
+                "seg_len_auto": {"type": "bool", "label": "Longueur segment Auto"},
+                "seg_len_manual": {"type": "float", "min": 0.05, "max": 30.0, "step": 0.05, "label": "Longueur segment (manuel)"},
+                "force_nch": {"type": "int", "min": 0, "max": 256, "label": "Forcer #canaux (0=auto)"},
+                "max_points": {"type": "int", "min": 500, "max": 20000, "step": 100, "help": "Décimation graphique"},
+                "max_fps": {"type": "int", "min": 5, "max": 120, "step": 1, "help": "FPS maximum du tracé"},
+            },
+            "_order": ["loop","window_s","step_s","seg_len_auto","seg_len_manual","force_nch","max_points","max_fps"],
+        }
+
     def build_widget(self):
         root = QWidget()
         outer = QVBoxLayout(root)
@@ -196,8 +311,8 @@ class EEGLiveDisplay(BasePlugin):
         row1.addWidget(btn_stop)
 
         self.chk_loop = QCheckBox("Loop")
-        self.chk_loop.setChecked(True)
-        self.chk_loop.stateChanged.connect(lambda s: setattr(self, "_loop", bool(s)))
+        self.chk_loop.setChecked(self._loop)
+        self.chk_loop.stateChanged.connect(self._on_loop_changed)
         row1.addWidget(self.chk_loop)
         row1.addStretch(1)
 
@@ -214,7 +329,7 @@ class EEGLiveDisplay(BasePlugin):
         sp_s.setRange(0.05, 5.0)
         sp_s.setSingleStep(0.05)
         sp_s.setValue(self._step_s)
-        sp_s.valueChanged.connect(lambda v: setattr(self, "_step_s", float(v)))
+        sp_s.valueChanged.connect(self._on_step_changed)
         row1.addWidget(sp_s)
 
         pv.addLayout(row1)
@@ -275,9 +390,28 @@ class EEGLiveDisplay(BasePlugin):
 
         outer.addWidget(_CollapsibleSection("Paramètres & Contrôles", panel, collapsed=True))
         root.destroyed.connect(self._on_destroy)
+
+        # push config initiale
+        self._emit_config()
         return root
 
     # -------------------- UI helpers --------------------
+    def _bench_param(self, key, val):
+        try:
+            log_evt("PARAM_CHANGE", f"{key}={val}")
+        except Exception:
+            pass
+
+    def _on_loop_changed(self, _state):
+        self._loop = bool(self.chk_loop.isChecked()) if self.chk_loop else True
+        self._bench_param("loop", int(self._loop))
+        self._emit_config()
+
+    def _on_step_changed(self, v):
+        self._step_s = float(v)
+        self._bench_param("step_s", v)
+        self._emit_config()
+
     def _on_toggle_pause(self, btn):
         self._paused = btn.isChecked()
         btn.setText("Resume" if self._paused else "Pause")
@@ -294,13 +428,14 @@ class EEGLiveDisplay(BasePlugin):
     def _on_window_changed(self, v):
         self._window_s = float(v)
         self._reset_segment_buffer()
+        self._bench_param("win_s", v)
+        self._emit_config()
         self._schedule_update(mode=("segment" if self._mode == "segment" else "raw"))
 
     def _on_seg_auto_toggled(self, _state):
         self._seg_len_auto = bool(self._chk_seg_auto.isChecked()) if self._chk_seg_auto else True
         if self._sp_seg_len is not None:
             self._sp_seg_len.setEnabled(not self._seg_len_auto)
-            # quand on repasse en Auto, on reflète la valeur calculée courante (si connue)
             if self._seg_len_auto and self._seg_len_effective is not None:
                 self._sp_seg_len.blockSignals(True)
                 self._sp_seg_len.setValue(max(0.0, float(self._seg_len_effective)))
@@ -310,17 +445,22 @@ class EEGLiveDisplay(BasePlugin):
         else:
             self._seg_len_manual = float(self._sp_seg_len.value())
             self._seg_len_effective = self._seg_len_manual
+        self._bench_param("seg_auto", int(self._seg_len_auto))
+        self._emit_config()
         self._update_plot(flush_only=True, force_mode=self._mode)
 
     def _on_seg_len_changed(self, v):
         if not self._seg_len_auto:
             self._seg_len_manual = float(v)
             self._seg_len_effective = float(v)
+            self._bench_param("seg_len_s", v)
+            self._emit_config()
             self._update_plot(flush_only=True, force_mode=self._mode)
 
     def _on_force_nch_changed(self, v):
         self._force_nch = int(v) if v is not None else 0
-        # Repeupler la liste avec la version tronquée si nécessaire
+        self._bench_param("force_nch", v)
+        self._emit_config()
         if self._mode == "raw" and self._raw is not None:
             try:
                 names = list(self._raw.ch_names)
@@ -362,7 +502,6 @@ class EEGLiveDisplay(BasePlugin):
         return list(names)
 
     def _apply_force_nch_to_array(self, arr, names):
-        """Tronque (arr, names) à force_nch si > 0."""
         if arr is None:
             return arr, names
         n_ch = arr.shape[0]
@@ -397,7 +536,6 @@ class EEGLiveDisplay(BasePlugin):
         self._ui_ch_names = list(ch_names)
 
     def _selected_indices(self, all_names=None):
-        """Fix robuste: si la liste UI est vide -> on sélectionne TOUT par défaut (via all_names)."""
         if self.channel_list is None:
             return []
         if self.channel_list.count() == 0:
@@ -479,6 +617,14 @@ class EEGLiveDisplay(BasePlugin):
             return
         canvas.draw()
         self._last_draw = now
+
+        # BENCH HOOK: n’émettre que pour le canvas principal
+        if canvas is self.canvas and hasattr(self, "_bench"):
+            try:
+                self._frame_count += 1
+                self._bench.frameRendered.emit()
+            except Exception:
+                pass
 
     def _plot_data(self, data, times, names, title_prefix="EEG"):
         if self._is_drawing:
@@ -614,7 +760,6 @@ class EEGLiveDisplay(BasePlugin):
         except Exception:
             all_names = None
 
-        # Limite visuelle aux n-ch forcés
         names_for_ui = self._apply_force_nch_to_names(all_names or [])
         if self.channel_list and (self._ui_ch_names is None or len(self._ui_ch_names) != len(names_for_ui)):
             self._populate_channels(names_for_ui)
@@ -642,7 +787,6 @@ class EEGLiveDisplay(BasePlugin):
             self._maybe_draw(self.canvas)
             return
 
-        # Temps monotone (scroll X) pour LSL qui repart à 0
         if data.size:
             if self._raw_prev_times_last is not None:
                 if times[0] <= 1e-9:
@@ -653,7 +797,6 @@ class EEGLiveDisplay(BasePlugin):
         else:
             abs_times = times
 
-        # Noms sélectionnés robustes
         sel_names = [names_for_ui[i] if (0 <= i < len(names_for_ui)) else f"ch{i+1}" for i in range(len(picks))]
         try:
             alln = list(all_names) if all_names else []
@@ -678,14 +821,14 @@ class EEGLiveDisplay(BasePlugin):
 
         QTimer.singleShot(0, _do)
 
-    # -------------------- execute (entrée des données) --------------------
+    # -------------------- execute --------------------
     def execute(self, inputs=None, **kwargs):
         args = {}
         if isinstance(inputs, dict):
             args.update(inputs)
         args.update(kwargs)
 
-        # --------- meta & noms ---------
+        # meta & noms
         ch_kw = args.get("ch_names", None)
         if isinstance(ch_kw, (list, tuple)) and ch_kw:
             new_names = self._apply_force_nch_to_names(list(ch_kw))
@@ -739,7 +882,7 @@ class EEGLiveDisplay(BasePlugin):
                 except Exception:
                     pass
 
-        # --------- MODE SEGMENT ---------
+        # MODE SEGMENT
         if "segment" in args:
             seg_in = args.get("segment", None)
             if seg_in is None:
@@ -791,7 +934,6 @@ class EEGLiveDisplay(BasePlugin):
                 if isinstance(sf, (int, float)):
                     self._last_fs = float(sf)
 
-                # tronque au n-ch forcé
                 self._last_seg, self._last_names = self._apply_force_nch_to_array(self._last_seg, self._last_names)
 
                 self._ensure_seg_buffer(self._last_seg.shape[0], self._last_fs, self._last_names)
@@ -799,7 +941,6 @@ class EEGLiveDisplay(BasePlugin):
 
                 self._seg_index = int(self._seg_index) + 1
 
-                # longueur de segment (auto/manuel)
                 calc_len = None
                 try:
                     if self._last_fs and self._last_seg is not None and self._last_seg.shape[1] > 0:
@@ -834,7 +975,7 @@ class EEGLiveDisplay(BasePlugin):
                 if not self._paused:
                     self._schedule_update(mode="segment")
 
-        # --------- MODE RAW ---------
+        # MODE RAW
         if "raw" in args:
             new_raw = args.get("raw", None)
             if new_raw is None:
@@ -878,8 +1019,6 @@ class EEGLiveDisplay(BasePlugin):
                         changed = True
 
                 self._raw = new_raw
-
-                # noms affichés = tronqués si nécessaire
                 new_names = self._apply_force_nch_to_names(new_names_full)
                 self._populate_channels(new_names)
 
@@ -904,7 +1043,6 @@ class EEGLiveDisplay(BasePlugin):
                     if not self._timer.isActive():
                         self._timer.start()
 
-        # --------- refresh ---------
         if self._mode == "segment" and self._seg_buf is not None and self._seg_buf_fs > 0 and not self._paused:
             self._schedule_update(mode="segment")
         elif self._mode == "raw" and self._raw is not None and not self._paused:
@@ -1028,7 +1166,6 @@ class EEGLiveDisplay(BasePlugin):
         btn_full.clicked.connect(lambda: self._toggle_fullscreen(btn_full))
         btn_close.clicked.connect(dialog.close)
         dialog.showMaximized()
-
         self._update_plot(flush_only=True, force_mode=self._mode)
 
         def _on_finish(*a):

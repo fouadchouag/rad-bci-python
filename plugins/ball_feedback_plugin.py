@@ -1,4 +1,5 @@
 # plugins/ball_feedback_plugin.py
+# -*- coding: utf-8 -*-
 
 from rx.subject import BehaviorSubject
 from PyQt5.QtWidgets import (
@@ -8,7 +9,6 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPainter, QPen, QBrush, QColor
 from core.node_base import BasePlugin
-import math
 import time
 
 
@@ -48,7 +48,7 @@ class _BallCanvas(QWidget):
         # balle
         x = margin + self._pos * (w - 2 * margin)
         r = 14
-        grad = QColor("#5eead4")  # cyan/vert
+        grad = QColor("#5eead4")
         p.setBrush(QBrush(grad))
         p.setPen(QPen(QColor("#0ea5e9"), 1.5))
         p.drawEllipse(int(x - r), int(y - r), 2 * r, 2 * r)
@@ -63,14 +63,21 @@ class _BallCanvas(QWidget):
 class BallFeedbackPlugin(BasePlugin):
     """
     Déplace une balle à gauche/droite selon la prédiction du classifieur.
+
     Entrées:
       - pred_label (str)
       - pred_conf (float 0..1)
+      - config_in (dict, optionnel)
+      - ball_feedback_conf (dict, optionnel)
+
     UI:
-      - champs "Left class" / "Right class" (noms des classes du classifieur)
-      - threshold (confiance minimale)
-      - speed (vitesse)
+      - "Left class" / "Right class"
+      - threshold
+      - speed
       - buttons: Center / Test Left / Test Right
+
+    Sorties:
+      - (UI) et config_out: {left_name, right_name, threshold, speed}
     """
     name = "BallFeedback"
     language = "Python"
@@ -78,7 +85,11 @@ class BallFeedbackPlugin(BasePlugin):
 
     def setup(self):
         self.inputs["pred_label"] = BehaviorSubject(None)
-        self.inputs["pred_conf"] = BehaviorSubject(None)
+        self.inputs["pred_conf"]  = BehaviorSubject(None)
+        self.inputs["config_in"]  = BehaviorSubject(None)
+        self.inputs["ball_feedback_conf"] = BehaviorSubject(None)
+
+        self.outputs["config_out"] = BehaviorSubject(None)
 
         # état
         self._current_label = None
@@ -98,11 +109,42 @@ class BallFeedbackPlugin(BasePlugin):
         self._spn_thr = None
         self._spn_speed = None
 
-        # timer anim
-        self._timer = QTimer()
-        self._timer.setInterval(30)  # ~33 FPS
-        self._timer.timeout.connect(self._on_tick)
-        self._timer.start()
+        # timer anim (créé avec parent dans build_widget)
+        self._timer = None
+
+    # ---------- config ----------
+    def export_config(self) -> dict:
+        return {
+            "left_name": str(self._left_name),
+            "right_name": str(self._right_name),
+            "threshold": float(self._threshold),
+            "speed": float(self._speed),
+        }
+
+    def import_config(self, cfg: dict):
+        if not isinstance(cfg, dict): return
+        if "left_name" in cfg:  self._left_name  = str(cfg["left_name"])
+        if "right_name" in cfg: self._right_name = str(cfg["right_name"])
+        if "threshold" in cfg:
+            try: self._threshold = float(cfg["threshold"])
+            except Exception: pass
+        if "speed" in cfg:
+            try: self._speed = float(cfg["speed"])
+            except Exception: pass
+
+        # sync UI si existante
+        if self._in_left:  self._in_left.setText(self._left_name)
+        if self._in_right: self._in_right.setText(self._right_name)
+        if self._spn_thr:   self._spn_thr.setValue(self._threshold)
+        if self._spn_speed: self._spn_speed.setValue(self._speed)
+
+        self._emit_config()
+
+    def _emit_config(self):
+        try:
+            self.outputs["config_out"].on_next(self.export_config())
+        except Exception:
+            pass
 
     def build_widget(self):
         w = QWidget()
@@ -114,10 +156,12 @@ class BallFeedbackPlugin(BasePlugin):
         row_map = QHBoxLayout()
         row_map.addWidget(QLabel("Left class:"))
         self._in_left = QLineEdit(self._left_name)
+        self._in_left.textChanged.connect(lambda t: (setattr(self, "_left_name", t or "Left"), self._emit_config()))
         row_map.addWidget(self._in_left)
         row_map.addSpacing(8)
         row_map.addWidget(QLabel("Right class:"))
         self._in_right = QLineEdit(self._right_name)
+        self._in_right.textChanged.connect(lambda t: (setattr(self, "_right_name", t or "Right"), self._emit_config()))
         row_map.addWidget(self._in_right)
         row_map.addStretch(1)
         lay.addLayout(row_map)
@@ -129,7 +173,7 @@ class BallFeedbackPlugin(BasePlugin):
         self._spn_thr.setRange(0.0, 1.0)
         self._spn_thr.setSingleStep(0.05)
         self._spn_thr.setValue(self._threshold)
-        self._spn_thr.valueChanged.connect(lambda v: setattr(self, "_threshold", float(v)))
+        self._spn_thr.valueChanged.connect(lambda v: (setattr(self, "_threshold", float(v)), self._emit_config()))
         row_param.addWidget(self._spn_thr)
 
         row_param.addSpacing(8)
@@ -138,13 +182,13 @@ class BallFeedbackPlugin(BasePlugin):
         self._spn_speed.setRange(0.1, 3.0)
         self._spn_speed.setSingleStep(0.1)
         self._spn_speed.setValue(self._speed)
-        self._spn_speed.valueChanged.connect(lambda v: setattr(self, "_speed", float(v)))
+        self._spn_speed.valueChanged.connect(lambda v: (setattr(self, "_speed", float(v)), self._emit_config()))
         row_param.addWidget(self._spn_speed)
         row_param.addStretch(1)
         lay.addLayout(row_param)
 
         # canvas
-        self._canvas = _BallCanvas()
+        self._canvas = _BallCanvas(parent=w)
         lay.addWidget(self._canvas)
 
         # boutons actions
@@ -168,9 +212,25 @@ class BallFeedbackPlugin(BasePlugin):
         self._lbl = QLabel("No predictions")
         lay.addWidget(self._lbl)
 
+        # timer parenté au widget (auto-stop à la destruction)
+        self._timer = QTimer(parent=w)
+        self._timer.setInterval(30)  # ~33 FPS
+        self._timer.timeout.connect(self._on_tick)
+        self._timer.start()
+        w.destroyed.connect(lambda *_: (self._timer.stop() if self._timer and self._timer.isActive() else None))
+
+        # pousser la config initiale
+        self._emit_config()
         return w
 
     def execute(self, **kwargs):
+        # merge config
+        merged = {}
+        c1 = kwargs.get("config_in"); c2 = kwargs.get("ball_feedback_conf")
+        if isinstance(c1, dict): merged.update(c1)
+        if isinstance(c2, dict): merged.update(c2)
+        if merged: self.import_config(merged)
+
         # MAJ des derniers résultats
         lab = kwargs.get("pred_label", None)
         conf = kwargs.get("pred_conf", None)
@@ -181,12 +241,6 @@ class BallFeedbackPlugin(BasePlugin):
                 self._current_conf = float(conf)
             except Exception:
                 self._current_conf = 0.0
-
-        # MAJ noms classes depuis l'UI (si l'utilisateur change)
-        if self._in_left:
-            self._left_name = self._in_left.text().strip() or "Left"
-        if self._in_right:
-            self._right_name = self._in_right.text().strip() or "Right"
 
         # statut
         if self._lbl:

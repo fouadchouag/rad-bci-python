@@ -1,6 +1,9 @@
 # plugins/eeg_filter_plugin.py
 # -*- coding: utf-8 -*-
 # EEGSliceFilter : filtrage streaming (HP/LP/Notch) par fenêtres, avec état persistant
+# • SciPy sosfilt (C) -> pas de GIL bloquant
+# • Compatibilité ConfigNode (export_config / import_config / config_hints + config_out)
+# • Émission méta seulement si changement (évite boucles)
 
 import numpy as np
 from rx.subject import BehaviorSubject
@@ -30,7 +33,7 @@ class _CollapsibleSection(QWidget):
         self._wrap_l.addWidget(self._content)
         root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(4)
         root.addWidget(self._btn); root.addWidget(self._wrap)
-        self._btn.toggled.connect(self._on_toggled); self._btn.setChecked(not collapsed)
+        self._btn.toggled.connect(self._on_toggled); self._btn.setChecked(not collapsed if isinstance(collapsed,bool) else True)
         self._on_toggled(self._btn.isChecked())
 
     def _poke(self):
@@ -54,6 +57,7 @@ class _CollapsibleSection(QWidget):
 class EEGFilterPlugin(BasePlugin):
     name = "EEGSliceFilter"
     category = "Processing Nodes"
+    language = "Python"
 
     def setup(self):
         self.inputs = {
@@ -67,6 +71,7 @@ class EEGFilterPlugin(BasePlugin):
             "info": BehaviorSubject(None),
             "sfreq": BehaviorSubject(None),
             "ch_names": BehaviorSubject(None),
+            "config_out": BehaviorSubject(None),
         }
 
         # params
@@ -92,6 +97,81 @@ class EEGFilterPlugin(BasePlugin):
         self.chk_lp = self.spn_lp = self.spn_order = None
         self.chk_notch = self.spn_notch = self.spn_q = None
         self.chk_bypass = None
+
+    # ---------- Config I/O ----------
+    def export_config(self) -> dict:
+        return {
+            "enable_hp": bool(self._enable_hp),
+            "hp": float(self._hp),
+            "enable_lp": bool(self._enable_lp),
+            "lp": float(self._lp),
+            "order": int(self._order),
+            "enable_notch": bool(self._enable_notch),
+            "notch_f": float(self._notch_f),
+            "notch_q": float(self._notch_q),
+            "bypass": bool(self._bypass),
+        }
+
+    def _emit_config(self):
+        try:
+            self.outputs["config_out"].on_next(self.export_config())
+        except Exception:
+            pass
+
+    def import_config(self, cfg: dict):
+        if not isinstance(cfg, dict):
+            return
+        def _get(k, typ=None, d=None):
+            v = cfg.get(k, d)
+            if typ is None or v is None: return v
+            try:
+                return typ(v)
+            except Exception:
+                return d
+
+        self._enable_hp = bool(_get("enable_hp", bool, self._enable_hp))
+        self._hp = float(_get("hp", float, self._hp))
+        self._enable_lp = bool(_get("enable_lp", bool, self._enable_lp))
+        self._lp = float(_get("lp", float, self._lp))
+        self._order = int(_get("order", int, self._order))
+        self._enable_notch = bool(_get("enable_notch", bool, self._enable_notch))
+        self._notch_f = float(_get("notch_f", float, self._notch_f))
+        self._notch_q = float(_get("notch_q", float, self._notch_q))
+        self._bypass = bool(_get("bypass", bool, self._bypass))
+
+        # pousser UI si présente
+        try:
+            if self.chk_hp: self.chk_hp.blockSignals(True); self.chk_hp.setChecked(self._enable_hp); self.chk_hp.blockSignals(False)
+            if self.spn_hp: self.spn_hp.blockSignals(True); self.spn_hp.setValue(self._hp); self.spn_hp.blockSignals(False)
+            if self.chk_lp: self.chk_lp.blockSignals(True); self.chk_lp.setChecked(self._enable_lp); self.chk_lp.blockSignals(False)
+            if self.spn_lp: self.spn_lp.blockSignals(True); self.spn_lp.setValue(self._lp); self.spn_lp.blockSignals(False)
+            if self.spn_order: self.spn_order.blockSignals(True); self.spn_order.setValue(self._order); self.spn_order.blockSignals(False)
+            if self.chk_notch: self.chk_notch.blockSignals(True); self.chk_notch.setChecked(self._enable_notch); self.chk_notch.blockSignals(False)
+            if self.spn_notch: self.spn_notch.blockSignals(True); self.spn_notch.setValue(self._notch_f); self.spn_notch.blockSignals(False)
+            if self.spn_q: self.spn_q.blockSignals(True); self.spn_q.setValue(self._notch_q); self.spn_q.blockSignals(False)
+            if self.chk_bypass: self.chk_bypass.blockSignals(True); self.chk_bypass.setChecked(self._bypass); self.chk_bypass.blockSignals(False)
+        except Exception:
+            pass
+
+        # re-design filtres
+        self._sos = None; self._design_if_needed()
+        self._emit_config()
+
+    def config_hints(self) -> dict:
+        return {
+            "fields": {
+                "enable_hp": {"type": "bool", "label": "HP on"},
+                "hp": {"type": "float", "min": 0.01, "max": 100.0, "step": 0.1, "label": "HP (Hz)"},
+                "enable_lp": {"type": "bool", "label": "LP on"},
+                "lp": {"type": "float", "min": 1.0, "max": 200.0, "step": 1.0, "label": "LP (Hz)"},
+                "order": {"type": "int", "min": 1, "max": 10, "label": "Order"},
+                "enable_notch": {"type": "bool", "label": "Notch on"},
+                "notch_f": {"type": "float", "min": 1.0, "max": 200.0, "step": 1.0, "label": "Notch f0 (Hz)"},
+                "notch_q": {"type": "float", "min": 1.0, "max": 100.0, "step": 1.0, "label": "Notch Q"},
+                "bypass": {"type": "bool", "label": "Bypass"},
+            },
+            "_order": ["bypass","enable_hp","hp","enable_lp","lp","order","enable_notch","notch_f","notch_q"],
+        }
 
     def build_widget(self) -> QWidget:
         w = QWidget(); v = QVBoxLayout(w)
@@ -120,6 +200,9 @@ class EEGFilterPlugin(BasePlugin):
 
         pv.addWidget(QLabel("Astuce: LP=15 Hz coupe la composante 20 Hz du simulateur; Notch=10 Hz annule l'alpha 10 Hz."))
         v.addWidget(_CollapsibleSection("Paramètres", panel, collapsed=True))
+
+        # pousser config initiale
+        self._emit_config()
         return w
 
     # ---- logic ----
@@ -130,6 +213,8 @@ class EEGFilterPlugin(BasePlugin):
         self._enable_notch = self.chk_notch.isChecked(); self._notch_f = float(self.spn_notch.value()); self._notch_q = float(self.spn_q.value())
         self._bypass = self.chk_bypass.isChecked()
         self._sos = None; self._zi_per_ch = []
+        self._design_if_needed()
+        self._emit_config()
 
     def _reset_state(self):
         if self._sos is None or self._n_ch <= 0:

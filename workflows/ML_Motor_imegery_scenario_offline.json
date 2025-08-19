@@ -1,0 +1,194 @@
+{
+  "nodes": [
+    {
+      "name": "BCI_MetricsViewer_42128f",
+      "type": "BCI_MetricsViewer",
+      "position": [
+        2427.0,
+        41.0
+      ]
+    },
+    {
+      "name": "ClassifierMetricsPlugin_169f4b",
+      "type": "ClassifierMetricsPlugin",
+      "position": [
+        2031.0,
+        73.0
+      ]
+    },
+    {
+      "name": "BCIPreprocNode_6035e3",
+      "type": "BCIPreprocNode",
+      "position": [
+        453.0,
+        64.0
+      ]
+    },
+    {
+      "name": "BCI_Trainer_d0fad4",
+      "type": "BCI_Trainer",
+      "position": [
+        2138.0,
+        473.0
+      ]
+    },
+    {
+      "name": "BCIEpochNode_a0e020",
+      "type": "BCIEpochNode",
+      "position": [
+        845.0,
+        28.0
+      ]
+    },
+    {
+      "name": "LSL_Markers_Inlet_050757",
+      "type": "LSL_Markers_Inlet",
+      "position": [
+        32.0,
+        366.0
+      ]
+    },
+    {
+      "name": "MarkersToClassIdx_cc04fb",
+      "type": "MarkersToClassIdx",
+      "position": [
+        661.0,
+        574.0
+      ]
+    },
+    {
+      "name": "BCICollector_942f7a",
+      "type": "BCICollector",
+      "position": [
+        1406.0,
+        491.0
+      ]
+    },
+    {
+      "name": "LSL_EEG_Inlet_Fast_3549ce",
+      "type": "LSL_EEG_Inlet_Fast",
+      "position": [
+        105.0,
+        -35.0
+      ]
+    },
+    {
+      "name": "BCI_Features_2db876",
+      "type": "BCI_Features",
+      "position": [
+        1281.0,
+        27.0
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "BCICollector_942f7a",
+      "from_pin": "dataset",
+      "to": "BCI_MetricsViewer_42128f",
+      "to_pin": "dataset"
+    },
+    {
+      "from": "BCI_Trainer_d0fad4",
+      "from_pin": "report",
+      "to": "BCI_MetricsViewer_42128f",
+      "to_pin": "report"
+    },
+    {
+      "from": "BCI_Features_2db876",
+      "from_pin": "band_labels",
+      "to": "BCICollector_942f7a",
+      "to_pin": "band_labels"
+    },
+    {
+      "from": "BCIEpochNode_a0e020",
+      "from_pin": "segment",
+      "to": "BCI_Features_2db876",
+      "to_pin": "X"
+    },
+    {
+      "from": "BCICollector_942f7a",
+      "from_pin": "dataset",
+      "to": "BCI_Trainer_d0fad4",
+      "to_pin": "dataset"
+    },
+    {
+      "from": "MarkersToClassIdx_cc04fb",
+      "from_pin": "y_idx",
+      "to": "BCICollector_942f7a",
+      "to_pin": "y_idx"
+    },
+    {
+      "from": "LSL_Markers_Inlet_050757",
+      "from_pin": "events",
+      "to": "MarkersToClassIdx_cc04fb",
+      "to_pin": "events"
+    },
+    {
+      "from": "BCIPreprocNode_6035e3",
+      "from_pin": "segment",
+      "to": "BCIEpochNode_a0e020",
+      "to_pin": "chunk"
+    },
+    {
+      "from": "BCIPreprocNode_6035e3",
+      "from_pin": "ch_names",
+      "to": "BCIEpochNode_a0e020",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "LSL_EEG_Inlet_Fast_3549ce",
+      "from_pin": "data",
+      "to": "BCIPreprocNode_6035e3",
+      "to_pin": "segment"
+    },
+    {
+      "from": "LSL_EEG_Inlet_Fast_3549ce",
+      "from_pin": "sfreq",
+      "to": "BCIPreprocNode_6035e3",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "LSL_EEG_Inlet_Fast_3549ce",
+      "from_pin": "ch_names",
+      "to": "BCIPreprocNode_6035e3",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "BCIPreprocNode_6035e3",
+      "from_pin": "sfreq",
+      "to": "BCIEpochNode_a0e020",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "BCIEpochNode_a0e020",
+      "from_pin": "sfreq",
+      "to": "BCI_Features_2db876",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "BCIEpochNode_a0e020",
+      "from_pin": "ch_names",
+      "to": "BCI_Features_2db876",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "BCI_Features_2db876",
+      "from_pin": "features",
+      "to": "BCICollector_942f7a",
+      "to_pin": "features"
+    },
+    {
+      "from": "BCI_Features_2db876",
+      "from_pin": "band_labels",
+      "to": "BCICollector_942f7a",
+      "to_pin": "band_labels"
+    },
+    {
+      "from": "BCICollector_942f7a",
+      "from_pin": "dataset",
+      "to": "ClassifierMetricsPlugin_169f4b",
+      "to_pin": "dataset"
+    }
+  ]
+}
