@@ -1,3 +1,5 @@
+from core.version import __version__
+
 import sys
 print(">>> main.py lancé")
 
@@ -12,6 +14,7 @@ def main():
 
     window = MainWindow()
     window.show()
+    window.setWindowTitle(f"RBciAD {__version__} – Reactive BCI Builder")
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
