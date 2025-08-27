@@ -1,0 +1,216 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "BandpowerViewer_5fa9c3",
+      "type": "BandpowerViewer",
+      "position": [
+        654.0,
+        67.0
+      ],
+      "config": {
+        "mode": "single",
+        "sel_ch": 55
+      }
+    },
+    {
+      "name": "BandPowerExtractor_cbd0de",
+      "type": "BandPowerExtractor",
+      "position": [
+        1862.0,
+        106.0
+      ],
+      "config": {
+        "psd_is_db": false,
+        "relative": true,
+        "bands": [
+          [
+            "delta",
+            1.0,
+            4.0
+          ],
+          [
+            "theta",
+            4.0,
+            8.0
+          ],
+          [
+            "alpha",
+            8.0,
+            13.0
+          ],
+          [
+            "beta",
+            13.0,
+            30.0
+          ],
+          [
+            "gamma",
+            30.0,
+            45.0
+          ]
+        ]
+      }
+    },
+    {
+      "name": "PSDWelchPlugin_2fc36c",
+      "type": "PSDWelchPlugin",
+      "position": [
+        1527.0,
+        96.0
+      ],
+      "config": {
+        "fmin": 0.5,
+        "fmax": 45.0,
+        "seglen_s": 2.0,
+        "overlap_s": 1.0,
+        "average": "mean",
+        "eeg_only": true,
+        "max_points": 2048
+      }
+    },
+    {
+      "name": "MNEAverageReferencePlugin_3d1ed0",
+      "type": "MNEAverageReferencePlugin",
+      "position": [
+        873.0,
+        135.0
+      ],
+      "config": {
+        "as_projection": false
+      }
+    },
+    {
+      "name": "MNEResamplePlugin_abce26",
+      "type": "MNEResamplePlugin",
+      "position": [
+        1279.0,
+        131.0
+      ],
+      "config": {
+        "sfreq": 256.0
+      }
+    },
+    {
+      "name": "MNENotchFilterPlugin_4004d8",
+      "type": "MNENotchFilterPlugin",
+      "position": [
+        252.0,
+        121.0
+      ],
+      "config": {
+        "freqs": [
+          90.0
+        ],
+        "harmonics_max": 0,
+        "picks_eeg_only": true,
+        "phase": "zero"
+      }
+    },
+    {
+      "name": "MNEBandpassFilterPlugin_a68d11",
+      "type": "MNEBandpassFilterPlugin",
+      "position": [
+        542.0,
+        112.0
+      ],
+      "config": {
+        "l_freq": 1.0,
+        "h_freq": 4.0,
+        "picks_eeg_only": true,
+        "phase": "zero"
+      }
+    },
+    {
+      "name": "EEGUniversalReader_8fbeac",
+      "type": "EEGUniversalReader",
+      "position": [
+        -14.0,
+        61.0
+      ],
+      "config": {
+        "units": "V",
+        "chunk_s": 1.0,
+        "overlap_s": 0.0,
+        "loop": false,
+        "resample_hz": 0,
+        "eeg_only": true,
+        "incl_eog": false,
+        "incl_emg": false,
+        "incl_stim": false,
+        "fast_open": true,
+        "turbo_gdf": true,
+        "emit_annotations": true,
+        "path": "D:/rad-bci-python_test/eeg_recording/testfile2.edf"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "BandPowerExtractor_cbd0de",
+      "from_pin": "ch_names",
+      "to": "BandpowerViewer_5fa9c3",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "BandPowerExtractor_cbd0de",
+      "from_pin": "band_labels",
+      "to": "BandpowerViewer_5fa9c3",
+      "to_pin": "band_labels"
+    },
+    {
+      "from": "BandPowerExtractor_cbd0de",
+      "from_pin": "bandpowers",
+      "to": "BandpowerViewer_5fa9c3",
+      "to_pin": "bandpowers"
+    },
+    {
+      "from": "PSDWelchPlugin_2fc36c",
+      "from_pin": "ch_names",
+      "to": "BandPowerExtractor_cbd0de",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "PSDWelchPlugin_2fc36c",
+      "from_pin": "freqs",
+      "to": "BandPowerExtractor_cbd0de",
+      "to_pin": "freqs"
+    },
+    {
+      "from": "PSDWelchPlugin_2fc36c",
+      "from_pin": "psd",
+      "to": "BandPowerExtractor_cbd0de",
+      "to_pin": "psd"
+    },
+    {
+      "from": "MNENotchFilterPlugin_4004d8",
+      "from_pin": "raw",
+      "to": "MNEBandpassFilterPlugin_a68d11",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGUniversalReader_8fbeac",
+      "from_pin": "raw",
+      "to": "MNENotchFilterPlugin_4004d8",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNEBandpassFilterPlugin_a68d11",
+      "from_pin": "raw",
+      "to": "MNEAverageReferencePlugin_3d1ed0",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNEAverageReferencePlugin_3d1ed0",
+      "from_pin": "raw",
+      "to": "MNEResamplePlugin_abce26",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNEResamplePlugin_abce26",
+      "from_pin": "raw",
+      "to": "PSDWelchPlugin_2fc36c",
+      "to_pin": "raw"
+    }
+  ]
+}

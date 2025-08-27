@@ -1,0 +1,39 @@
+EEGReader (Raw) → MNEBandpassFilter → EEGVisualizer.
+
+EEGReader (Raw) → MNENotchFilter (freqs=50, harmonics_max=2) → MNEBandpassFilter (1–40 Hz) → EEGVisualizer.
+
+EEGReader (Raw) → MNENotchFilter (50 Hz, harmoniques) → MNEBandpassFilter (1–40 Hz) → MNEAverageReference → EEGVisualizer.
+
+EEGReader (Raw) → MNENotchFilter → MNEBandpassFilter → MNEAverageReference → MNEResample (ex. 256 Hz) → EEGVisualizer.
+
+EEGReader(Raw) → MNENotchFilter → MNEBandpassFilter → MNEAverageReference → MNEEpochs (events=None → auto depuis annotations) → EEGVisualizer / Bandpower / Classifier
+
+EEGReader (Raw) → Notch → Bandpass → AverageRef → Resample → Epochs (tmin=-0.2, tmax=0.8) → Baseline (baseline=(None,0.0)) → Visualizer / PSD / Classifier.
+
+Raw → Notch → Bandpass → AverageRef → Resample → PSDWelch → (Viewer/Features)
+Epochs → Baseline → PSDWelch (aggregate_epochs='mean') → Bandpower/Classifier
+
+… → MNEEpochs(tmin=-0.2,tmax=0.8) → MNEBaseline((None,0.0))
+→ MNEICA(fit_on_epochs=True, detect_eog=True, apply=True)
+→ PSDWelch(aggregate_epochs='mean') / Classifier
+
+
+Raw → Notch → Bandpass → AverageRef → Resample → PSDWelch(as_db=True) → BandPowerExtractor(relative=True) → BandpowerViewer
+Epochs → Baseline → PSDWelch(aggregate_epochs='none') → BandPowerExtractor(aggregate_epochs='mean', relative=True) → BandpowerViewer
+
+
+
+
+Spectre ▶ Topomap
+Raw → (Notch/BP) → PSDWelch → PSDTopo
+
+ERPs
+Raw → Epochs → (Average) → EvokedViewer
+
+TFR
+Raw → Epochs → TFR (Morlet) → TFRViewer
+
+ICA QC
+Raw → (BP 1–40) → ICA → ICAViewer
+
+

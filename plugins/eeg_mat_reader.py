@@ -1,30 +1,35 @@
 # plugins/eeg_mat_reader.py
 # -*- coding: utf-8 -*-
 """
-EEGMatReader — lecteur .mat (BBCI/BCI Competition)
+EEGMatReader — lecteur .mat (BBCI / BCI Competition / génériques)
+
 Sorties:
-  - segment  : np.ndarray float32 shape (n_ch, n_samples)
+  - segment  : np.ndarray float32 shape (n_ch, n_samples) — flux prêt pour Viewer2D
   - ch_names : list[str] (émis au reset)
   - sfreq    : float      (émis au reset)
-  - info     : dict {path, n_channels, sfreq, n_samples, style, units, reset, mode}
+  - info     : dict {path, n_channels, sfreq, n_samples, style, units, reset, mode,
+                     segment_index?, segment_total?}
 
 Fonctionne avec:
   - BBCI Toolbox style: cnt (continu), nfo.fs, nfo.clab, mrk (optionnel)
   - BCI Comp (époques): X (trials×samples×channels) ou permuté
 
-Dépendances:
-  pip install scipy h5py numpy
+Robustesse:
+  - Timer robuste + arrêt sûr à la destruction du widget
+  - Start/Stop solides, reset clair des sorties quand stop/déconnexion
+  - Heuristiques orientation (n_samples, n_channels) stabilisées
+  - Chargement SciPy et HDF5 (h5py) avec protections
+  - Émission continue du compteur de segments (segment_index / segment_total)
 """
-
-import os
-import time
+import os, json, re
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFileDialog,
-    QComboBox, QDoubleSpinBox, QSpinBox, QCheckBox, QLayout, QSizePolicy, QStyle
+    QComboBox, QDoubleSpinBox, QCheckBox, QLayout, QSizePolicy, QStyle,
+    QDialog, QTextEdit, QTabWidget
 )
 from PyQt5.QtCore import QTimer
 
@@ -44,9 +49,28 @@ try:
 except Exception:
     _h5py = None
 
+# ---------- JSON-safe ----------
+def _jsonify(obj):
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
+    try:
+        import numpy as _np
+        if isinstance(obj, (_np.integer, _np.floating, _np.bool_)):
+            return obj.item()
+        if isinstance(obj, _np.ndarray):
+            return [_jsonify(x) for x in obj.tolist()]
+    except Exception:
+        pass
+    if isinstance(obj, (list, tuple)):
+        return [_jsonify(x) for x in obj]
+    if isinstance(obj, dict):
+        return {str(k): _jsonify(v) for k, v in obj.items()}
+    return str(obj)
+
+def _dumps_json(obj) -> str:
+    return json.dumps(_jsonify(obj), indent=2, ensure_ascii=False)
 
 def _safe_to_list(obj) -> List[str]:
-    """Convertit cellstr ou array de strings (scipy/h5py) -> list[str]."""
     if obj is None:
         return []
     if isinstance(obj, (list, tuple)):
@@ -58,8 +82,7 @@ def _safe_to_list(obj) -> List[str]:
                 out.append(x)
             else:
                 try:
-                    s = str(x)
-                    out.append(s)
+                    out.append(str(x))
                 except Exception:
                     pass
         return out
@@ -74,20 +97,16 @@ def _safe_to_list(obj) -> List[str]:
     except Exception:
         return []
 
-
 def _try_load_scipy(path: str) -> Optional[Dict[str, Any]]:
     if _scipy_loadmat is None:
         return None
     try:
         d = _scipy_loadmat(path, squeeze_me=True, struct_as_record=False)
-        # remove meta keys
         return {k: v for k, v in d.items() if not k.startswith("__")}
     except NotImplementedError:
-        # v7.3 HDF5 -> handled by h5py
         return None
     except Exception:
         return None
-
 
 def _try_load_h5(path: str) -> Optional[Dict[str, Any]]:
     if _h5py is None:
@@ -95,21 +114,10 @@ def _try_load_h5(path: str) -> Optional[Dict[str, Any]]:
     try:
         out: Dict[str, Any] = {}
         with _h5py.File(path, "r") as h5:
-            def get(k):
-                if k not in h5:
-                    return None
-                obj = h5[k]
-                if isinstance(obj, _h5py.Dataset):
-                    v = obj[()]
-                    return np.array(v)
-                elif isinstance(obj, _h5py.Group):
-                    return obj
-                return None
-            # lecture clés haut niveau utiles
-            for key in ("X", "cnt", "nfo", "mrk", "fs", "Fs", "srate", "channels", "chanlocs"):
+            for key in ("X", "x", "data", "signals", "cnt", "nfo", "mrk", "fs", "Fs", "srate",
+                        "channels", "chanlocs", "trial", "y", "Y", "labels", "pos"):
                 if key in h5:
                     out[key] = h5[key]
-            # fallback: lister toutes les datasets top-level
             for k in list(h5.keys()):
                 if k not in out:
                     out[k] = h5[k]
@@ -117,31 +125,24 @@ def _try_load_h5(path: str) -> Optional[Dict[str, Any]]:
     except Exception:
         return None
 
-
 def _h5_read_nfo(h5_nfo) -> Tuple[Optional[float], List[str]]:
-    """Extrait fs + clab depuis group nfo (h5py)."""
     fs = None
     clab = []
-    if not isinstance(h5_nfo, _h5py.Group):
+    if not (_h5py and isinstance(h5_nfo, _h5py.Group)):
         return fs, clab
-    # fs
     for key in ("fs", "Fs", "srate"):
         if key in h5_nfo:
             try:
                 v = h5_nfo[key][()]
-                fs = float(np.array(v).squeeze())
-                break
+                fs = float(np.array(v).squeeze()); break
             except Exception:
                 pass
-    # clab
     if "clab" in h5_nfo:
         node = h5_nfo["clab"]
         try:
             if isinstance(node, _h5py.Dataset):
-                v = node[()]
-                clab = _safe_to_list(v)
+                v = node[()]; clab = _safe_to_list(v)
             elif isinstance(node, _h5py.Group):
-                # cell array stockée comme objets
                 tmp = []
                 for k in node.keys():
                     tmp.extend(_safe_to_list(node[k][()]))
@@ -150,6 +151,34 @@ def _h5_read_nfo(h5_nfo) -> Tuple[Optional[float], List[str]]:
             pass
     return fs, clab
 
+def _extract_bbci_mrk(mrk_node) -> Dict[str, Any]:
+    out = {"n": 0, "pos": None, "y": None, "class_name": []}
+    try:
+        if _h5py and isinstance(mrk_node, _h5py.Group):
+            pos = mrk_node.get("pos", None)
+            y = mrk_node.get("y", None)
+            cn = mrk_node.get("className", None)
+            if isinstance(pos, _h5py.Dataset):
+                out["pos"] = np.array(pos[()]).astype(np.int64).ravel()
+            if isinstance(y, _h5py.Dataset):
+                out["y"] = np.array(y[()]).squeeze()
+            if cn is not None:
+                out["class_name"] = _safe_to_list(cn[()] if isinstance(cn, _h5py.Dataset) else cn)
+        else:
+            pos = getattr(mrk_node, "pos", None) if hasattr(mrk_node, "pos") else (mrk_node.get("pos", None) if isinstance(mrk_node, dict) else None)
+            y   = getattr(mrk_node, "y", None)   if hasattr(mrk_node, "y")   else (mrk_node.get("y", None)   if isinstance(mrk_node, dict) else None)
+            cn  = getattr(mrk_node, "className", None) if hasattr(mrk_node, "className") else (mrk_node.get("className", None) if isinstance(mrk_node, dict) else None)
+            if pos is not None:
+                out["pos"] = np.array(pos).astype(np.int64).ravel()
+            if y is not None:
+                out["y"] = np.array(y).squeeze()
+            if cn is not None:
+                out["class_name"] = _safe_to_list(cn)
+        if out["pos"] is not None:
+            out["n"] = int(out["pos"].size)
+    except Exception:
+        pass
+    return out
 
 def _auto_channels(n: int) -> List[str]:
     return [f"Ch{i+1}" for i in range(int(max(0, n)))]
@@ -161,58 +190,71 @@ class EEGMatReader(BasePlugin):
     start_hidden = True
     supports_collapse = True
 
-    # ---------- lifecycle ----------
     def setup(self):
+        # Sorties
         self.outputs["segment"]  = BehaviorSubject(None)
         self.outputs["ch_names"] = BehaviorSubject(None)
         self.outputs["sfreq"]    = BehaviorSubject(None)
         self.outputs["info"]     = BehaviorSubject(None)
 
-        # Etat fichier
+        # État
         self._path: Optional[str] = None
-        self._style: Optional[str] = None  # "bbci" | "trials" | "unknown"
-        self._units = "V"   # on suppose Volts par défaut (nombreux .mat BBCI: µV -> tu peux ajouter une case à cocher)
+        self._style: Optional[str] = None  # "bbci" | "trials-2d" | "trials-3d" | "unknown"
+        self._units = "V"
         self._sf = 0.0
         self._ch_names: List[str] = []
         self._n_samples = 0
 
-        # Données
-        self._cnt: Optional[np.ndarray] = None          # (n_samples, n_ch) en CONTINU
-        self._trials: Optional[np.ndarray] = None       # (n_trials, n_samples, n_ch)
-        self._labels: Optional[np.ndarray] = None       # (n_trials,) ou (n_trials, n_classes)
+        self._cnt: Optional[np.ndarray] = None
+        self._trials: Optional[np.ndarray] = None
+        self._labels: Optional[np.ndarray] = None
+        self._trial_onsets: Optional[np.ndarray] = None
+        self._mrk_info: Dict[str, Any] = {}
 
-        # UI et streaming
-        self._mode = "Trials"         # "Trials" | "Continuous"
+        # Lecture
+        self._mode = "Trials"
         self._chunk_s = 1.0
         self._overlap_s = 0.0
         self._auto_play = True
         self._loop = False
 
-        self._timer = QTimer(); self._timer.timeout.connect(self._tick)
-        self._idx = 0          # pour Trials: index trial ; pour Continu: index échantillon
+        # Compteur de segments
+        self._seg_total = 0
+
+        # Timer robuste
+        self._timer = QTimer()
+        self._timer.setSingleShot(False)
+        self._timer.timeout.connect(self._tick)
+        self._timer.stop()
+
+        self._idx = 0
         self._seg_len = 0
         self._hop = 0
 
         self.widget = self.build_widget()
 
     def execute(self, inputs=None):
-        return {}  # source
+        return {}
 
-    # ---------- UI ----------
     def build_widget(self) -> QWidget:
         w = QWidget(); UiKit.apply_node_style(w)
         w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         root = QVBoxLayout(w); root.setSizeConstraint(QLayout.SetMinAndMaxSize)
 
-        # Ligne open
+        # --- Bandeau ---
         r0 = QHBoxLayout()
         btn_open = UiKit.make_btn("Open .mat…", role="primary", icon_sp=QStyle.SP_DialogOpenButton)
         btn_open.clicked.connect(self._on_open)
         r0.addWidget(btn_open)
+
+        btn_info = QPushButton("Infos fichier…")
+        btn_info.clicked.connect(self._show_file_info)
+        r0.addWidget(btn_info)
+
         self._lbl_status = QLabel("No file"); r0.addWidget(self._lbl_status, 1)
         root.addLayout(r0)
 
-        # Section Mode & streaming
+        # --- Panneau paramètres ---
         panel = QWidget(); v = QVBoxLayout(panel); v.setContentsMargins(8,8,8,8); v.setSpacing(8)
 
         r1 = QHBoxLayout()
@@ -249,10 +291,12 @@ class EEGMatReader(BasePlugin):
         v.addLayout(r3)
 
         root.addWidget(CollapsibleSection("Paramètres lecture", panel, collapsed=True))
-        w.destroyed.connect(lambda *a: self._timer.stop())
+
+        # Arrêt sûr
+        w.destroyed.connect(lambda *a: (getattr(self, "_timer", None) is not None) and self._timer.stop())
         return w
 
-    # ---------- OPEN ----------
+    # ---------- UI Callbacks ----------
     def _on_open(self):
         path, _ = QFileDialog.getOpenFileName(None, "Open EEG .mat", os.getcwd(), "MAT files (*.mat);;All files (*)")
         if not path:
@@ -264,13 +308,14 @@ class EEGMatReader(BasePlugin):
 
     def _on_mode_changed(self, mode: str):
         self._mode = mode or "Trials"
-        # rien d'autre; appliqué au prochain Start
 
     # ---------- LOAD ----------
     def _load_mat(self, path: str) -> Tuple[bool,str]:
+        # reset complet
         self._timer.stop()
         self._path = None; self._style = None; self._sf = 0.0; self._ch_names = []
-        self._cnt = None; self._trials = None; self._labels = None; self._idx = 0
+        self._cnt = None; self._trials = None; self._labels = None; self._trial_onsets = None; self._mrk_info = {}
+        self._idx = 0
 
         d = _try_load_scipy(path)
         if d is None:
@@ -278,7 +323,7 @@ class EEGMatReader(BasePlugin):
         if d is None:
             return False, "Load error: scipy/h5py indisponible ou fichier illisible"
 
-        # --- BBCI style ?
+        # BBCI continu ? (cnt / nfo)
         cnt = None; nfo = None
         if "cnt" in d:
             try:
@@ -292,49 +337,50 @@ class EEGMatReader(BasePlugin):
                 nfo = d["nfo"]
 
         if cnt is not None:
-            # cnt: (n_samples, n_ch) ou (n_ch, n_samples)
             arr = np.array(cnt)
-            if arr.ndim == 1: arr = arr[:, None]
-            if arr.shape[0] < arr.shape[1]:  # on préfère (n_samples, n_ch)
-                if arr.shape[1] > 8 and arr.shape[1] > arr.shape[0]:
-                    arr = arr  # déjà (samples, ch)
-                else:
-                    # heuristique inverse
-                    pass
-            else:
-                # si (n_ch, n_samples) -> transpose
-                if arr.shape[0] <= 512 and arr.shape[1] >= arr.shape[0]:
-                    arr = arr.T
+            # attend (n_samples, n_channels)
+            if arr.ndim == 1:
+                arr = arr[:, None]
+            # heuristique orientation
+            n0, n1 = arr.shape
+            if (n0 <= 512 and n1 >= n0) and (n1 > n0):
+                arr = arr.T
+            # méta
             sf = None; clab = []
             if nfo is not None:
                 if _h5py and isinstance(nfo, _h5py.Group):
                     sf, clab = _h5_read_nfo(nfo)
                 else:
-                    # scipy struct
-                    try:
-                        sf = float(np.array(getattr(nfo, "fs", None)).squeeze())
-                    except Exception:
-                        for k in ("Fs","srate","SF","sf"):
-                            try:
-                                sf = float(np.array(getattr(nfo, k, None)).squeeze()); break
-                            except Exception:
-                                pass
+                    for k in ("fs","Fs","srate","SF","sf"):
+                        try:
+                            v = getattr(nfo, k, None)
+                            if v is not None:
+                                sf = float(np.array(v).squeeze()); break
+                        except Exception:
+                            pass
                     try:
                         clab = _safe_to_list(getattr(nfo, "clab", []))
                     except Exception:
                         pass
             if not sf:
-                # essais fallback haut-niveau
                 for k in ("fs","Fs","srate"):
                     if k in d:
                         try:
                             node = d[k]
-                            sf = float(np.array(node[()] if (_h5py and isinstance(node,_h5py.Dataset)) else node).squeeze())
-                            break
+                            sf = float(np.array(node[()] if (_h5py and isinstance(node,_h5py.Dataset)) else node).squeeze()); break
                         except Exception:
                             pass
             if not clab or len(clab) != arr.shape[1]:
                 clab = _auto_channels(arr.shape[1])
+
+            if "mrk" in d:
+                try:
+                    node = d["mrk"]
+                    node = node if not (_h5py and isinstance(node, _h5py.Dataset)) else node[()]
+                    self._mrk_info = _extract_bbci_mrk(node)
+                except Exception:
+                    self._mrk_info = {}
+
             self._cnt = np.asarray(arr, dtype=np.float32, order="C")
             self._sf = float(sf or 250.0)
             self._ch_names = list(clab)
@@ -343,7 +389,7 @@ class EEGMatReader(BasePlugin):
             self._emit_meta(path, reset=True, mode="Continuous")
             return True, f"Loaded BBCI cnt | {self._cnt.shape[1]} ch @ {self._sf:.2f} Hz, {self._cnt.shape[0]} samples"
 
-        # --- Trials style ?
+        # Trials / X ?
         X = None
         for key in ("X", "x", "data", "signals"):
             if key in d:
@@ -357,61 +403,60 @@ class EEGMatReader(BasePlugin):
         if X is None:
             return False, "Format inconnu (.mat) — ni 'cnt' (continu) ni 'X' (trials) trouvés"
 
-        # TROUVER dims (trials, samples, channels)
         arr = np.array(X)
+        # 2D -> continu
         if arr.ndim == 2:
-            # (samples, channels) -> on le traite en 'continuous'
-            if arr.shape[0] >= arr.shape[1]:
+            n0, n1 = arr.shape
+            if n0 >= n1:
                 self._cnt = arr.astype(np.float32, copy=False)
             else:
                 self._cnt = arr.T.astype(np.float32, copy=False)
-            # meta
             sf = None
             for k in ("fs","Fs","srate"):
                 if k in d:
                     try:
                         node = d[k]
-                        sf = float(np.array(node[()] if (_h5py and isinstance(node,_h5py.Dataset)) else node).squeeze())
-                        break
+                        sf = float(np.array(node[()] if (_h5py and isinstance(node,_h5py.Dataset)) else node).squeeze()); break
                     except Exception:
                         pass
             self._sf = float(sf or 250.0)
             self._ch_names = _auto_channels(self._cnt.shape[1])
             self._style = "trials-2d"
             self._n_samples = int(self._cnt.shape[0])
+            for k in ("trial","pos"):
+                if k in d:
+                    try:
+                        node = d[k]; self._trial_onsets = np.array(node[()] if (_h5py and isinstance(node,_h5py.Dataset)) else node).astype(np.int64).ravel(); break
+                    except Exception:
+                        pass
+            for k in ("y","Y","labels"):
+                if k in d and self._labels is None:
+                    try:
+                        node = d[k]; self._labels = np.array(node[()] if (_h5py and isinstance(node,_h5py.Dataset)) else node).squeeze(); break
+                    except Exception:
+                        pass
             self._emit_meta(path, reset=True, mode="Continuous")
             return True, f"Loaded 2D data as continuous | {self._cnt.shape[1]} ch @ {self._sf:.2f} Hz"
 
-        # 3D -> réordonner en (trials, samples, channels)
-        t, s, c = None, None, None
-        shape = tuple(arr.shape)
-        if len(shape) == 3:
-            # heuristique: l'axe 'channels' est celui dans [8..512]
+        # 3D -> trials (T,S,C)
+        if len(arr.shape) == 3:
+            shape = tuple(arr.shape)
             candidates = [i for i, n in enumerate(shape) if 1 < n <= 512]
-            if candidates:
-                ch_axis = candidates[-1]
-            else:
-                ch_axis = 2  # fallback
-            # l'axe 'samples' est celui > 10 et souvent le plus grand
+            ch_axis = candidates[-1] if candidates else 2
             sizes = list(shape)
             smp_axis = max(range(3), key=lambda i: sizes[i])
-            # trials = le troisième axe restant
             axes = [0, 1, 2]; axes.remove(ch_axis); axes.remove(smp_axis)
             tr_axis = axes[0]
 
-            arr = np.moveaxis(arr, [tr_axis, smp_axis, ch_axis], [0, 1, 2])  # -> (trials, samples, channels)
-            # meta
+            arr = np.moveaxis(arr, [tr_axis, smp_axis, ch_axis], [0, 1, 2])  # (T, S, C)
             sf = None
             for k in ("fs","Fs","srate"):
                 if k in d:
                     try:
-                        node = d[k]
-                        sf = float(np.array(node[()] if (_h5py and isinstance(node,_h5py.Dataset)) else node).squeeze())
-                        break
+                        node = d[k]; sf = float(np.array(node[()] if (_h5py and isinstance(node,_h5py.Dataset)) else node).squeeze()); break
                     except Exception:
                         pass
             self._sf = float(sf or 250.0)
-            # ch_names
             ch_names = None
             for k in ("chanlocs","channels","clab","ch_names"):
                 if k in d:
@@ -436,27 +481,25 @@ class EEGMatReader(BasePlugin):
             self._n_samples = int(self._trials.shape[1])
             self._style = "trials-3d"
 
-            # labels si présents
-            y = None
-            for k in ("y","labels","Y"):
+            for k in ("y","Y","labels"):
                 if k in d:
                     try:
-                        node = d[k]
-                        y = node[()] if (_h5py and isinstance(node, _h5py.Dataset)) else node
-                        y = np.array(y).squeeze()
-                        break
+                        node = d[k]; self._labels = np.array(node[()] if (_h5py and isinstance(node,_h5py.Dataset)) else node).squeeze(); break
                     except Exception:
                         pass
-            if y is not None:
-                self._labels = y
+            for k in ("trial","pos"):
+                if k in d:
+                    try:
+                        node = d[k]; self._trial_onsets = np.array(node[()] if (_h5py and isinstance(node,_h5py.Dataset)) else node).astype(np.int64).ravel(); break
+                    except Exception:
+                        pass
 
             self._emit_meta(path, reset=True, mode="Trials")
             return True, f"Loaded Trials | {self._trials.shape[0]} trials × {self._trials.shape[1]} samples × {self._trials.shape[2]} ch @ {self._sf:.2f} Hz"
 
-        return False, f"Forme inconnue: {shape}"
+        return False, f"Forme inconnue: {arr.shape}"
 
     def _emit_meta(self, path: str, reset: bool, mode: str):
-        # ch_names + sfreq en premier (reset)
         if self._sf > 0:
             self.outputs["sfreq"].on_next(float(self._sf))
         if self._ch_names:
@@ -468,36 +511,42 @@ class EEGMatReader(BasePlugin):
         }
         self.outputs["info"].on_next(info)
 
-    # ---------- START / STOP ----------
+    # ---------- START/STOP ----------
     def _start(self):
         if self._sf <= 0 or (self._cnt is None and self._trials is None):
             self._lbl_status.setText("No data loaded"); return
 
         self._idx = 0
         if self._mode == "Continuous":
-            # fenêtre = chunk_s, hop = chunk - overlap
             sf = float(self._sf)
-            seg_len = max(1, int(round(self._chunk_s * sf)))
-            hop = max(1, int(round((self._chunk_s - self._overlap_s) * sf)))
+            seg_len = max(1, int(round(max(0.01, self._chunk_s) * sf)))
+            hop = int(round((self._chunk_s - self._overlap_s) * sf))
+            if hop <= 0:
+                hop = max(1, int(round(0.1 * seg_len)))  # éviter stall
             self._seg_len = seg_len; self._hop = hop
+            # total segments
+            n = int(self._cnt.shape[0]) if self._cnt is not None else 0
+            if n <= seg_len:
+                self._seg_total = 1 if n > 0 else 0
+            else:
+                self._seg_total = 1 + max(0, (n - seg_len) // hop)
         else:
             self._seg_len = 0; self._hop = 0
+            self._seg_total = int(self._trials.shape[0]) if self._trials is not None else 0
 
         self._timer.stop()
-        # cadence timer: ~ chunk (s) ou 50 ms
-        if self._mode == "Continuous":
-            step = max(20, int(1000.0 * max(0.02, self._chunk_s * 0.9)))
-        else:
-            step = 100  # défilement essai par essai
+        step = 100 if self._mode != "Continuous" else max(20, int(1000.0 * max(0.02, self._chunk_s * 0.9)))
         self._timer.start(step)
         self._lbl_status.setText(f"Playing ({self._mode})")
 
     def _stop(self):
         self._timer.stop()
-        self.outputs["segment"].on_next(None)
+        try:
+            self.outputs["segment"].on_next(None)
+        except Exception:
+            pass
         self._lbl_status.setText("Stopped")
 
-    # ---------- TICK ----------
     def _tick(self):
         if self._mode == "Continuous":
             self._tick_continuous()
@@ -507,17 +556,30 @@ class EEGMatReader(BasePlugin):
     def _tick_continuous(self):
         if self._cnt is None or self._sf <= 0:
             return
-        n = self._cnt.shape[0]; nch = self._cnt.shape[1]
-        L = int(self._seg_len or max(1, int(round(self._chunk_s * self._sf))))
-        H = int(self._hop or max(1, int(round((self._chunk_s - self._overlap_s) * self._sf))))
+        n = self._cnt.shape[0]
+        L = int(self._seg_len or max(1, int(round(max(0.01, self._chunk_s) * self._sf))))
+        H = int(self._hop or max(1, int(round(max(0.01, self._chunk_s - self._overlap_s) * self._sf))))
         if self._idx + L > n:
             if self._loop:
                 self._idx = 0
             else:
                 self._stop(); return
-        seg = self._cnt[self._idx:self._idx+L, :]     # (L, nch)
-        self._idx += H
+
+        seg_idx = (self._idx // max(1, H)) + 1  # 1-based
+        seg = self._cnt[self._idx:self._idx+L, :]
+
+        # Émettre data + info segment
         self.outputs["segment"].on_next(np.asarray(seg.T, dtype=np.float32, order="C"))
+        try:
+            self.outputs["info"].on_next({
+                "segment_index": int(seg_idx),
+                "segment_total": int(self._seg_total),
+                "mode": "Continuous"
+            })
+        except Exception:
+            pass
+
+        self._idx += H
 
     def _tick_trials(self):
         if self._trials is None or self._sf <= 0:
@@ -528,13 +590,154 @@ class EEGMatReader(BasePlugin):
                 self._idx = 0
             else:
                 self._stop(); return
-        seg = self._trials[self._idx, :, :]           # (samples, nch)
-        self._idx += 1
-        self.outputs["segment"].on_next(np.asarray(seg.T, dtype=np.float32, order="C"))
 
-    # ---------- cleanup ----------
+        seg_idx = self._idx + 1  # 1-based
+        seg = self._trials[self._idx, :, :]
+
+        self.outputs["segment"].on_next(np.asarray(seg.T, dtype=np.float32, order="C"))
+        try:
+            self.outputs["info"].on_next({
+                "segment_index": int(seg_idx),
+                "segment_total": int(T),
+                "mode": "Trials"
+            })
+        except Exception:
+            pass
+
+        self._idx += 1
+
+    # ---------- Infos fichier (onglets + export) ----------
+    def _show_file_info(self):
+        if not (self._cnt is not None or self._trials is not None):
+            self._lbl_status.setText("Aucun .mat chargé"); return
+
+        info_dict, tabs_texts = self._collect_file_info()
+
+        dlg = QDialog(self.widget)
+        dlg.setWindowTitle("Informations du fichier (.mat)")
+        lay = QVBoxLayout(dlg)
+        tabs = QTabWidget(dlg)
+
+        def _mk_tab(title, text):
+            te = QTextEdit(); te.setReadOnly(True)
+            te.setFontFamily("Consolas")
+            te.setText(text)
+            tabs.addTab(te, title)
+
+        _mk_tab("Résumé",           tabs_texts["summary"])
+        _mk_tab("Canaux",           tabs_texts["channels"])
+        _mk_tab("Marqueurs/Labels", tabs_texts["markers"])
+        _mk_tab("Formes & dtypes",  tabs_texts["shapes"])
+        _mk_tab("Inférence EOG/ECG/EMG", tabs_texts["inference"])
+        _mk_tab("JSON",             _dumps_json(info_dict))
+
+        lay.addWidget(tabs)
+
+        row = QHBoxLayout()
+        btn_txt  = QPushButton("Exporter TXT…")
+        btn_json = QPushButton("Exporter JSON…")
+        row.addWidget(btn_txt); row.addWidget(btn_json); row.addStretch(1)
+        lay.addLayout(row)
+
+        def _save_txt():
+            fn, _ = QFileDialog.getSaveFileName(dlg, "Exporter TXT", "mat_file_info.txt", "Text (*.txt)")
+            if fn:
+                with open(fn, "w", encoding="utf-8") as f:
+                    f.write(tabs_texts["summary"]+"\n\n"+tabs_texts["channels"]+"\n\n"+tabs_texts["markers"]+"\n\n"+tabs_texts["shapes"]+"\n\n"+tabs_texts["inference"])
+        def _save_json():
+            fn, _ = QFileDialog.getSaveFileName(dlg, "Exporter JSON", "mat_file_info.json", "JSON (*.json)")
+            if fn:
+                with open(fn, "w", encoding="utf-8") as f:
+                    f.write(_dumps_json(info_dict))
+
+        btn_txt.clicked.connect(_save_txt)
+        btn_json.clicked.connect(_save_json)
+
+        dlg.resize(900, 650)
+        dlg.exec_()
+
+    def _collect_file_info(self):
+        if self._cnt is not None:
+            dur = float(self._cnt.shape[0] / max(1.0, self._sf))
+        else:
+            dur = float(self._trials.shape[1] / max(1.0, self._sf))
+
+        summary = {
+            "path": self._path,
+            "style": self._style,
+            "sfreq_Hz": float(self._sf),
+            "units": self._units,
+            "n_channels": len(self._ch_names),
+            "duration_s": dur,
+            "mode_ui": self._mode,
+        }
+
+        names = list(self._ch_names)
+        up = [n.upper() for n in names]
+        is_eog = [bool(re.search(r"\b(EOG|HEOG|VEOG|EYE)\b", u)) for u in up]
+        is_ecg = [bool(re.search(r"\b(ECG|EKG|CARD|HEART)\b", u)) for u in up]
+        is_emg = [bool(re.search(r"\b(EMG|MUSC)\b", u)) for u in up]
+        ch_types = {
+            "eeg": [n for n, e1, e2, e3 in zip(names, is_eog, is_ecg, is_emg) if not (e1 or e2 or e3)],
+            "eog": [n for n, b in zip(names, is_eog) if b],
+            "ecg": [n for n, b in zip(names, is_ecg) if b],
+            "emg": [n for n, b in zip(names, is_emg) if b],
+        }
+
+        markers = {"bbci": None, "trial_onsets": None, "n_labels": None}
+        if self._mrk_info:
+            markers["bbci"] = {
+                "n": int(self._mrk_info.get("n", 0)),
+                "has_pos": self._mrk_info.get("pos") is not None,
+                "has_y":   self._mrk_info.get("y")   is not None,
+                "class_name": self._mrk_info.get("class_name", []),
+            }
+        if self._trial_onsets is not None:
+            markers["trial_onsets"] = int(self._trial_onsets.size)
+        if self._labels is not None:
+            try:
+                markers["n_labels"] = int(np.asarray(self._labels).shape[0])
+            except Exception:
+                markers["n_labels"] = None
+
+        shapes = {}
+        if self._cnt is not None:
+            shapes["continuous"] = {"shape": list(self._cnt.shape), "dtype": str(self._cnt.dtype)}
+        if self._trials is not None:
+            shapes["trials"] = {"shape": list(self._trials.shape), "dtype": str(self._trials.dtype)}
+
+        inference = {
+            "eog_channels": ch_types["eog"],
+            "ecg_channels": ch_types["ecg"],
+            "emg_channels": ch_types["emg"],
+            "hint_if_missing": "Si EOG/ECG absents: créer EOGv=Fp1-Fp2 et ECGv=Cz (ou moyenne EEG) avant SSP.",
+        }
+
+        info_dict = {
+            "summary": summary,
+            "channels": {"names": names, "by_inferred_type": ch_types},
+            "markers": markers,
+            "shapes": shapes,
+            "inference": inference,
+        }
+
+        def _fmt(d): return _dumps_json(d)
+        tabs_texts = {
+            "summary":   _fmt(summary),
+            "channels":  _fmt({"counts": {k: len(v) for k, v in ch_types.items()}, "by_type": ch_types}),
+            "markers":   _fmt(markers),
+            "shapes":    _fmt(shapes),
+            "inference": _fmt(inference),
+        }
+        return info_dict, tabs_texts
+
     def on_remove(self):
         try:
-            self._timer.stop()
+            if getattr(self, "_timer", None) is not None:
+                self._timer.stop()
+        except Exception:
+            pass
+        try:
+            self.outputs["segment"].on_next(None)
         except Exception:
             pass

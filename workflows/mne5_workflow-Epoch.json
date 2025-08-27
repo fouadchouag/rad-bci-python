@@ -1,0 +1,165 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "EEGLiveDisplay_53bdf0",
+      "type": "EEGLiveDisplay",
+      "position": [
+        2021.0,
+        23.0
+      ],
+      "config": {
+        "loop": true,
+        "window_s": 10.0,
+        "step_s": 0.2,
+        "seg_len_auto": true,
+        "seg_len_manual": null,
+        "force_nch": 0,
+        "max_points": 3000,
+        "max_fps": 20
+      }
+    },
+    {
+      "name": "MNEEpochsToSegments_742615",
+      "type": "MNEEpochsToSegments",
+      "position": [
+        1692.0,
+        72.0
+      ],
+      "config": {
+        "fps": 20.0,
+        "loop": true
+      }
+    },
+    {
+      "name": "MNEAverageReferencePlugin_908c88",
+      "type": "MNEAverageReferencePlugin",
+      "position": [
+        978.0,
+        115.0
+      ],
+      "config": {
+        "as_projection": false
+      }
+    },
+    {
+      "name": "MNEEpochsLite_bc5ca0",
+      "type": "MNEEpochsLite",
+      "position": [
+        1283.0,
+        73.0
+      ],
+      "config": {
+        "use_annotations": false,
+        "epoch_len_s": 2.000000000000001,
+        "step_s": 1.0
+      }
+    },
+    {
+      "name": "EEGUniversalReader_7ff0f5",
+      "type": "EEGUniversalReader",
+      "position": [
+        -14.0,
+        61.0
+      ],
+      "config": {
+        "units": "V",
+        "chunk_s": 1.0,
+        "overlap_s": 0.0,
+        "loop": false,
+        "resample_hz": 0,
+        "eeg_only": true,
+        "incl_eog": false,
+        "incl_emg": false,
+        "incl_stim": false,
+        "fast_open": true,
+        "turbo_gdf": true,
+        "emit_annotations": true,
+        "path": "D:/rad-bci-python_test/eeg_recording/testfile2.edf"
+      }
+    },
+    {
+      "name": "MNEBandpassFilterPlugin_1e0992",
+      "type": "MNEBandpassFilterPlugin",
+      "position": [
+        615.0,
+        88.0
+      ],
+      "config": {
+        "l_freq": 1.0,
+        "h_freq": 4.0,
+        "fir_design": "firwin",
+        "phase": "zero",
+        "picks_eeg_only": true
+      }
+    },
+    {
+      "name": "MNENotchFilterPlugin_ee23e3",
+      "type": "MNENotchFilterPlugin",
+      "position": [
+        277.0,
+        164.0
+      ],
+      "config": {
+        "freqs": [
+          90.0
+        ],
+        "harmonics_max": 0,
+        "notch_widths": null,
+        "fir_design": "firwin",
+        "phase": "zero",
+        "picks_eeg_only": true
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "MNEEpochsToSegments_742615",
+      "from_pin": "ch_names",
+      "to": "EEGLiveDisplay_53bdf0",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "MNEEpochsToSegments_742615",
+      "from_pin": "sfreq",
+      "to": "EEGLiveDisplay_53bdf0",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "MNEEpochsLite_bc5ca0",
+      "from_pin": "epochs",
+      "to": "MNEEpochsToSegments_742615",
+      "to_pin": "epochs"
+    },
+    {
+      "from": "MNEEpochsToSegments_742615",
+      "from_pin": "segment",
+      "to": "EEGLiveDisplay_53bdf0",
+      "to_pin": "segment"
+    },
+    {
+      "from": "MNEAverageReferencePlugin_908c88",
+      "from_pin": "raw",
+      "to": "MNEEpochsLite_bc5ca0",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNEBandpassFilterPlugin_1e0992",
+      "from_pin": "raw",
+      "to": "MNEAverageReferencePlugin_908c88",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNENotchFilterPlugin_ee23e3",
+      "from_pin": "raw",
+      "to": "MNEBandpassFilterPlugin_1e0992",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGUniversalReader_7ff0f5",
+      "from_pin": "raw",
+      "to": "MNENotchFilterPlugin_ee23e3",
+      "to_pin": "raw"
+    }
+  ]
+}

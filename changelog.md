@@ -11,7 +11,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 - 
 
-## [1.5.1] - 2025-08-20
+## [1.6.0] - 2025-08-20
 
 ### Added
 -
@@ -21,7 +21,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 -
 
 
-## [1.5.1] - 2025-08-19
+## [1.6.0] - 2025-08-19
 ### Added
 - **Logger Dock** intégré à la fenêtre principale (affichable/masquable) avec capture des logs Python et bascule « Afficher les logs » dans la barre d’outils.
 - **Sauvegarde/Chargement des paramètres des nœuds** dans les workflows : persistance des configs via `export_config()`/`import_config()` (fallback `config_in`).

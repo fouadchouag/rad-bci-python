@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "EEGMatReader_b5f715",
+      "type": "EEGMatReader",
+      "position": [
+        198.0,
+        19.0
+      ],
+      "config": {}
+    },
+    {
+      "name": "MNEViewer2D_34eca8",
+      "type": "MNEViewer2D",
+      "position": [
+        947.0,
+        55.0
+      ],
+      "config": {}
+    }
+  ],
+  "connections": [
+    {
+      "from": "EEGMatReader_b5f715",
+      "from_pin": "sfreq",
+      "to": "MNEViewer2D_34eca8",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "EEGMatReader_b5f715",
+      "from_pin": "ch_names",
+      "to": "MNEViewer2D_34eca8",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "EEGMatReader_b5f715",
+      "from_pin": "segment",
+      "to": "MNEViewer2D_34eca8",
+      "to_pin": "segment"
+    }
+  ]
+}

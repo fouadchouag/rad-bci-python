@@ -1,11 +1,16 @@
-# plugins/eeg_universal_reader.py (final, métriques étendues)
+# plugins/eeg\_universal\_reader.py (final)
+
 # -*- coding: utf-8 -*-
 """
-EEGUniversalReader — ultra-fast, tous formats MNE, avec métriques enrichies:
-- FILE_OPEN/READY/ERROR, READ_START/STOP, META_RESET, EVENTS
-- SAMPLES_PROCESSED (par chunk), READER_STATS (throughput ~1Hz)
+EEGUniversalReader — ultra-fast, tous formats MNE
+- Open async (UI non bloquée)
+- Fast open (lazy) généralisé : essaye preload=False/memmap + fallback True
+- Smart preview basé sur la TAILLE du fichier (par défaut >128MB) pour TOUS les formats
+- Stream decim pour l’affichage
+- Turbo GDF (stim_channel=None) conservé
+- Sorties: raw, segment, ch_names, sfreq, info, event
 """
-import os, atexit, json, time
+import os, atexit, json
 import datetime as _dt
 from typing import Optional, List
 import numpy as np
@@ -32,6 +37,7 @@ except Exception as e:
 
 # ------------ Utilitaires JSON-safe ------------
 def _jsonify(obj):
+    """Convertit récursivement en types JSON-safe."""
     if obj is None or isinstance(obj, (bool, int, float, str)):
         return obj
     try:
@@ -43,11 +49,15 @@ def _jsonify(obj):
     except Exception:
         pass
     if hasattr(os, "fspath"):
-        try: return os.fspath(obj)
-        except Exception: pass
+        try:
+            return os.fspath(obj)
+        except Exception:
+            pass
     if isinstance(obj, (_dt.datetime, _dt.date)):
-        try: return obj.isoformat()
-        except Exception: return str(obj)
+        try:
+            return obj.isoformat()
+        except Exception:
+            return str(obj)
     if isinstance(obj, (list, tuple)):
         return [_jsonify(x) for x in obj]
     if isinstance(obj, dict):
@@ -109,9 +119,6 @@ class _EEGReadWorker(QObject):
         self.stream_decim = max(1, int(stream_decim))
         self._running = True
         self._idx = 0
-        # métriques
-        self._samples_total = 0
-        self._stat_last_t = time.time()
 
     def configure(self, *, units=None, chunk_s=None, overlap_s=None, loop=None,
                   emit_annotations=None, stream_decim=None):
@@ -126,10 +133,11 @@ class _EEGReadWorker(QObject):
 
     def run(self):
         try:
+            import time
             raw = self.raw
             sf = float(raw.info["sfreq"]) if hasattr(raw, "info") else 0.0
-            n_tot = int(getattr(raw, "n_times", 0))
-            names = list(getattr(raw, "ch_names", []) or [])
+            n_tot = int(raw.n_times) if hasattr(raw, "n_times") else 0
+            names = list(raw.ch_names) if hasattr(raw, "ch_names") else []
 
             info = {"path": None, "n_channels": len(names), "sfreq": sf, "n_samples": n_tot,
                     "units": self.units, "reset": True}
@@ -163,26 +171,9 @@ class _EEGReadWorker(QObject):
                     data = data[None, :]
                 if data.shape[0] > data.shape[1]:
                     data = data.T
+                # NB: le SEGMENT envoyé au graphe peut être float32; on NE change pas le dtype interne de Raw
+                self.segReady.emit(np.asarray(data, dtype=np.float32, order="C"))
 
-                arr = np.asarray(data, dtype=np.float32, order="C")
-                self.segReady.emit(arr)
-
-                # ---- METRICS: samples & throughput (~1Hz) ----
-                try:
-                    n_samp = int(arr.shape[1])
-                    self._samples_total += max(0, n_samp)
-                    metrics().samples_processed(n=n_samp)
-                    now = time.time()
-                    if now - self._stat_last_t >= 1.0:
-                        dt = max(1e-9, now - self._stat_last_t)
-                        thr = (self._samples_total / dt)  # ~ "depuis dernière fenêtre"
-                        metrics().reader_stats(throughput=thr)
-                        self._samples_total = 0
-                        self._stat_last_t = now
-                except Exception:
-                    pass
-
-                # ---- annotations / events ----
                 if self.emit_annotations and getattr(raw, "annotations", None):
                     t0 = start / sf
                     t1 = stop / sf
@@ -320,6 +311,7 @@ class _EEGOpenWorker(QObject):
             if resample_hz > 0:
                 if not getattr(raw, "preload", False):
                     raw.load_data()
+                    # IMPORTANT: ne pas forcer float32 sur Raw._data => MNE préfère float64 pour filtrage
                 raw.resample(int(resample_hz), npad="auto")
 
             sf = float(raw.info["sfreq"])
@@ -674,7 +666,7 @@ class EEGUniversalReader(BasePlugin):
             pass
         self._worker = None
         self._thr = None
-        try: metrics().read_stop()
+        try: metrics().log("READ_STOP")
         except Exception: pass
 
     # ------- open / read -------
@@ -698,7 +690,8 @@ class EEGUniversalReader(BasePlugin):
         except Exception:
             size_mb = 0.0
         try:
-            metrics().file_open(
+            metrics().log(
+                "FILE_OPEN",
                 name=os.path.basename(path),
                 is_async=int(self._open_async),
                 fast_open=int(self._fast_open),
@@ -722,14 +715,6 @@ class EEGUniversalReader(BasePlugin):
             if self._status:
                 self._status.setText("Opening… (background)")
         else:
-
-            # ... juste avant self._open_async ?
-            try:
-                from core.metrics_logger import metrics
-                metrics().ttfp()  # démarre le chrono TTFP ici (clic "Open EEG…")
-            except Exception:
-                pass
-
             self._open_sync(path)
 
     def _open_sync(self, path: str):
@@ -779,13 +764,13 @@ class EEGUniversalReader(BasePlugin):
             elif isinstance(self._path, str):
                 base = os.path.basename(self._path)
             if raw is None:
-                metrics().file_error(name=base or "", msg=str(msg))
+                metrics().log("FILE_ERROR", name=base or "", msg=str(msg))
             else:
                 n_ch = len(getattr(raw, "ch_names", []) or [])
                 fs = float(getattr(raw, "info", {}).get("sfreq", 0.0)) if hasattr(raw, "info") else 0.0
                 n_samp = int(getattr(raw, "n_times", 0))
                 preload = getattr(raw, "preload", None)
-                metrics().file_ready(name=base or "", n_ch=n_ch, fs=fs, n_samples=n_samp, preload=preload)
+                metrics().log("FILE_READY", name=base or "", n_ch=n_ch, fs=fs, n_samples=n_samp, preload=preload)
         except Exception:
             pass
 
@@ -807,7 +792,8 @@ class EEGUniversalReader(BasePlugin):
         if self._raw is None:
             return
         try:
-            metrics().read_start(
+            metrics().log(
+                "READ_START",
                 units=self._units,
                 chunk_s=float(self._chunk_s),
                 overlap_s=float(self._overlap_s),
@@ -844,8 +830,8 @@ class EEGUniversalReader(BasePlugin):
 
     def _on_event(self, ev):
         try:
-            n = len(ev.get("items", [])) if isinstance(ev, dict) else 0
-            metrics().events(n=n)
+            n = len(ev.get("items", [])) if isinstance(ev, dict) else None
+            metrics().log("EVENTS", n=n if n is not None else 0)
         except Exception:
             pass
         try:
@@ -862,7 +848,7 @@ class EEGUniversalReader(BasePlugin):
         self.outputs["ch_names"].on_next(list(self._names))
         self.outputs["sfreq"].on_next(float(self._sf) if self._sf else None)
         try:
-            metrics().meta_reset(n_ch=len(self._names), fs=self._sf, n_samples=self._n_samp, units=self._units)
+            metrics().log("META_RESET", n_ch=len(self._names), fs=self._sf, n_samples=self._n_samp, units=self._units)
         except Exception:
             pass
 
@@ -1012,7 +998,7 @@ class EEGUniversalReader(BasePlugin):
                  for p in proj_list]
         projections = {"count": len(proj_list), "items": projs}
 
-        # positions
+        # “Formes & dtypes / Montage” — simple check positions
         has_pos = False
         n_pos = 0
         try:
@@ -1057,8 +1043,6 @@ class EEGUniversalReader(BasePlugin):
         self._sf = 0.0
         self._n_samp = 0
         try:
-            metrics().file_closed()
+            metrics().log("FILE_CLOSED")
         except Exception:
             pass
-
-    

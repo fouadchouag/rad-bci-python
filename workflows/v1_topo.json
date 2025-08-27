@@ -1,0 +1,105 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "PSDTopoViewer_103cb8",
+      "type": "PSDTopoViewer",
+      "position": [
+        996.0,
+        46.0
+      ],
+      "config": {}
+    },
+    {
+      "name": "PSDWelchPlugin_a6f38f",
+      "type": "PSDWelchPlugin",
+      "position": [
+        671.0,
+        73.0
+      ],
+      "config": {
+        "fmin": 0.5,
+        "fmax": 45.0,
+        "seglen_s": 2.0,
+        "overlap_s": 1.0,
+        "average": "mean",
+        "eeg_only": true,
+        "max_points": 2048
+      }
+    },
+    {
+      "name": "MNENotchFilterPlugin_c43518",
+      "type": "MNENotchFilterPlugin",
+      "position": [
+        366.0,
+        80.0
+      ],
+      "config": {
+        "freqs": 50.0,
+        "harmonics_max": 0,
+        "picks_eeg_only": true,
+        "phase": "zero"
+      }
+    },
+    {
+      "name": "EEGUniversalReader_ce678f",
+      "type": "EEGUniversalReader",
+      "position": [
+        57.0,
+        70.0
+      ],
+      "config": {
+        "units": "V",
+        "chunk_s": 1.0,
+        "overlap_s": 0.0,
+        "loop": false,
+        "resample_hz": 0,
+        "eeg_only": true,
+        "incl_eog": false,
+        "incl_emg": false,
+        "incl_stim": false,
+        "fast_open": true,
+        "turbo_gdf": true,
+        "emit_annotations": true,
+        "open_async": true,
+        "smart_preview": true,
+        "preview_s": 0.0,
+        "stream_decim": 1,
+        "bigfile_threshold_mb": 128.0,
+        "path": "D:\\rad-bci-python_test\\eeg_recording\\BCI2005_I.gdf"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "PSDWelchPlugin_a6f38f",
+      "from_pin": "ch_names",
+      "to": "PSDTopoViewer_103cb8",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "PSDWelchPlugin_a6f38f",
+      "from_pin": "psd",
+      "to": "PSDTopoViewer_103cb8",
+      "to_pin": "psd"
+    },
+    {
+      "from": "PSDWelchPlugin_a6f38f",
+      "from_pin": "freqs",
+      "to": "PSDTopoViewer_103cb8",
+      "to_pin": "freqs"
+    },
+    {
+      "from": "MNENotchFilterPlugin_c43518",
+      "from_pin": "raw",
+      "to": "PSDWelchPlugin_a6f38f",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGUniversalReader_ce678f",
+      "from_pin": "raw",
+      "to": "MNENotchFilterPlugin_c43518",
+      "to_pin": "raw"
+    }
+  ]
+}

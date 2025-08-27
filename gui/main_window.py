@@ -7,11 +7,16 @@ from PyQt5.QtWidgets import (
     QDialog, QListWidget, QDialogButtonBox
 )
 from PyQt5.QtCore import Qt, QPointF
+import sip
 
 import json
+import re
+from json import JSONDecodeError
+from pathlib import Path
+import numpy as np
+
 import os
 import logging
-
 from core.plugin_registry import discover_plugins
 from .node_item import NodeItem
 from gui.lowcode_creator import LowCodeCreator
@@ -33,12 +38,6 @@ except Exception:
         TEMPLATES = {}
         def instantiate_template(*_a, **_k):
             raise RuntimeError("workflow_templates.py manquant (placez-le dans gui/ ou à la racine).")
-
-# BENCH HOOK: logger d’événements (fallback silencieux si absent)
-try:
-    from utils.eval_log import log_evt
-except Exception:
-    def log_evt(*_a, **_k): pass
 
 # 🔹 Console de logs
 try:
@@ -65,7 +64,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        # ✅ activer des valeurs par défaut rapides pour BLAS (évite UI qui rame)
+        # ✅ BLAS
         try:
             init_fast_defaults(blas_threads=1)
         except Exception:
@@ -74,26 +73,27 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("RBciAD – Reactive BCI Builder")
         self.setGeometry(100, 100, 1200, 800)
 
+        self._closing = False
+
         self.scene = QGraphicsScene()
         self.scene.setSceneRect(0, 0, 3000, 3000)
         self.view = QGraphicsView(self.scene)
 
-        # --- Z-order: nœud sélectionné en premier plan
+        # Z-order
         self._z_counter = 0
         self.scene.selectionChanged.connect(self._on_scene_selection_changed)
 
-        # Découverte des plugins
+        # Plugins
         self.plugins_by_category = discover_plugins()
-        self.plugin_classes_by_name = {}  # rempli dans _populate_palette()
+        self.plugin_classes_by_name = {}
 
-        # 🔹 Console de logs : créer l'objet AVANT _init_ui (pour pouvoir s'y connecter)
+        # Logs UI
         self.log_dock = None
         self.logger = logging.getLogger("RBciAD")
         self.logger.setLevel(logging.DEBUG)
         if LogConsoleDock is not None:
             try:
                 self.log_dock = LogConsoleDock(self, title="Console (logs)")
-                # attacher notre logger applicatif à la console
                 self.log_dock.attach_logger(name="RBciAD", level=logging.INFO)
             except Exception:
                 self.log_dock = None
@@ -102,10 +102,10 @@ class MainWindow(QMainWindow):
         self.category_widgets = {}
         self.current_workflow_path = None
 
-        # Construction de la palette
+        # Palette
         self._populate_palette()
 
-        # Liste à plat des plugins (pour le chargement de workflow)
+        # Liste à plat des plugins
         self.all_plugins = []
         for plugin_list in self.plugins_by_category.values():
             self.all_plugins.extend(plugin_list)
@@ -114,9 +114,14 @@ class MainWindow(QMainWindow):
         for cls in self.all_plugins:
             self.logger.info(f"   - {cls.__name__}")
 
-        # BENCH HOOK: état bench (frames)
-        self._bench_rendered = 0
-        self._bench_first_done = False
+        # 🔥 IMPORTANT: plus de démarrage auto des métriques ici.
+        # On installe seulement les hotkeys F9/F10 (ne créent aucun fichier tant qu'on n'appuie pas).
+        try:
+            from core.metrics_hotkeys import install_global_metrics_hotkeys
+            install_global_metrics_hotkeys(app_name="RBciAD", out_dir="runs")
+            self.logger.info("[metrics] Hotkeys installés : F9=Start/Stop, F10=Stop forcé")
+        except Exception as e:
+            self.logger.warning(f"[metrics] hotkeys non installés ({e})")
 
     # ---------------------------------------------------------------------
     # UI
@@ -127,7 +132,7 @@ class MainWindow(QMainWindow):
         main_widget.setLayout(main_layout)
         self.setCentralWidget(main_widget)
 
-        # --- Barre d’outils ---
+        # Toolbar
         toolbar = QHBoxLayout()
         btn_new = QPushButton("🆕 Nouveau")
         btn_load = QPushButton("📂 Charger")
@@ -135,22 +140,14 @@ class MainWindow(QMainWindow):
         btn_save_as = QPushButton("💾 Enregistrer sous...")
         btn_lowcode = QPushButton("🛠️ Dev Mode (➕ Ajouter un Node)")
 
-        # Dock logs toggle
         btn_logs = QPushButton("🪵 Logs")
         btn_logs.setCheckable(True)
-        # connexion au dock (s'il existe)
         if self.log_dock is not None:
             btn_logs.toggled.connect(lambda vis: self.log_dock.setVisible(vis))
 
-        # BENCH HOOK: démarrer TTFP
-        btn_ttfp = QPushButton("⏱ Start TTFP (F9)")
-        btn_ttfp.clicked.connect(lambda: log_evt("START_TTFP"))
+        # (❌ supprimé) Boutons TTFP/Bench/Metrics
 
-        # BENCH HOOK: reset bench (compteurs propres)
-        btn_bench_reset = QPushButton("▶ Bench (reset)")
-        btn_bench_reset.clicked.connect(self._bench_reset)
-
-        for btn in [btn_new, btn_load, btn_save, btn_save_as, btn_lowcode, btn_ttfp, btn_bench_reset, btn_logs]:
+        for btn in [btn_new, btn_load, btn_save, btn_save_as, btn_lowcode, btn_logs]:
             btn.setMinimumHeight(40)
             btn.setStyleSheet("font-weight: bold; font-size: 14px;")
             toolbar.addWidget(btn)
@@ -160,10 +157,10 @@ class MainWindow(QMainWindow):
         toolbar_widget.setFixedHeight(60)
         main_layout.addWidget(toolbar_widget)
 
-        # --- Partie centrale ---
+        # Centre
         center_layout = QHBoxLayout()
 
-        # --- Palette latérale ---
+        # Palette
         self.palette_frame = QFrame()
         self.palette_layout = QVBoxLayout(self.palette_frame)
         self.palette_frame.setLayout(self.palette_layout)
@@ -182,34 +179,33 @@ class MainWindow(QMainWindow):
 
         main_layout.addLayout(center_layout)
 
-        # Connexions UI
-        btn_new.clicked.connect(self._action_new_workflow_from_template)  # <<< sélecteur modèles
+        # Connexions
+        btn_new.clicked.connect(self._action_new_workflow_from_template)
         btn_load.clicked.connect(self._load_workflow)
         btn_save.clicked.connect(self._save_workflow)
         btn_lowcode.clicked.connect(self._show_lowcode_creator)
         btn_save_as.clicked.connect(self._save_workflow_as)
 
-        # Raccourci clavier F9 pour TTFP
-        self.actionStartTTFP = QAction("Start TTFP", self)
-        self.actionStartTTFP.setShortcut("F9")
-        self.actionStartTTFP.triggered.connect(lambda: log_evt("START_TTFP"))
-        self.addAction(self.actionStartTTFP)
-
-        # 🔹 Ajouter le dock de logs maintenant que la fenêtre est prête
+        # Dock logs
         if self.log_dock is not None:
             try:
                 self.addDockWidget(Qt.BottomDockWidgetArea, self.log_dock)
                 self.log_dock.hide()
-                # synchroniser l’état du bouton si l’utilisateur ferme le dock
                 self.log_dock.visibilityChanged.connect(lambda vis: btn_logs.setChecked(vis))
                 self.logger.info("Console de logs initialisée.")
             except Exception as e:
                 self.logger.error(f"Erreur ajout dock logs: {e}")
 
+    def closeEvent(self, ev):
+        self._closing = True
+        try:
+            self.scene.selectionChanged.disconnect(self._on_scene_selection_changed)
+        except Exception:
+            pass
+        return super().closeEvent(ev)
+
     def _populate_palette(self):
         self.plugins_by_category = discover_plugins()
-
-        # --- Registre {nom -> classe} (double clé: __name__ et .name)
         self.plugin_classes_by_name = {}
 
         self.logger.info("📦 Plugins détectés :")
@@ -229,7 +225,6 @@ class MainWindow(QMainWindow):
             self.palette_layout.addWidget(cat_label)
 
             for plugin_class in plugin_list:
-                # Registre double entrée (nom de classe Python et .name affiché)
                 self.plugin_classes_by_name[plugin_class.__name__] = plugin_class
                 try:
                     self.plugin_classes_by_name[plugin_class.name] = plugin_class
@@ -241,7 +236,6 @@ class MainWindow(QMainWindow):
                 self.palette_layout.addWidget(btn)
 
     def add_plugin_to_palette(self, category, plugin_class):
-        # (utilisé par le LowCodeCreator)
         if category not in self.category_widgets:
             label = QLabel(f"📁 {category}")
             label.setStyleSheet("font-weight: bold; margin-top: 10px;")
@@ -259,7 +253,6 @@ class MainWindow(QMainWindow):
         btn.clicked.connect(lambda _, cls=plugin_class: self._add_node(cls))
         layout.addWidget(btn)
 
-        # mettre à jour le registre
         self.plugin_classes_by_name[plugin_class.__name__] = plugin_class
         try:
             self.plugin_classes_by_name[plugin_class.name] = plugin_class
@@ -270,7 +263,6 @@ class MainWindow(QMainWindow):
     # Z-order helpers
     # ---------------------------------------------------------------------
     def _raise_node(self, node_item: NodeItem):
-        """Place le nœud au-dessus de tout (UX : ne jamais être masqué)."""
         try:
             self._z_counter += 1
             node_item.setZValue(self._z_counter)
@@ -278,8 +270,16 @@ class MainWindow(QMainWindow):
             self.logger.error(f"[MainWindow] ❌ raise_node: {e}")
 
     def _on_scene_selection_changed(self):
-        # Dès que la sélection change, monter les nœuds sélectionnés
-        for item in self.scene.selectedItems():
+        if self._closing:
+            return
+        scene = getattr(self, "scene", None)
+        if scene is None or sip.isdeleted(scene):
+            return
+        try:
+            items = scene.selectedItems()
+        except RuntimeError:
+            return
+        for item in items:
             if isinstance(item, NodeItem):
                 self._raise_node(item)
 
@@ -292,40 +292,19 @@ class MainWindow(QMainWindow):
             node_item = NodeItem(plugin_class)
             node_item.setPos(200, 200)
             self.scene.addItem(node_item)
-            self._raise_node(node_item)          # <<< au-dessus dès la création
+            self._raise_node(node_item)
             self.view.centerOn(node_item)
-
-            # BENCH HOOK: si le plugin expose _bench.frameRendered, on connecte
-            try:
-                bench_obj = getattr(node_item.plugin, "_bench", None)
-                if bench_obj is not None and hasattr(bench_obj, "frameRendered"):
-                    bench_obj.frameRendered.connect(self._on_frame_rendered)
-            except Exception:
-                pass
-
         except Exception as e:
             self.logger.error(f"[ERROR] Failed to create node: {e}")
 
     def add_node_at(self, plugin_class, pos: QPointF):
-        """
-        Crée un NodeItem pour plugin_class et le place à 'pos'.
-        """
         try:
             self.logger.info(f">>> Ajout du nœud : {plugin_class.name} @ {pos.x():.0f},{pos.y():.0f}")
             node_item = NodeItem(plugin_class)
             node_item.setPos(pos)
             self.scene.addItem(node_item)
-            self._raise_node(node_item)          # <<< au-dessus dès la création
+            self._raise_node(node_item)
             self.view.centerOn(node_item)
-
-            # BENCH HOOK (même logique que _add_node)
-            try:
-                bench_obj = getattr(node_item.plugin, "_bench", None)
-                if bench_obj is not None and hasattr(bench_obj, "frameRendered"):
-                    bench_obj.frameRendered.connect(self._on_frame_rendered)
-            except Exception:
-                pass
-
             return node_item
         except Exception as e:
             self.logger.error(f"[MainWindow] ❌ add_node_at({plugin_class}): {e}")
@@ -334,14 +313,12 @@ class MainWindow(QMainWindow):
     # ---------------- Connexion tolérante par nom de pin -------------------
     def _list_pin_names(self, node_item, is_output):
         names = []
-        # essaie d'accéder aux maps si elles existent
         try:
             d = node_item.output_pins if is_output else node_item.input_pins
-            if isinstance(d, dict):
-                names.extend(list(d.keys()))
+            if isinstance(d, list):
+                names.extend([p.name for p in d if hasattr(p, "name")])
         except Exception:
             pass
-        # essaie des getters s'ils existent
         try:
             getter = node_item.get_output_pin_names if is_output else node_item.get_input_pin_names
             names.extend(list(getter()))
@@ -350,22 +327,21 @@ class MainWindow(QMainWindow):
         return sorted(set(str(n) for n in names))
 
     def _resolve_pin(self, node_item, wanted_name, is_output):
-        """Trouve un pin par nom exact, casse-insensible, puis par synonymes."""
         wanted_name = str(wanted_name)
         get = node_item.get_output_pin_by_name if is_output else node_item.get_input_pin_by_name
 
-        # 1) exact
+        # exact
         pin = get(wanted_name)
         if pin:
             return pin
 
-        # 2) case-insensitive sur les noms déclarés
+        # case-insensitive
         names = self._list_pin_names(node_item, is_output)
         for n in names:
             if n.lower() == wanted_name.lower():
                 return get(n)
 
-        # 3) synonymes
+        # synonymes
         syns = self.PIN_SYNONYMS.get(wanted_name.lower(), [])
         for syn in syns:
             pin = get(syn)
@@ -378,10 +354,6 @@ class MainWindow(QMainWindow):
         return None
 
     def connect_by_name(self, src_node_item, src_pin_name: str, dst_node_item, dst_pin_name: str) -> bool:
-        """
-        Connecte visuellement src.output[src_pin_name] → dst.input[dst_pin_name],
-        avec correspondance tolérante (casse + synonymes).
-        """
         try:
             out_pin = self._resolve_pin(src_node_item, src_pin_name, True)
             in_pin  = self._resolve_pin(dst_node_item, dst_pin_name, False)
@@ -390,20 +362,25 @@ class MainWindow(QMainWindow):
                 out_names = self._list_pin_names(src_node_item, True)
                 in_names  = self._list_pin_names(dst_node_item, False)
                 self.logger.error(f"[Templates] ❌ Échec connexion {src_node_item.plugin.name}.{src_pin_name} → "
-                      f"{dst_node_item.plugin.name}.{dst_pin_name}")
+                                  f"{dst_node_item.plugin.name}.{dst_pin_name}")
                 self.logger.error(f"           ├─ sorties dispo: {out_names}")
                 self.logger.error(f"           └─ entrées  dispo: {in_names}")
                 return False
 
             conn_item = ConnectionItem(out_pin, in_pin)
-            self.scene.addItem(conn_item)
-            conn_item.track_both_pins()
+
             try:
-                conn_item.setZValue(-1000)  # <<< toujours sous les nœuds
+                if conn_item.scene() is None:
+                    self.scene.addItem(conn_item)
             except Exception:
                 pass
 
-            # Marque visuelle
+            try:
+                conn_item.track_both_pins()
+                conn_item.setZValue(-1000)
+            except Exception:
+                pass
+
             try:
                 out_pin.set_connected(True)
                 in_pin.set_connected(True)
@@ -423,7 +400,7 @@ class MainWindow(QMainWindow):
         if event.key() == Qt.Key_Delete:
             for item in self.scene.selectedItems():
                 if hasattr(item, "plugin"):
-                    # supprimer les connexions associées
+                    # connexions
                     to_remove = []
                     for obj in self.scene.items():
                         if isinstance(obj, QGraphicsPathItem) and hasattr(obj, "output_pin") and hasattr(obj, "input_pin"):
@@ -439,7 +416,7 @@ class MainWindow(QMainWindow):
                                     input_node.plugin.set_input(conn.input_pin.name, None)
                         self.scene.removeItem(conn)
 
-                    # supprimer le nœud
+                    # nœud
                     item.plugin.cleanup()
                     self.scene.removeItem(item)
 
@@ -455,21 +432,55 @@ class MainWindow(QMainWindow):
             super().keyPressEvent(event)
 
     # ---------------------------------------------------------------------
-    # Workflows: nouveau / enregistrer / charger
+    # Workflows
     # ---------------------------------------------------------------------
     def _clear_scene_only(self):
-        """Nettoie seulement la scène (sans toucher au registre ou à la palette)."""
+        try:
+            self.scene.selectionChanged.disconnect(self._on_scene_selection_changed)
+        except Exception:
+            pass
+
+        for obj in list(self.scene.items()):
+            if isinstance(obj, ConnectionItem) or (isinstance(obj, QGraphicsPathItem) and hasattr(obj, "output_pin")):
+                try:
+                    if hasattr(obj, "cleanup"): obj.cleanup()
+                    if hasattr(obj, "input_pin") and obj.input_pin and hasattr(obj, "node"):
+                        input_node = obj.input_pin.node
+                        if hasattr(input_node, "plugin"):
+                            input_node.plugin.set_input(obj.input_pin.name, None)
+                except Exception:
+                    pass
+                try:
+                    self.scene.removeItem(obj)
+                except Exception:
+                    pass
+
         for it in list(self.scene.items()):
-            self.scene.removeItem(it)
+            if isinstance(it, NodeItem):
+                try:
+                    if hasattr(it.plugin, "on_remove") and callable(it.plugin.on_remove): it.plugin.on_remove()
+                except Exception:
+                    pass
+                try:
+                    it.plugin.cleanup()
+                except Exception:
+                    pass
+                try:
+                    self.scene.removeItem(it)
+                except Exception:
+                    pass
+            else:
+                try:
+                    self.scene.removeItem(it)
+                except Exception:
+                    pass
+
+        try:
+            self.scene.selectionChanged.connect(self._on_scene_selection_changed)
+        except Exception:
+            pass
 
     def _action_new_workflow_from_template(self):
-        """
-        Ouvre un dialogue proposant :
-        - Vierge (vide)
-        - Pipeline simple (Bandpower)
-        - Pipeline CSP
-        - Pipeline Riemann
-        """
         dlg = QDialog(self)
         dlg.setWindowTitle("Nouveau workflow…")
         layout = QVBoxLayout(dlg)
@@ -495,7 +506,6 @@ class MainWindow(QMainWindow):
             return
         key = items[idx][0]
 
-        # Reset workflow courant
         self._clear_scene_only()
         self.nodes = []
         self.connections = []
@@ -512,10 +522,7 @@ class MainWindow(QMainWindow):
             self._update_workflow_label()
             return
 
-        # (Log debug utile)
         self.logger.info("[Templates] clés disponibles : %s", list(TEMPLATES.keys()))
-
-        # Instancier le template
         try:
             created, title = instantiate_template(self, key)
             self.logger.info(f"[MainWindow] ✅ Workflow modèle: {title} — {len(created)} nœuds instanciés.")
@@ -525,9 +532,7 @@ class MainWindow(QMainWindow):
         self._update_workflow_label()
 
     def _new_workflow(self):
-        # (déprécié pour le bouton, mais conservé si tu veux l'appeler ailleurs)
-        self.logger.info("🆕 Nouveau workflow")
-        self.scene.clear()
+        self._clear_scene_only()
         self.nodes = []
         self.connections = []
         self.current_workflow_path = None
@@ -536,8 +541,6 @@ class MainWindow(QMainWindow):
 
     # ---------- helpers config (save/load) ----------
     def _gather_node_config(self, plugin) -> dict:
-        """Essaye export_config, sinon lit outputs['config_out'], sinon {}."""
-        # 1) export_config()
         try:
             if hasattr(plugin, "export_config") and callable(plugin.export_config):
                 cfg = plugin.export_config() or {}
@@ -545,28 +548,23 @@ class MainWindow(QMainWindow):
                     return cfg
         except Exception:
             pass
-        # 2) config_out
         try:
             outs = getattr(plugin, "outputs", None)
             if isinstance(outs, dict) and "config_out" in outs:
                 val = getattr(outs["config_out"], "value", None)
                 if isinstance(val, dict):
-                    # si c'est un preset complet {"nodes": ...}, pas utile ici
                     return val.get("config", val)
         except Exception:
             pass
         return {}
 
     def _apply_config_to_node(self, plugin, cfg: dict):
-        """import_config(cfg) sinon entrée config_in, sinon setattr sur types simples."""
         ok = False
-        # 1) import_config
         try:
             if hasattr(plugin, "import_config") and callable(plugin.import_config):
                 plugin.import_config(cfg); ok = True
         except Exception:
             ok = False
-        # 2) config_in pin
         if not ok:
             try:
                 ins = getattr(plugin, "inputs", None)
@@ -574,7 +572,6 @@ class MainWindow(QMainWindow):
                     ins["config_in"].on_next(cfg); ok = True
             except Exception:
                 ok = False
-        # 3) setattr fallback (types simples)
         if not ok and isinstance(cfg, dict):
             changed = False
             def _flatten(d: dict, parent=""):
@@ -594,7 +591,6 @@ class MainWindow(QMainWindow):
                 except Exception:
                     pass
             ok = changed
-        # 4) re-emit config if available
         try:
             if ok and hasattr(plugin, "_emit_config") and callable(plugin._emit_config):
                 plugin._emit_config()
@@ -616,14 +612,35 @@ class MainWindow(QMainWindow):
             self._write_workflow_to_file(path)
             self._update_workflow_label()
 
-    def _write_workflow_to_file(self, path):
-        data = {
-            "version": 2,
-            "nodes": [],
-            "connections": []
-        }
+    # --------- Convertit récursivement en objets JSON-sérialisables ---------
+    def _json_safe(self, obj, *, max_array_elems: int = 2000):
+        if obj is None or isinstance(obj, (str, int, float, bool)):
+            return obj
+        if isinstance(obj, dict):
+            return {str(self._json_safe(k)): self._json_safe(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple, set)):
+            return [self._json_safe(x) for x in obj]
+        if isinstance(obj, Path):
+            return str(obj)
+        if hasattr(obj, "__fspath__"):
+            try: return os.fspath(obj)
+            except Exception: return str(obj)
+        if isinstance(obj, np.generic):
+            return obj.item()
+        if isinstance(obj, np.ndarray):
+            if obj.size <= max_array_elems:
+                return obj.tolist()
+            return {"__ndarray__": True, "shape": list(obj.shape), "dtype": str(obj.dtype)}
+        if isinstance(obj, QPointF):
+            return [float(obj.x()), float(obj.y())]
+        try:
+            return str(obj)
+        except Exception:
+            return repr(obj)
 
-        # Nœuds
+    def _write_workflow_to_file(self, path):
+        data = {"version": 2, "nodes": [], "connections": []}
+
         for item in self.scene.items():
             if isinstance(item, NodeItem):
                 plugin = getattr(item, "plugin", None)
@@ -635,7 +652,6 @@ class MainWindow(QMainWindow):
                     "config": cfg
                 })
 
-        # Connexions (toujours output -> input)
         for item in self.scene.items():
             if isinstance(item, ConnectionItem):
                 out_pin = item.output_pin
@@ -649,12 +665,13 @@ class MainWindow(QMainWindow):
                     "to_pin": in_pin.name
                 })
 
-        # Écriture fichier
         dirname = os.path.dirname(path)
         if dirname:
             os.makedirs(dirname, exist_ok=True)
+
+        data_safe = self._json_safe(data)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            json.dump(data_safe, f, indent=2, ensure_ascii=False)
         self.logger.info(f"✅ Workflow enregistré : {path}")
         self._update_workflow_label()
 
@@ -664,11 +681,16 @@ class MainWindow(QMainWindow):
         if not path:
             return
 
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            data = self._load_json_lenient(path)
+        except Exception as e:
+            self.logger.error(f"❌ Échec de lecture JSON: {e}")
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Erreur JSON", f"Impossible de charger le workflow:\n\n{e}")
+            return
 
         self._new_workflow()
-        self.logger.info(f"➡️ Données lues depuis le JSON : {data.keys()}")
+        self.logger.info(f"➡️ Données lues depuis le JSON : {list(data.keys())}")
 
         node_map = {}
 
@@ -686,23 +708,16 @@ class MainWindow(QMainWindow):
                     node_item = NodeItem(plugin_class)
                     node_item.setPos(pos[0], pos[1])
                     self.scene.addItem(node_item)
-                    self._raise_node(node_item)  # <<< au-dessus après chargement
+                    self._raise_node(node_item)
 
-                    # Appliquer la config sauvegardée si dispo
                     try:
                         if cfg:
                             ok = self._apply_config_to_node(node_item.plugin, cfg)
                             self.logger.info(f"   ↳ Config appliquée: {ok}")
+                        else:
+                            self.logger.info("   ↳ Aucun paramètre de config à appliquer.")
                     except Exception as e:
                         self.logger.error(f"   ↳ Erreur application config: {e}")
-
-                    # BENCH HOOK
-                    try:
-                        bench_obj = getattr(node_item.plugin, "_bench", None)
-                        if bench_obj is not None and hasattr(bench_obj, "frameRendered"):
-                            bench_obj.frameRendered.connect(self._on_frame_rendered)
-                    except Exception:
-                        pass
 
                     node_map[node_name] = node_item
                     found = True
@@ -715,7 +730,6 @@ class MainWindow(QMainWindow):
             from_node = node_map.get(conn.get("from"))
             to_node = node_map.get(conn.get("to"))
             if from_node and to_node:
-                # utilise la version tolérante pour rattraper d’éventuels écarts de noms
                 ok = self.connect_by_name(from_node, conn.get("from_pin"), to_node, conn.get("to_pin"))
                 if ok:
                     self.logger.info(f"✅ Connexion recréée : {conn}")
@@ -748,23 +762,39 @@ class MainWindow(QMainWindow):
                 return candidate
             i += 1
 
-    # ---------------------------------------------------------------------
-    # BENCH HOOKS
-    # ---------------------------------------------------------------------
-    def _on_frame_rendered(self):
-        self._bench_rendered += 1
-        try:
-            log_evt("FRAME", f"n={self._bench_rendered}")
-            if not self._bench_first_done:
-                log_evt("FIRST_FRAME", "frame_id=1")
-                self._bench_first_done = True
-        except Exception:
-            pass
+    # ---------------- JSON loader tolérant ----------------
+    def _read_text(self, path: str) -> str:
+        with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
+            return f.read()
 
-    def _bench_reset(self):
-        self._bench_rendered = 0
-        self._bench_first_done = False
+    def _json_lenient_cleanup(self, s: str) -> str:
+        txt = s
+        txt = re.sub(r'//.*?$', '', txt, flags=re.MULTILINE)
+        txt = re.sub(r'/\*.*?\*/', '', txt, flags=re.DOTALL)
+        txt = re.sub(r'\bNaN\b', 'null', txt)
+        txt = re.sub(r'\bInfinity\b', 'null', txt)
+        txt = re.sub(r'\b-Infinity\b', 'null', txt)
+        txt = re.sub(r',(\s*[\}\]])', r'\1', txt)
+        last_brace = txt.rfind('}')
+        if last_brace != -1:
+            tail = txt[last_brace+1:].strip()
+            if tail:
+                txt = txt[:last_brace+1]
+        return txt
+
+    def _load_json_lenient(self, path: str):
+        raw = self._read_text(path)
         try:
-            log_evt("RUN", "reset=1")
-        except Exception:
+            return json.loads(raw)
+        except JSONDecodeError:
             pass
+        cleaned = self._json_lenient_cleanup(raw)
+        try:
+            return json.loads(cleaned)
+        except JSONDecodeError as e:
+            line, col = e.lineno, e.colno
+            lines = cleaned.splitlines()
+            start = max(0, line-3); end = min(len(lines), line+2)
+            context = "\n".join(f"{i+1:>4}: {lines[i]}" for i in range(start, end))
+            msg = (f"JSON invalide (ligne {line}, colonne {col}): {e.msg}\nContexte proche:\n{context}")
+            raise RuntimeError(msg) from e

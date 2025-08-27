@@ -1,0 +1,103 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "EEGUniversalReader_a7cba9",
+      "type": "EEGUniversalReader",
+      "position": [
+        42.0,
+        124.0
+      ],
+      "config": {
+        "units": "V",
+        "chunk_s": 1.0,
+        "overlap_s": 0.0,
+        "loop": false,
+        "resample_hz": 0,
+        "eeg_only": true,
+        "incl_eog": false,
+        "incl_emg": false,
+        "incl_stim": false,
+        "fast_open": true,
+        "turbo_gdf": true,
+        "emit_annotations": true,
+        "open_async": true,
+        "smart_preview": true,
+        "preview_s": 0.0,
+        "stream_decim": 1,
+        "bigfile_threshold_mb": 128.0,
+        "path": "D:\\rad-bci-python_test\\eeg_recording\\testfile2.edf"
+      }
+    },
+    {
+      "name": "MNEBandpassFilterPlugin_e42935",
+      "type": "MNEBandpassFilterPlugin",
+      "position": [
+        361.0,
+        116.0
+      ],
+      "config": {
+        "l_freq": 1.0,
+        "h_freq": 40.0,
+        "picks_eeg_only": true,
+        "phase": "zero"
+      }
+    },
+    {
+      "name": "MNEICAViewer_e5d18b",
+      "type": "MNEICAViewer",
+      "position": [
+        1121.0,
+        78.0
+      ],
+      "config": {
+        "preview_win_s": 5.0,
+        "decim_ts": 4,
+        "auto_apply": false
+      }
+    },
+    {
+      "name": "MNEICAPlugin_306a57",
+      "type": "MNEICAPlugin",
+      "position": [
+        654.0,
+        107.0
+      ],
+      "config": {
+        "n_components": null,
+        "method": "fastica",
+        "decim": null,
+        "picks_eeg_only": true,
+        "detect_eog": true,
+        "detect_ecg": false,
+        "apply": true
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "MNEICAPlugin_306a57",
+      "from_pin": "raw",
+      "to": "MNEICAViewer_e5d18b",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNEICAPlugin_306a57",
+      "from_pin": "ica",
+      "to": "MNEICAViewer_e5d18b",
+      "to_pin": "ica"
+    },
+    {
+      "from": "MNEBandpassFilterPlugin_e42935",
+      "from_pin": "raw",
+      "to": "MNEICAPlugin_306a57",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGUniversalReader_a7cba9",
+      "from_pin": "raw",
+      "to": "MNEBandpassFilterPlugin_e42935",
+      "to_pin": "raw"
+    }
+  ]
+}

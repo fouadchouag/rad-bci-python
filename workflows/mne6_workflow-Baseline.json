@@ -1,0 +1,204 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "EEGUniversalReader_b5ff25",
+      "type": "EEGUniversalReader",
+      "position": [
+        -14.0,
+        59.0
+      ],
+      "config": {
+        "units": "V",
+        "chunk_s": 1.0,
+        "overlap_s": 0.0,
+        "loop": false,
+        "resample_hz": 0,
+        "eeg_only": true,
+        "incl_eog": false,
+        "incl_emg": false,
+        "incl_stim": false,
+        "fast_open": true,
+        "turbo_gdf": true,
+        "emit_annotations": true,
+        "path": "D:/rad-bci-python_test/eeg_recording/BCI2005_I.gdf"
+      }
+    },
+    {
+      "name": "EEGLiveDisplay_038cc2",
+      "type": "EEGLiveDisplay",
+      "position": [
+        91.0,
+        363.0
+      ],
+      "config": {
+        "loop": true,
+        "window_s": 10.0,
+        "step_s": 0.2,
+        "seg_len_auto": true,
+        "seg_len_manual": null,
+        "force_nch": 0,
+        "max_points": 3000,
+        "max_fps": 20
+      }
+    },
+    {
+      "name": "MNENotchFilterPlugin_4966d8",
+      "type": "MNENotchFilterPlugin",
+      "position": [
+        277.0,
+        164.0
+      ],
+      "config": {
+        "freqs": [
+          90.0
+        ],
+        "harmonics_max": 0,
+        "notch_widths": null,
+        "fir_design": "firwin",
+        "phase": "zero",
+        "picks_eeg_only": true
+      }
+    },
+    {
+      "name": "MNEBandpassFilterPlugin_6960c1",
+      "type": "MNEBandpassFilterPlugin",
+      "position": [
+        615.0,
+        88.0
+      ],
+      "config": {
+        "l_freq": 1.0,
+        "h_freq": 4.0,
+        "fir_design": "firwin",
+        "phase": "zero",
+        "picks_eeg_only": true
+      }
+    },
+    {
+      "name": "MNEAverageReferencePlugin_6af938",
+      "type": "MNEAverageReferencePlugin",
+      "position": [
+        978.0,
+        115.0
+      ],
+      "config": {
+        "as_projection": false
+      }
+    },
+    {
+      "name": "MNEEpochsLite_dd1dae",
+      "type": "MNEEpochsLite",
+      "position": [
+        1425.0,
+        200.0
+      ],
+      "config": {
+        "use_annotations": false,
+        "epoch_len_s": 2.000000000000001,
+        "step_s": 1.0
+      }
+    },
+    {
+      "name": "MNEBaselinePlugin_7b5fc0",
+      "type": "MNEBaselinePlugin",
+      "position": [
+        1848.0,
+        159.0
+      ],
+      "config": {
+        "auto": true,
+        "baseline_start": null,
+        "baseline_end": 0.0
+      }
+    },
+    {
+      "name": "MNEEpochsToSegments_b4ec0b",
+      "type": "MNEEpochsToSegments",
+      "position": [
+        2168.0,
+        113.0
+      ],
+      "config": {
+        "fps": 20.0,
+        "loop": true
+      }
+    },
+    {
+      "name": "MNEResamplePlugin_f31533",
+      "type": "MNEResamplePlugin",
+      "position": [
+        1079.0,
+        351.0
+      ],
+      "config": {
+        "sfreq": 256.0,
+        "window": "boxcar",
+        "npad": "auto",
+        "n_jobs": "auto"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "EEGUniversalReader_b5ff25",
+      "from_pin": "raw",
+      "to": "MNENotchFilterPlugin_4966d8",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNENotchFilterPlugin_4966d8",
+      "from_pin": "raw",
+      "to": "MNEBandpassFilterPlugin_6960c1",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNEBandpassFilterPlugin_6960c1",
+      "from_pin": "raw",
+      "to": "MNEAverageReferencePlugin_6af938",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNEEpochsToSegments_b4ec0b",
+      "from_pin": "segment",
+      "to": "EEGLiveDisplay_038cc2",
+      "to_pin": "segment"
+    },
+    {
+      "from": "MNEEpochsToSegments_b4ec0b",
+      "from_pin": "sfreq",
+      "to": "EEGLiveDisplay_038cc2",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "MNEEpochsToSegments_b4ec0b",
+      "from_pin": "ch_names",
+      "to": "EEGLiveDisplay_038cc2",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "MNEEpochsLite_dd1dae",
+      "from_pin": "epochs",
+      "to": "MNEBaselinePlugin_7b5fc0",
+      "to_pin": "epochs"
+    },
+    {
+      "from": "MNEBaselinePlugin_7b5fc0",
+      "from_pin": "epochs",
+      "to": "MNEEpochsToSegments_b4ec0b",
+      "to_pin": "epochs"
+    },
+    {
+      "from": "MNEAverageReferencePlugin_6af938",
+      "from_pin": "raw",
+      "to": "MNEResamplePlugin_f31533",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNEResamplePlugin_f31533",
+      "from_pin": "raw",
+      "to": "MNEEpochsLite_dd1dae",
+      "to_pin": "raw"
+    }
+  ]
+}

@@ -1,73 +1,175 @@
-# gui/pin_item.py
-
-from PyQt5.QtWidgets import QGraphicsEllipseItem
-from PyQt5.QtGui import QBrush, QColor, QPen, QPainterPath
+# -*- coding: utf-8 -*-
+from PyQt5.QtWidgets import QGraphicsEllipseItem, QGraphicsPathItem
+from PyQt5.QtGui import QBrush, QPen, QColor, QPainterPath
 from PyQt5.QtCore import Qt, QPointF
-from .connection_item import ConnectionItem
+import math
+
+# Astuce : pas d'import de ConnectionItem ici pour éviter tout cycle.
+# On fera l'import à la volée au moment de créer la connexion.
 
 
 class PinItem(QGraphicsEllipseItem):
-    def __init__(self, name, is_output=False, parent=None):
-        super().__init__(-5, -5, 10, 10, parent)
-        self.setBrush(QBrush(QColor(200, 100, 100) if is_output else QColor(100, 200, 100)))
-        self.setPen(QPen(Qt.black))
-        self.setZValue(1)
+    """Pin circulaire pour connecter des nœuds par drag&drop (avec prévisualisation + snap)."""
 
-        self.name = name
-        self.is_output = is_output
-        self.setAcceptHoverEvents(True)
-        self.setFlag(self.ItemSendsScenePositionChanges)
+    RADIUS  = 8.0
+    SNAP_PX = 28.0  # rayon de capture au relâchement
 
-        self.drag_path_item = None
+    def __init__(self, name: str, is_output: bool, parent=None):
+        super().__init__(parent)
+
+        # Identité / rétro-compat
+        self.name = str(name)
+        self._pin_name = self.name  # compat .pin_name (certains appels externes)
+        self.is_output = bool(is_output)
+        self.node = parent
+
+        # Style
         self._connected = False
+        self._hover = False
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.start_pos = self.scenePos()
-            self.drag_path_item = self.scene().addPath(self._create_drag_path(event.scenePos()), QPen(Qt.yellow, 2))
-            event.accept()
+        # Drag preview
+        self._dragging = False
+        self._preview: QGraphicsPathItem = None
 
-    def mouseMoveEvent(self, event):
-        if self.drag_path_item:
-            path = self._create_drag_path(event.scenePos())
-            self.drag_path_item.setPath(path)
-            event.accept()
+        # Géométrie
+        self.setRect(-self.RADIUS, -self.RADIUS, 2 * self.RADIUS, 2 * self.RADIUS)
+        self.setAcceptHoverEvents(True)
+        self.setAcceptedMouseButtons(Qt.LeftButton)
+        self.setZValue(10)
 
-    def mouseReleaseEvent(self, event):
-        if self.drag_path_item:
-            end_items = self.scene().items(event.scenePos())
-            for item in end_items:
-                if isinstance(item, PinItem) and item != self:
-                    if self.is_output != item.is_output:
-                        output_pin = self if self.is_output else item
-                        input_pin = item if self.is_output else self
+        # Couleurs
+        self._col_fill_in  = QColor(60, 180, 110)   # inputs
+        self._col_fill_out = QColor(220, 80, 80)    # outputs
+        self._col_stroke   = QColor(20, 20, 20)
+        self._col_hover    = QColor(255, 230, 120)
 
-                        # Crée la connexion visuelle et logique
-                        ConnectionItem(output_pin, input_pin)
+        self._apply_style()
 
-                        # Connexion Rx : output → input
-                        out_node = output_pin.node.plugin
-                        in_node = input_pin.node.plugin
+    # ---- rétro-compat .pin_name ----
+    @property
+    def pin_name(self):
+        return self.name
 
-                        source = out_node.get_output(output_pin.pin_name)
-                        if source:
-                            source.subscribe(lambda val: in_node.set_input(input_pin.pin_name, val))
+    @pin_name.setter
+    def pin_name(self, v):
+        self.name = str(v)
 
-                        break
+    # -------------------- état visuel --------------------
+    def set_connected(self, b: bool):
+        self._connected = bool(b)
+        self._apply_style()
 
-            # Nettoyage visuel
-            self.scene().removeItem(self.drag_path_item)
-            self.drag_path_item = None
-            event.accept()
+    def _apply_style(self):
+        base = self._col_fill_out if self.is_output else self._col_fill_in
+        fill = QColor(base)
+        if self._connected:
+            fill = fill.darker(115)
+        if self._hover:
+            fill = self._col_hover
+        self.setBrush(QBrush(fill))
+        self.setPen(QPen(self._col_stroke, 1.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
 
-    def _create_drag_path(self, end_pos):
-        path = QPainterPath()
-        path.moveTo(self.scenePos())
-        dx = (end_pos.x() - self.scenePos().x()) * 0.5
-        ctrl1 = self.scenePos() + QPointF(dx, 0)
-        ctrl2 = end_pos - QPointF(dx, 0)
-        path.cubicTo(ctrl1, ctrl2, end_pos)
-        return path
+    def hoverEnterEvent(self, ev):
+        self._hover = True
+        self._apply_style()
+        super().hoverEnterEvent(ev)
 
-    def set_connected(self, connected: bool):
-        self._connected = connected
+    def hoverLeaveEvent(self, ev):
+        self._hover = False
+        self._apply_style()
+        super().hoverLeaveEvent(ev)
+
+    # -------------------- drag & snap --------------------
+    def mousePressEvent(self, ev):
+        if ev.button() == Qt.LeftButton:
+            # Démarre un drag : on dessine une “ligne fantôme”
+            self._dragging = True
+            sc = self.scene()
+            if sc is not None:
+                self._preview = QGraphicsPathItem()
+                self._preview.setZValue(-500)  # sous les nœuds
+                self._preview.setPen(QPen(QColor(240, 200, 20, 180), 2, Qt.DashLine, Qt.RoundCap, Qt.RoundJoin))
+                sc.addItem(self._preview)
+            ev.accept()
+        else:
+            super().mousePressEvent(ev)
+
+    def mouseMoveEvent(self, ev):
+        if not self._dragging or self.scene() is None or self._preview is None:
+            return super().mouseMoveEvent(ev)
+
+        p0 = self.scenePos()                    # pin d'origine
+        p1 = ev.scenePos()                      # curseur
+        dx = (p1.x() - p0.x()) * 0.5
+        path = QPainterPath(p0)
+        path.cubicTo(QPointF(p0.x()+dx, p0.y()), QPointF(p1.x()-dx, p1.y()), p1)
+        self._preview.setPath(path)
+        ev.accept()
+
+    def mouseReleaseEvent(self, ev):
+        sc = self.scene()
+        if self._dragging and sc is not None:
+            # Retire la preview
+            if self._preview is not None:
+                try:
+                    sc.removeItem(self._preview)
+                except Exception:
+                    pass
+                self._preview = None
+
+            # Chercher le pin compatible le plus proche (snap)
+            target = self._find_compatible_target(ev.scenePos())
+            if target is not None:
+                self._create_connection(self, target)
+
+        self._dragging = False
+        ev.accept()  # évite de déplacer le node pendant la manip
+
+    # -------------------- helpers --------------------
+    def _find_compatible_target(self, pos_scene: QPointF):
+        """Retourne le PinItem compatible le plus proche dans un rayon SNAP_PX."""
+        sc = self.scene()
+        if sc is None:
+            return None
+
+        best_pin = None
+        best_d2 = (self.SNAP_PX + 1) ** 2  # distance² min
+
+        for it in sc.items():
+            if it is self:
+                continue
+            if not isinstance(it, PinItem):
+                continue
+            if it.is_output == self.is_output:
+                continue
+            # pas sur le même node
+            if it.parentItem() is self.parentItem():
+                continue
+
+            d2 = (it.scenePos().x() - pos_scene.x()) ** 2 + (it.scenePos().y() - pos_scene.y()) ** 2
+            if d2 < best_d2:
+                best_d2 = d2
+                best_pin = it
+
+        return best_pin
+
+    def _create_connection(self, pin_a, pin_b):
+        """Crée la connexion graphique + abonnement Rx."""
+        # déterminer sens
+        output_pin = pin_a if pin_a.is_output else pin_b
+        input_pin  = pin_b if pin_a.is_output else pin_a
+
+        try:
+            from .connection_item import ConnectionItem  # import local => pas de cycle
+            sc = self.scene()
+            if sc is None:
+                return
+            conn = ConnectionItem(output_pin, input_pin)
+            sc.addItem(conn)
+            conn.track_both_pins()
+
+            # feedback visuel
+            output_pin.set_connected(True)
+            input_pin.set_connected(True)
+        except Exception as e:
+            print(f"[PinItem] Warning: failed to create connection: {e}")

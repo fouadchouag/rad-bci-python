@@ -1,0 +1,222 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "PSDVisualizer_bfd13d",
+      "type": "PSDVisualizer",
+      "position": [
+        1699.0,
+        140.0
+      ],
+      "config": {
+        "average_channels": true,
+        "use_db": true,
+        "max_points": 2000
+      }
+    },
+    {
+      "name": "PSDBandFeaturesLite_964fcf",
+      "type": "PSDBandFeaturesLite",
+      "position": [
+        2212.0,
+        182.0
+      ],
+      "config": {
+        "use_relative": true,
+        "bands": [
+          [
+            "delta",
+            0.5,
+            4.0
+          ],
+          [
+            "theta",
+            4.0,
+            8.0
+          ],
+          [
+            "alpha",
+            8.0,
+            13.0
+          ],
+          [
+            "beta",
+            13.0,
+            30.0
+          ],
+          [
+            "gamma",
+            30.0,
+            45.0
+          ]
+        ]
+      }
+    },
+    {
+      "name": "MNEAverageReferencePlugin_b1e03d",
+      "type": "MNEAverageReferencePlugin",
+      "position": [
+        984.0,
+        34.0
+      ],
+      "config": {
+        "as_projection": false
+      }
+    },
+    {
+      "name": "MNEResamplePlugin_779886",
+      "type": "MNEResamplePlugin",
+      "position": [
+        1398.0,
+        124.0
+      ],
+      "config": {
+        "sfreq": 256.0,
+        "window": "boxcar",
+        "npad": "auto",
+        "n_jobs": "auto"
+      }
+    },
+    {
+      "name": "MNEBandpassFilterPlugin_c880d4",
+      "type": "MNEBandpassFilterPlugin",
+      "position": [
+        615.0,
+        88.0
+      ],
+      "config": {
+        "l_freq": 1.0,
+        "h_freq": 4.0,
+        "fir_design": "firwin",
+        "phase": "zero",
+        "picks_eeg_only": true
+      }
+    },
+    {
+      "name": "MNENotchFilterPlugin_d48dbb",
+      "type": "MNENotchFilterPlugin",
+      "position": [
+        277.0,
+        164.0
+      ],
+      "config": {
+        "freqs": [
+          90.0
+        ],
+        "harmonics_max": 0,
+        "notch_widths": null,
+        "fir_design": "firwin",
+        "phase": "zero",
+        "picks_eeg_only": true
+      }
+    },
+    {
+      "name": "EEGUniversalReader_982d82",
+      "type": "EEGUniversalReader",
+      "position": [
+        -14.0,
+        59.0
+      ],
+      "config": {
+        "units": "V",
+        "chunk_s": 1.0,
+        "overlap_s": 0.0,
+        "loop": false,
+        "resample_hz": 0,
+        "eeg_only": true,
+        "incl_eog": false,
+        "incl_emg": false,
+        "incl_stim": false,
+        "fast_open": true,
+        "turbo_gdf": true,
+        "emit_annotations": true,
+        "path": "D:/rad-bci-python_test/eeg_recording/testfile1.edf"
+      }
+    },
+    {
+      "name": "PSDWelchPlugin_e7f716",
+      "type": "PSDWelchPlugin",
+      "position": [
+        1832.0,
+        126.0
+      ],
+      "config": {
+        "fmin": 0.5,
+        "fmax": 45.0,
+        "seglen_s": 2.0,
+        "overlap_s": 1.0,
+        "average": "mean",
+        "eeg_only": true,
+        "max_points": 4096
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "MNEAverageReferencePlugin_b1e03d",
+      "from_pin": "raw",
+      "to": "MNEResamplePlugin_779886",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNEBandpassFilterPlugin_c880d4",
+      "from_pin": "raw",
+      "to": "MNEAverageReferencePlugin_b1e03d",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNENotchFilterPlugin_d48dbb",
+      "from_pin": "raw",
+      "to": "MNEBandpassFilterPlugin_c880d4",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGUniversalReader_982d82",
+      "from_pin": "raw",
+      "to": "MNENotchFilterPlugin_d48dbb",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNEResamplePlugin_779886",
+      "from_pin": "raw",
+      "to": "PSDWelchPlugin_e7f716",
+      "to_pin": "raw"
+    },
+    {
+      "from": "PSDWelchPlugin_e7f716",
+      "from_pin": "freqs",
+      "to": "PSDVisualizer_bfd13d",
+      "to_pin": "freqs"
+    },
+    {
+      "from": "PSDWelchPlugin_e7f716",
+      "from_pin": "psd",
+      "to": "PSDVisualizer_bfd13d",
+      "to_pin": "psd"
+    },
+    {
+      "from": "PSDWelchPlugin_e7f716",
+      "from_pin": "ch_names",
+      "to": "PSDVisualizer_bfd13d",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "PSDWelchPlugin_e7f716",
+      "from_pin": "freqs",
+      "to": "PSDBandFeaturesLite_964fcf",
+      "to_pin": "freqs"
+    },
+    {
+      "from": "PSDWelchPlugin_e7f716",
+      "from_pin": "psd",
+      "to": "PSDBandFeaturesLite_964fcf",
+      "to_pin": "psd"
+    },
+    {
+      "from": "PSDWelchPlugin_e7f716",
+      "from_pin": "ch_names",
+      "to": "PSDBandFeaturesLite_964fcf",
+      "to_pin": "ch_names"
+    }
+  ]
+}

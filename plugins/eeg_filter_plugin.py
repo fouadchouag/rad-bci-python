@@ -1,9 +1,12 @@
 # plugins/eeg_filter_plugin.py
 # -*- coding: utf-8 -*-
 # EEGSliceFilter : filtrage streaming (HP/LP/Notch) par fenêtres, avec état persistant
-# • SciPy sosfilt (C) -> pas de GIL bloquant
+# • SciPy sosfilt (C) -> pas de GIL bloquant, pas de QThread ici
 # • Compatibilité ConfigNode (export_config / import_config / config_hints + config_out)
 # • Émission méta seulement si changement (évite boucles)
+# • Hooks métriques complets:
+#     - PARAM_CHANGE pour chaque réglage
+#     - FILTER_START / FILTER_DONE / FILTER_FAIL (avec paramètres)
 
 import numpy as np
 from rx.subject import BehaviorSubject
@@ -14,6 +17,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 from core.node_base import BasePlugin
+from core.metrics_logger import metrics  # <<< HOOKS METRICS
 
 try:
     from scipy.signal import butter, sosfilt, iirnotch, tf2sos
@@ -89,7 +93,7 @@ class EEGFilterPlugin(BasePlugin):
 
         # méta déjà envoyée (pour éviter les re-émissions)
         self._sent_sfreq = None
-        self._sent_ch_names = None  # on compare la liste
+        self._sent_ch_names = None
         self._sent_info = None
 
         # UI refs
@@ -124,10 +128,8 @@ class EEGFilterPlugin(BasePlugin):
         def _get(k, typ=None, d=None):
             v = cfg.get(k, d)
             if typ is None or v is None: return v
-            try:
-                return typ(v)
-            except Exception:
-                return d
+            try: return typ(v)
+            except Exception: return d
 
         self._enable_hp = bool(_get("enable_hp", bool, self._enable_hp))
         self._hp = float(_get("hp", float, self._hp))
@@ -139,7 +141,6 @@ class EEGFilterPlugin(BasePlugin):
         self._notch_q = float(_get("notch_q", float, self._notch_q))
         self._bypass = bool(_get("bypass", bool, self._bypass))
 
-        # pousser UI si présente
         try:
             if self.chk_hp: self.chk_hp.blockSignals(True); self.chk_hp.setChecked(self._enable_hp); self.chk_hp.blockSignals(False)
             if self.spn_hp: self.spn_hp.blockSignals(True); self.spn_hp.setValue(self._hp); self.spn_hp.blockSignals(False)
@@ -153,7 +154,6 @@ class EEGFilterPlugin(BasePlugin):
         except Exception:
             pass
 
-        # re-design filtres
         self._sos = None; self._design_if_needed()
         self._emit_config()
 
@@ -178,7 +178,8 @@ class EEGFilterPlugin(BasePlugin):
         v.setSizeConstraint(QLayout.SetMinAndMaxSize)
         w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         if not SCIPY_OK:
-            v.addWidget(QLabel("❌ SciPy manquant. Installe :  pip install scipy")); return w
+            v.addWidget(QLabel("❌ SciPy manquant. Installe :  pip install scipy"))
+            return w
 
         panel = QWidget(); pv = QVBoxLayout(panel); pv.setContentsMargins(8, 8, 8, 8)
 
@@ -201,17 +202,34 @@ class EEGFilterPlugin(BasePlugin):
         pv.addWidget(QLabel("Astuce: LP=15 Hz coupe la composante 20 Hz du simulateur; Notch=10 Hz annule l'alpha 10 Hz."))
         v.addWidget(_CollapsibleSection("Paramètres", panel, collapsed=True))
 
-        # pousser config initiale
         self._emit_config()
         return w
 
     # ---- logic ----
+    def _log_param(self, name, val):
+        try:
+            metrics().param_change(name=str(name), new=val)
+        except Exception:
+            pass
+
     def _on_params_changed(self, *args):
+        prev = (self._enable_hp, self._hp, self._enable_lp, self._lp, self._order,
+                self._enable_notch, self._notch_f, self._notch_q, self._bypass)
+
         self._enable_hp = self.chk_hp.isChecked(); self._hp = float(self.spn_hp.value())
         self._enable_lp = self.chk_lp.isChecked(); self._lp = float(self.spn_lp.value())
         self._order = int(self.spn_order.value())
         self._enable_notch = self.chk_notch.isChecked(); self._notch_f = float(self.spn_notch.value()); self._notch_q = float(self.spn_q.value())
         self._bypass = self.chk_bypass.isChecked()
+
+        # logs fins (PARAM_CHANGE par param)
+        now = (self._enable_hp, self._hp, self._enable_lp, self._lp, self._order,
+               self._enable_notch, self._notch_f, self._notch_q, self._bypass)
+        names = ["enable_hp","hp","enable_lp","lp","order","enable_notch","notch_f","notch_q","bypass"]
+        for k, (o, n) in zip(names, zip(prev, now)):
+            if o != n:
+                self._log_param(k, n)
+
         self._sos = None; self._zi_per_ch = []
         self._design_if_needed()
         self._emit_config()
@@ -239,16 +257,13 @@ class EEGFilterPlugin(BasePlugin):
         self._zi_per_ch = [np.zeros((n_sections, 2), dtype=np.float64) for _ in range(self._n_ch)]
 
     def _emit_meta_if_changed(self, info=None):
-        # sfreq
         if self._sfreq > 0 and self._sfreq != self._sent_sfreq:
             self.outputs["sfreq"].on_next(self._sfreq)
             self._sent_sfreq = self._sfreq
-        # ch_names
         if self._n_ch > 0 and self._ch_names:
             if self._sent_ch_names is None or self._sent_ch_names != self._ch_names:
                 self.outputs["ch_names"].on_next(self._ch_names)
                 self._sent_ch_names = list(self._ch_names)
-        # info
         meta = info if isinstance(info, dict) else self._last_info
         if isinstance(meta, dict) and meta != self._sent_info:
             self.outputs["info"].on_next(meta)
@@ -281,7 +296,6 @@ class EEGFilterPlugin(BasePlugin):
         if changed:
             self._sos = None; self._design_if_needed()
 
-        # émettre meta SEULEMENT si elles changent
         self._emit_meta_if_changed(info=info)
 
         # ---- signal ----
@@ -312,27 +326,62 @@ class EEGFilterPlugin(BasePlugin):
                 else:
                     self._ch_names = [f"ch{idx+1}" for idx in range(self._n_ch)]
             self._sos = None; self._design_if_needed()
-            self._emit_meta_if_changed()  # on vient d’initialiser
+            self._emit_meta_if_changed()
 
-        if self._bypass or self._sos is None or self._sfreq <= 0:
+        # --- Filtrage & métriques ---
+        do_filter = (not self._bypass) and (self._sos is not None) and (self._sfreq > 0)
+        if do_filter:
+            # FILTER_START
+            try:
+                metrics().event(
+                    "FILTER_START",
+                    hp=self._hp, lp=self._lp,
+                    enable_hp=int(self._enable_hp), enable_lp=int(self._enable_lp),
+                    enable_notch=int(self._enable_notch),
+                    method="sosfilt", phase="—",
+                    picks=self._n_ch, in_place=False
+                )
+            except Exception:
+                pass
+
+        try:
+            if not do_filter:
+                self.outputs["segment"].on_next(arr)
+                self._emit_meta_if_changed()
+                return {}
+
+            # filtrage étatful
+            n_ch, _ = arr.shape
+            if n_ch != self._n_ch or len(self._zi_per_ch) != n_ch:
+                self._n_ch = n_ch; self._sos = None; self._design_if_needed()
+
+            y = np.empty_like(arr, dtype=np.float64)
+            for ch in range(n_ch):
+                x = arr[ch, :].astype(np.float64, copy=False)
+                zi = self._zi_per_ch[ch]
+                y_ch, zi_new = sosfilt(self._sos, x, zi=zi)
+                self._zi_per_ch[ch] = zi_new
+                y[ch, :] = y_ch
+            y = y.astype(arr.dtype, copy=False)
+
+            self.outputs["segment"].on_next(y)
+            self._emit_meta_if_changed()
+
+            if do_filter:
+                try:
+                    metrics().event("FILTER_DONE", hp=self._hp, lp=self._lp, method="sosfilt")
+                except Exception:
+                    pass
+
+            return {}
+
+        except Exception as e:
+            # en cas d'erreur: propage l'input et loggue FAIL
+            try:
+                msg = repr(e).replace(",", ";")
+                metrics().event("FILTER_FAIL", error=msg)
+            except Exception:
+                pass
             self.outputs["segment"].on_next(arr)
             self._emit_meta_if_changed()
             return {}
-
-        # filtrage étatful
-        n_ch, _ = arr.shape
-        if n_ch != self._n_ch or len(self._zi_per_ch) != n_ch:
-            self._n_ch = n_ch; self._sos = None; self._design_if_needed()
-
-        y = np.empty_like(arr, dtype=np.float64)
-        for ch in range(n_ch):
-            x = arr[ch, :].astype(np.float64, copy=False)
-            zi = self._zi_per_ch[ch]
-            y_ch, zi_new = sosfilt(self._sos, x, zi=zi)
-            self._zi_per_ch[ch] = zi_new
-            y[ch, :] = y_ch
-        y = y.astype(arr.dtype, copy=False)
-
-        self.outputs["segment"].on_next(y)
-        self._emit_meta_if_changed()
-        return {}

@@ -1,0 +1,90 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "TFRViewer_94dce9",
+      "type": "TFRViewer",
+      "position": [
+        1117.0,
+        168.0
+      ],
+      "config": {}
+    },
+    {
+      "name": "EEGUniversalReader_147238",
+      "type": "EEGUniversalReader",
+      "position": [
+        16.0,
+        -115.0
+      ],
+      "config": {
+        "units": "V",
+        "chunk_s": 1.0,
+        "overlap_s": 0.0,
+        "loop": false,
+        "resample_hz": 0,
+        "eeg_only": true,
+        "incl_eog": false,
+        "incl_emg": false,
+        "incl_stim": false,
+        "fast_open": true,
+        "turbo_gdf": true,
+        "emit_annotations": true,
+        "open_async": true,
+        "smart_preview": true,
+        "preview_s": 0.0,
+        "stream_decim": 1,
+        "bigfile_threshold_mb": 128.0,
+        "path": "D:\\rad-bci-python_test\\eeg_recording\\testfile2.edf"
+      }
+    },
+    {
+      "name": "MNEEpochsLite_073654",
+      "type": "MNEEpochsLite",
+      "position": [
+        365.0,
+        48.0
+      ],
+      "config": {
+        "use_annotations": true,
+        "epoch_len_s": 1.0,
+        "step_s": 1.0
+      }
+    },
+    {
+      "name": "MNETFRMorletPlugin_315ca7",
+      "type": "MNETFRMorletPlugin",
+      "position": [
+        740.0,
+        15.0
+      ],
+      "config": {}
+    }
+  ],
+  "connections": [
+    {
+      "from": "MNETFRMorletPlugin_315ca7",
+      "from_pin": "freqs",
+      "to": "TFRViewer_94dce9",
+      "to_pin": "channel"
+    },
+    {
+      "from": "EEGUniversalReader_147238",
+      "from_pin": "raw",
+      "to": "MNEEpochsLite_073654",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNEEpochsLite_073654",
+      "from_pin": "epochs",
+      "to": "MNETFRMorletPlugin_315ca7",
+      "to_pin": "epochs"
+    },
+    {
+      "from": "MNETFRMorletPlugin_315ca7",
+      "from_pin": "tfr",
+      "to": "TFRViewer_94dce9",
+      "to_pin": "tfr"
+    }
+  ]
+}

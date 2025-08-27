@@ -1,0 +1,3 @@
+python utils\metrics_eval.py runs --outdir metrics_results
+
+python utils\build_tables_from_metrics.py metrics_results --outdir out

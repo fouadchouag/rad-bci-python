@@ -1,0 +1,88 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "EEGLiveDisplay_3b4016",
+      "type": "EEGLiveDisplay",
+      "position": [
+        1043.0,
+        101.0
+      ],
+      "config": {
+        "loop": true,
+        "window_s": 10.0,
+        "step_s": 0.2,
+        "seg_len_auto": true,
+        "seg_len_manual": null,
+        "force_nch": 0,
+        "max_points": 3000,
+        "max_fps": 20
+      }
+    },
+    {
+      "name": "EEGRawFilterPlugin_e54599",
+      "type": "EEGRawFilterPlugin",
+      "position": [
+        548.0,
+        86.0
+      ],
+      "config": {
+        "enable_hp": true,
+        "hp": 1.0,
+        "enable_lp": true,
+        "lp": 40.0,
+        "enable_notch": false,
+        "notch_freqs": [
+          50.0,
+          100.0
+        ],
+        "method": "fir",
+        "phase": "zero",
+        "picks": "all",
+        "in_place": false
+      }
+    },
+    {
+      "name": "EEGUniversalReader_ac17a7",
+      "type": "EEGUniversalReader",
+      "position": [
+        59.0,
+        69.0
+      ],
+      "config": {
+        "units": "V",
+        "chunk_s": 1.0,
+        "overlap_s": 0.0,
+        "loop": false,
+        "resample_hz": 0,
+        "eeg_only": true,
+        "incl_eog": false,
+        "incl_emg": false,
+        "incl_stim": false,
+        "fast_open": true,
+        "turbo_gdf": true,
+        "emit_annotations": true,
+        "open_async": true,
+        "smart_preview": true,
+        "preview_s": 0.0,
+        "stream_decim": 1,
+        "bigfile_threshold_mb": 128.0,
+        "path": ""
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "EEGUniversalReader_ac17a7",
+      "from_pin": "raw",
+      "to": "EEGRawFilterPlugin_e54599",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGRawFilterPlugin_e54599",
+      "from_pin": "raw",
+      "to": "EEGLiveDisplay_3b4016",
+      "to_pin": "raw"
+    }
+  ]
+}

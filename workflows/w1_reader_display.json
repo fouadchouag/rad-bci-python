@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "EEGUniversalReader_eb0ce8",
+      "type": "EEGUniversalReader",
+      "position": [
+        39.0,
+        185.0
+      ],
+      "config": {
+        "units": "V",
+        "chunk_s": 1.0,
+        "overlap_s": 0.0,
+        "loop": false,
+        "resample_hz": 0,
+        "eeg_only": true,
+        "incl_eog": false,
+        "incl_emg": false,
+        "incl_stim": false,
+        "fast_open": true,
+        "turbo_gdf": true,
+        "emit_annotations": true,
+        "open_async": true,
+        "smart_preview": true,
+        "preview_s": 0.0,
+        "stream_decim": 1,
+        "bigfile_threshold_mb": 128.0,
+        "path": ""
+      }
+    },
+    {
+      "name": "EEGLiveDisplay_91ec53",
+      "type": "EEGLiveDisplay",
+      "position": [
+        686.0,
+        96.0
+      ],
+      "config": {
+        "loop": true,
+        "window_s": 10.0,
+        "step_s": 0.2,
+        "seg_len_auto": true,
+        "seg_len_manual": null,
+        "force_nch": 0,
+        "max_points": 3000,
+        "max_fps": 20
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "EEGUniversalReader_eb0ce8",
+      "from_pin": "raw",
+      "to": "EEGLiveDisplay_91ec53",
+      "to_pin": "raw"
+    }
+  ]
+}

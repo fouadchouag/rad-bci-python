@@ -1,41 +1,49 @@
+# -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import QGraphicsPathItem
 from PyQt5.QtGui import QPainterPath, QPen, QColor
 from PyQt5.QtCore import Qt, QTimer, QPointF
 
 
-
 class ConnectionItem(QGraphicsPathItem):
+    """Relie un output pin → input pin et s’abonne Rx pour propager les valeurs."""
+
     def __init__(self, output_pin, input_pin):
         super().__init__()
 
-
-        self.setZValue(-1)
         self.output_pin = output_pin
         self.input_pin = input_pin
         self.subscription = None
 
-        self.setPen(QPen(QColor(240, 200, 20), 2))
+        # Toujours sous les nœuds
+        self.setZValue(-1000)
+
+        # Style (surbrillance quand sélectionné)
+        self._pen_normal = QPen(QColor(240, 200, 20), 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+        self._pen_selected = QPen(QColor(255, 255, 140), 3.5, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+        self.setPen(self._pen_normal)
+
         self.update_path()
 
-        # 🔁 Animation si tu veux
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_path)
-        self.timer.start(30)
+        # Suivi des pins
+        self._timer = QTimer()
+        self._timer.timeout.connect(self.update_path)
+        self._timer.start(33)
 
-        self.scene = output_pin.scene()
-        if self.scene:
-            self.scene.addItem(self)
+        # IMPORTANT : n'ajoute pas toi-même à la scène ici.
+        self.setFlag(QGraphicsPathItem.ItemIsSelectable, True)
 
-        self.setFlag(QGraphicsPathItem.ItemIsSelectable)
-
-        # 🔁 Active Rx
+        # Rx
         self._connect_rx()
+
+    # ----------------- Rx -----------------
 
     def _connect_rx(self):
         out_node = self.output_pin.parentItem().plugin
-        in_node = self.input_pin.parentItem().plugin
-        out_pin_name = self.output_pin.name
-        in_pin_name = self.input_pin.name
+        in_node  = self.input_pin.parentItem().plugin
+        out_pin_name = getattr(self.output_pin, "name", None) or getattr(self.output_pin, "pin_name", None)
+        in_pin_name  = getattr(self.input_pin, "name", None) or getattr(self.input_pin, "pin_name", None)
+        if not out_pin_name or not in_pin_name:
+            return
 
         source = out_node.get_output(out_pin_name)
         if source:
@@ -45,53 +53,53 @@ class ConnectionItem(QGraphicsPathItem):
             )
 
     def cleanup(self):
+        # Stop timer + Rx
+        try:
+            if self._timer.isActive():
+                self._timer.stop()
+        except Exception:
+            pass
         if self.subscription:
-            print(f"[Connection] Cleanup subscription")
-            self.subscription.dispose()
+            try:
+                self.subscription.dispose()
+            except Exception:
+                pass
             self.subscription = None
 
-        # 🔁 Force update logique : entrée = None
-        plugin = self.input_pin.parentItem().plugin
-        pin_name = self.input_pin.name
-        plugin.set_input(pin_name, None)
+        # Couper la chaîne en mettant None côté entrée
+        try:
+            plugin = self.input_pin.parentItem().plugin
+            pin_name = getattr(self.input_pin, "name", None) or getattr(self.input_pin, "pin_name", None)
+            if plugin and pin_name:
+                plugin.set_input(pin_name, None)
+        except Exception:
+            pass
 
-
-
-    # def update_path(self):
-    #     p1 = self.output_pin.scenePos()
-    #     p2 = self.input_pin.scenePos()
-
-    #     dx = (p2.x() - p1.x()) * 0.5
-    #     ctrl1 = p1 + QPointF(dx, 0)
-    #     ctrl2 = p2 - QPointF(dx, 0)
-
-    #     path = QPainterPath()
-    #     path.moveTo(p1)
-    #     path.cubicTo(ctrl1, ctrl2, p2)
-    #     self.setPath(path)
+    # ----------------- Path / dessin -----------------
 
     def track_both_pins(self):
         self.track_pin(self.input_pin)
         self.track_pin(self.output_pin)
 
-    def track_pin(self, pin):
-        pin_position = pin.scenePos()
+    def track_pin(self, _pin):
         self.update_path()
 
     def update_path(self):
         if not self.input_pin or not self.output_pin:
             return
-
         start_point = self.input_pin.scenePos()
-        end_point = self.output_pin.scenePos()
+        end_point   = self.output_pin.scenePos()
 
         path = QPainterPath()
         path.moveTo(start_point)
         dx = (end_point.x() - start_point.x()) * 0.5
         ctrl1 = start_point + QPointF(dx, 0)
-        ctrl2 = end_point - QPointF(dx, 0)
+        ctrl2 = end_point   - QPointF(dx, 0)
         path.cubicTo(ctrl1, ctrl2, end_point)
         self.setPath(path)
 
-
-    
+    # Met en évidence quand sélectionné
+    def itemChange(self, change, value):
+        if change == QGraphicsPathItem.ItemSelectedChange:
+            self.setPen(self._pen_selected if value else self._pen_normal)
+        return super().itemChange(change, value)

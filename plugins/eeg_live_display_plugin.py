@@ -4,27 +4,33 @@
 EEGLiveDisplay — affichage RAW/SEGMENT avec défilement fluide (Matplotlib+Qt)
 • Optimisations anti-lag: décimation, throttling FPS, maj différée via singleShot(0)
 • Compatibilité ConfigNode: export_config / import_config / config_hints + config_out
+• Hooks métriques complets:
+    - PARAM_CHANGE pour toute modif UI impactant le rendu
+    - START_TTFP (bouton)
+    - FIRST_FRAME (à la 1re frame effectivement dessinée)
+    - FRAME_RENDERED (à chaque draw effectif)
+    - RENDER_STATS (1 Hz): fps, dropped_frames, total_frames, dropped_frames_pct
+    - CPU_MEM (1 Hz, si psutil dispo — en plus du probe global possible)
 """
-
-from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QDialog, QLabel,
     QListWidget, QListWidgetItem, QCheckBox, QToolButton, QLayout,
     QSizePolicy, QDoubleSpinBox, QScrollArea, QSpinBox
 )
 import numpy as np
-import time
+import time, os
 
 from core.node_base import BasePlugin
 from rx.subject import BehaviorSubject
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-# BENCH HOOK: logger d’événements (fallback silencieux si absent)
-try:
-    from utils.eval_log import log_evt
-except Exception:
-    def log_evt(*_a, **_k): pass
+from core.metrics_logger import metrics  # <<< HOOKS METRICS
+
+from core.metrics_hotkeys import install_global_metrics_hotkeys
+install_global_metrics_hotkeys()
+
 
 try:
     import mne  # noqa: F401
@@ -32,6 +38,10 @@ try:
 except Exception:
     HAVE_MNE = False
 
+try:
+    import psutil  # pour CPU_MEM (optionnel)
+except Exception:
+    psutil = None
 
 # ---------- petite section repliable ----------
 class _CollapsibleSection(QWidget):
@@ -40,48 +50,30 @@ class _CollapsibleSection(QWidget):
         self._btn = QToolButton(text=title, checkable=True, autoRaise=True)
         self._btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self._wrap = QWidget()
-        self._wrap_l = QVBoxLayout(self._wrap)
-        self._wrap_l.setContentsMargins(0, 0, 0, 0)
-        self._wrap_l.setSpacing(0)
-        self._content = content or QWidget()
-        self._wrap_l.addWidget(self._content)
-
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(4)
-        root.addWidget(self._btn)
-        root.addWidget(self._wrap)
-
+        self._wrap_l = QVBoxLayout(self._wrap); self._wrap_l.setContentsMargins(0, 0, 0, 0); self._wrap_l.setSpacing(0)
+        self._content = content or QWidget(); self._wrap_l.addWidget(self._content)
+        root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(4)
+        root.addWidget(self._btn); root.addWidget(self._wrap)
         self._btn.toggled.connect(self._on_toggled)
-        self._btn.setChecked(not collapsed if isinstance(collapsed,bool) else True)
+        self._btn.setChecked(not collapsed if isinstance(collapsed, bool) else True)
         self._on_toggled(self._btn.isChecked())
 
     def _poke(self):
         w = self
         while w is not None:
-            if w.layout():
-                w.layout().invalidate()
-            w.adjustSize()
-            w.updateGeometry()
+            if w.layout(): w.layout().invalidate()
+            w.adjustSize(); w.updateGeometry()
             w = w.parentWidget()
 
     def _on_toggled(self, expanded: bool):
         self._btn.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
         self._wrap.setVisible(expanded)
         if expanded:
-            self.setMaximumHeight(16777215)
-            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            self.setMaximumHeight(16777215); self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         else:
             h = self._btn.sizeHint().height() + 6
-            self.setMaximumHeight(h)
-            self.setMinimumHeight(h)
-            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            self.setMaximumHeight(h); self.setMinimumHeight(h); self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self._poke()
-
-
-# BENCH: petit émetteur pour compter les frames côté MainWindow
-class _BenchEmitter(QObject):
-    frameRendered = pyqtSignal()
 
 
 class EEGLiveDisplay(BasePlugin):
@@ -98,87 +90,79 @@ class EEGLiveDisplay(BasePlugin):
             "sfreq": BehaviorSubject(None),
             "info": BehaviorSubject(None),
         }
-        # sortie pour ConfigNode
         self.outputs["config_out"] = BehaviorSubject(None)
 
         # UI
-        self.figure = None
-        self.axes = None
-        self.canvas = None
-        self.label = None
-        self.channel_list = None
-        self.chk_all = None
-        self.chk_loop = None
+        self.figure = None; self.axes = None; self.canvas = None
+        self.label = None; self.channel_list = None; self.chk_all = None; self.chk_loop = None
 
         # popup
-        self._popup = None
-        self._pop_canvas = None
-        self._pop_ax = None
-        self._pop_fullscreen = False
-        self._pop_scroll = None
-        self._pop_row_h = 90
+        self._popup = None; self._pop_canvas = None; self._pop_ax = None
+        self._pop_fullscreen = False; self._pop_scroll = None; self._pop_row_h = 90
 
         # mode d’affichage
         self._mode = "idle"  # "raw" | "segment" | "idle"
 
         # RAW state
-        self._raw = None
-        self._cursor = 0
-        self._paused = False
-        self._loop = True
-        self._window_s = 10.0
-        self._step_s = 0.2
-        self._timer = QTimer()
-        self._timer.setInterval(100)
-        self._timer.timeout.connect(self._on_tick)
+        self._raw = None; self._last_raw_obj_id = None
+        self._cursor = 0; self._paused = False; self._loop = True
+        self._window_s = 10.0; self._step_s = 0.2
+        self._timer = QTimer(); self._timer.setInterval(100); self._timer.timeout.connect(self._on_tick)
 
         # Horloge RAW monotone
         self._raw_time_shift = 0.0
-        self._raw_prev_times_last = None
-        self._raw_prev_times_first = None
+        self._raw_prev_times_last = None; self._raw_prev_times_first = None
 
         # SEGMENT ring buffer
-        self._last_seg = None
-        self._last_names = []
-        self._last_fs = 0.0
-        self._seg_buf = None
-        self._seg_buf_fs = 0.0
-        self._seg_buf_names = []
-        self._seg_buf_len = 0
+        self._last_seg = None; self._last_names = []; self._last_fs = 0.0
+        self._seg_buf = None; self._seg_buf_fs = 0.0; self._seg_buf_names = []; self._seg_buf_len = 0
 
         # Compteur de segments
-        self._seg_index = 0
-        self._seg_total = None
+        self._seg_index = 0; self._seg_total = None
 
         # Seg (s) + Auto
-        self._seg_len_auto = True
-        self._seg_len_manual = None
-        self._seg_len_effective = None
-        self._sp_seg_len = None
-        self._chk_seg_auto = None
+        self._seg_len_auto = True; self._seg_len_manual = None; self._seg_len_effective = None
+        self._sp_seg_len = None; self._chk_seg_auto = None
 
         # Force n-ch
-        self._force_nch = 0
-        self._sp_force_nch = None
+        self._force_nch = 0; self._sp_force_nch = None
 
         # sélection canaux
-        self._sel_keep_all = True
-        self._sel_names = set()
-        self._ui_ch_names = None
+        self._sel_keep_all = True; self._sel_names = set(); self._ui_ch_names = None
 
         # draw throttling
-        self._max_points = 3000
-        self._max_fps = 20
-        self._last_draw = 0.0
-        self._is_drawing = False
+        self._max_points = 3000; self._max_fps = 20; self._last_draw = 0.0; self._is_drawing = False
 
         # micro-planification
         self._pending_update = False
 
-        # BENCH HOOKS
-        self._bench = _BenchEmitter()
-        self._bench_first_done = False
+        # --- METRICS state ---
+        self._first_frame_logged = False
         self._frame_count = 0
+
+        # après self._frame_count = 0
+        self._frames_rendered = 0
+        self._frames_dropped = 0
+        self._last_stat_t = time.monotonic()
+        self._stat_timer = QTimer()
+        self._stat_timer.setInterval(2000)  # stats toutes les 2s
+        self._stat_timer.timeout.connect(self._emit_render_stats)
+
+
+
+
+        self._stats_last = time.time()
+        self._stats_frames_since = 0
+        self._stats_ticks_since = 0
+        self._cpu_last = time.time()
+
+        self._frames_rendered = 0
+        self._frames_dropped = 0
+        self._last_stat_t = time.monotonic()
+        self._stat_timer = QTimer()
+        self._stat_timer.setInterval(2000)  # toutes les 2s
+        self._stat_timer.timeout.connect(self._emit_render_stats)
+
 
     # --------------- config I/O ----------------
     def export_config(self) -> dict:
@@ -200,41 +184,31 @@ class EEGLiveDisplay(BasePlugin):
             pass
 
     def import_config(self, cfg: dict):
-        if not isinstance(cfg, dict):
-            return
+        if not isinstance(cfg, dict): return
         def _get(k, typ=None, d=None):
             v = cfg.get(k, d)
             if typ is None or v is None: return v
-            try:
-                return typ(v)
-            except Exception:
-                return d
+            try: return typ(v)
+            except Exception: return d
 
         loop = _get("loop", bool, self._loop)
         if loop is not None and loop != self._loop:
             self._loop = bool(loop)
-            if self.chk_loop:
-                self.chk_loop.blockSignals(True)
-                self.chk_loop.setChecked(self._loop)
-                self.chk_loop.blockSignals(False)
+            if self.chk_loop: self.chk_loop.blockSignals(True); self.chk_loop.setChecked(self._loop); self.chk_loop.blockSignals(False)
 
         win = _get("window_s", float, self._window_s)
-        if win is not None and win != self._window_s:
-            self._window_s = float(win)
+        if win is not None and win != self._window_s: self._window_s = float(win)
 
         step = _get("step_s", float, self._step_s)
-        if step is not None and step != self._step_s:
-            self._step_s = float(step)
+        if step is not None and step != self._step_s: self._step_s = float(step)
 
         auto = _get("seg_len_auto", bool, self._seg_len_auto)
         if auto is not None and auto != self._seg_len_auto:
             self._seg_len_auto = bool(auto)
             if self._chk_seg_auto:
-                self._chk_seg_auto.blockSignals(True)
-                self._chk_seg_auto.setChecked(self._seg_len_auto)
-                self._chk_seg_auto.blockSignals(False)
+                self._chk_seg_auto.blockSignals(True); self._chk_seg_auto.setChecked(self._seg_len_auto); self._chk_seg_auto.blockSignals(False)
             if self._sp_seg_len:
-                self._sp_seg_len.setEnabled(not self._seg_len_auto)
+                self._sp_seg_len.setEnabled(not self._seg_len_auto if isinstance(self._seg_len_auto, bool) else False)
 
         manual = cfg.get("seg_len_manual", None)
         if manual is not None:
@@ -243,9 +217,7 @@ class EEGLiveDisplay(BasePlugin):
                 self._seg_len_manual = mv if not self._seg_len_auto else None
                 self._seg_len_effective = (mv if not self._seg_len_auto else self._seg_len_effective)
                 if self._sp_seg_len:
-                    self._sp_seg_len.blockSignals(True)
-                    self._sp_seg_len.setValue(max(0.0, mv))
-                    self._sp_seg_len.blockSignals(False)
+                    self._sp_seg_len.blockSignals(True); self._sp_seg_len.setValue(max(0.0, mv)); self._sp_seg_len.blockSignals(False)
             except Exception:
                 pass
 
@@ -253,9 +225,7 @@ class EEGLiveDisplay(BasePlugin):
         if fn is not None and fn != self._force_nch:
             self._force_nch = int(fn)
             if self._sp_force_nch:
-                self._sp_force_nch.blockSignals(True)
-                self._sp_force_nch.setValue(self._force_nch)
-                self._sp_force_nch.blockSignals(False)
+                self._sp_force_nch.blockSignals(True); self._sp_force_nch.setValue(self._force_nch); self._sp_force_nch.blockSignals(False)
 
         mp = _get("max_points", int, self._max_points)
         if mp is not None: self._max_points = int(mp)
@@ -283,124 +253,68 @@ class EEGLiveDisplay(BasePlugin):
 
     def build_widget(self):
         root = QWidget()
-        outer = QVBoxLayout(root)
-        outer.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        outer = QVBoxLayout(root); outer.setSizeConstraint(QLayout.SetMinAndMaxSize)
 
-        # figure
         self.figure = Figure(figsize=(5, 2))
         self.axes = self.figure.add_subplot(111)
         self.canvas = FigureCanvas(self.figure)
         outer.addWidget(self.canvas, 1)
 
-        # panneau
-        panel = QWidget()
-        pv = QVBoxLayout(panel)
-        pv.setContentsMargins(8, 8, 8, 8)
-        pv.setSpacing(6)
+        panel = QWidget(); pv = QVBoxLayout(panel); pv.setContentsMargins(8, 8, 8, 8); pv.setSpacing(6)
 
-        # ---------------- Row 1 : boutons & fenêtre/step ----------------
         row1 = QHBoxLayout()
-
-        btn_pause = QPushButton("Pause")
-        btn_pause.setCheckable(True)
-        btn_pause.clicked.connect(lambda: self._on_toggle_pause(btn_pause))
-        row1.addWidget(btn_pause)
-
-        btn_stop = QPushButton("Stop")
-        btn_stop.clicked.connect(self._on_stop)
-        row1.addWidget(btn_stop)
-
-        self.chk_loop = QCheckBox("Loop")
-        self.chk_loop.setChecked(self._loop)
-        self.chk_loop.stateChanged.connect(self._on_loop_changed)
-        row1.addWidget(self.chk_loop)
+        btn_pause = QPushButton("Pause"); btn_pause.setCheckable(True); btn_pause.clicked.connect(lambda: self._on_toggle_pause(btn_pause)); row1.addWidget(btn_pause)
+        btn_stop = QPushButton("Stop"); btn_stop.clicked.connect(self._on_stop); row1.addWidget(btn_stop)
+        self.chk_loop = QCheckBox("Loop"); self.chk_loop.setChecked(self._loop); self.chk_loop.stateChanged.connect(self._on_loop_changed); row1.addWidget(self.chk_loop)
+        # --- START_TTFP (métrique) ---
+        # btn_ttfp = QPushButton("Start TTFP"); btn_ttfp.clicked.connect(lambda: self._on_ttfp()); row1.addWidget(btn_ttfp)
         row1.addStretch(1)
-
         row1.addWidget(QLabel("Window (s):"))
-        sp_w = QDoubleSpinBox()
-        sp_w.setRange(0.5, 60.0)
-        sp_w.setSingleStep(0.5)
-        sp_w.setValue(self._window_s)
-        sp_w.valueChanged.connect(self._on_window_changed)
-        row1.addWidget(sp_w)
-
+        sp_w = QDoubleSpinBox(); sp_w.setRange(0.5, 60.0); sp_w.setSingleStep(0.5); sp_w.setValue(self._window_s); sp_w.valueChanged.connect(self._on_window_changed); row1.addWidget(sp_w)
         row1.addWidget(QLabel("Step (s):"))
-        sp_s = QDoubleSpinBox()
-        sp_s.setRange(0.05, 5.0)
-        sp_s.setSingleStep(0.05)
-        sp_s.setValue(self._step_s)
-        sp_s.valueChanged.connect(self._on_step_changed)
-        row1.addWidget(sp_s)
-
+        sp_s = QDoubleSpinBox(); sp_s.setRange(0.05, 5.0); sp_s.setSingleStep(0.05); sp_s.setValue(self._step_s); sp_s.valueChanged.connect(self._on_step_changed); row1.addWidget(sp_s)
         pv.addLayout(row1)
 
-        # ---------------- Row 2 : Seg (s) + Auto + Force n-ch ----------
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("Seg (s):"))
-
-        self._sp_seg_len = QDoubleSpinBox()
-        self._sp_seg_len.setDecimals(3)
-        self._sp_seg_len.setRange(0.05, 30.0)
-        self._sp_seg_len.setSingleStep(0.05)
-        self._sp_seg_len.setValue(0.0)
-        self._sp_seg_len.setEnabled(False)  # Auto par défaut
-        self._sp_seg_len.valueChanged.connect(self._on_seg_len_changed)
-        row2.addWidget(self._sp_seg_len)
-
-        self._chk_seg_auto = QCheckBox("Auto")
-        self._chk_seg_auto.setChecked(True)
-        self._chk_seg_auto.stateChanged.connect(self._on_seg_auto_toggled)
-        row2.addWidget(self._chk_seg_auto)
-
+        self._sp_seg_len = QDoubleSpinBox(); self._sp_seg_len.setDecimals(3); self._sp_seg_len.setRange(0.05, 30.0); self._sp_seg_len.setSingleStep(0.05)
+        self._sp_seg_len.setValue(0.0); self._sp_seg_len.setEnabled(False); self._sp_seg_len.valueChanged.connect(self._on_seg_len_changed); row2.addWidget(self._sp_seg_len)
+        self._chk_seg_auto = QCheckBox("Auto"); self._chk_seg_auto.setChecked(True); self._chk_seg_auto.stateChanged.connect(self._on_seg_auto_toggled); row2.addWidget(self._chk_seg_auto)
         row2.addSpacing(18)
         row2.addWidget(QLabel("Force n-ch (0=auto):"))
-        self._sp_force_nch = QSpinBox()
-        self._sp_force_nch.setRange(0, 256)
-        self._sp_force_nch.setValue(0)
-        self._sp_force_nch.valueChanged.connect(self._on_force_nch_changed)
-        row2.addWidget(self._sp_force_nch)
-
+        self._sp_force_nch = QSpinBox(); self._sp_force_nch.setRange(0, 256); self._sp_force_nch.setValue(0); self._sp_force_nch.valueChanged.connect(self._on_force_nch_changed); row2.addWidget(self._sp_force_nch)
         row2.addStretch(1)
         pv.addLayout(row2)
 
-        # canaux
-        self.channel_list = QListWidget()
-        self.channel_list.setMinimumHeight(80)
-        self.channel_list.setMaximumHeight(140)
+        self.channel_list = QListWidget(); self.channel_list.setMinimumHeight(80); self.channel_list.setMaximumHeight(140)
         self.channel_list.itemChanged.connect(self._on_item_changed)
+        self.chk_all = QCheckBox("Afficher tous les canaux"); self.chk_all.setChecked(True); self.chk_all.stateChanged.connect(self._on_toggle_all)
 
-        self.chk_all = QCheckBox("Afficher tous les canaux")
-        self.chk_all.setChecked(True)
-        self.chk_all.stateChanged.connect(self._on_toggle_all)
-
-        chbar = QHBoxLayout()
-        chbar.addWidget(self.chk_all)
-        chbar.addStretch(1)
-        pv.addLayout(chbar)
+        chbar = QHBoxLayout(); chbar.addWidget(self.chk_all); chbar.addStretch(1); pv.addLayout(chbar)
         pv.addWidget(self.channel_list)
 
-        # label d’état
-        self.label = QLabel("Aucun signal EEG")
-        pv.addWidget(self.label)
+        self.label = QLabel("Aucun signal EEG"); pv.addWidget(self.label)
 
-        # agrandir
-        btn_big = QPushButton("Agrandir")
-        btn_big.clicked.connect(self._show_large_plot)
-        pv.addWidget(btn_big)
+        btn_big = QPushButton("Agrandir"); btn_big.clicked.connect(self._show_large_plot); pv.addWidget(btn_big)
 
         outer.addWidget(_CollapsibleSection("Paramètres & Contrôles", panel, collapsed=True))
         root.destroyed.connect(self._on_destroy)
 
-        # push config initiale
         self._emit_config()
         return root
 
     # -------------------- UI helpers --------------------
     def _bench_param(self, key, val):
         try:
-            log_evt("PARAM_CHANGE", f"{key}={val}")
+            metrics().param_change(name=str(key), new=val)
         except Exception:
             pass
+
+    # def _on_ttfp(self):
+    #     try:
+    #         metrics().ttfp()
+    #     except Exception:
+    #         pass
 
     def _on_loop_changed(self, _state):
         self._loop = bool(self.chk_loop.isChecked()) if self.chk_loop else True
@@ -437,14 +351,11 @@ class EEGLiveDisplay(BasePlugin):
         if self._sp_seg_len is not None:
             self._sp_seg_len.setEnabled(not self._seg_len_auto)
             if self._seg_len_auto and self._seg_len_effective is not None:
-                self._sp_seg_len.blockSignals(True)
-                self._sp_seg_len.setValue(max(0.0, float(self._seg_len_effective)))
-                self._sp_seg_len.blockSignals(False)
+                self._sp_seg_len.blockSignals(True); self._sp_seg_len.setValue(max(0.0, float(self._seg_len_effective))); self._sp_seg_len.blockSignals(False)
         if self._seg_len_auto:
             self._seg_len_manual = None
         else:
-            self._seg_len_manual = float(self._sp_seg_len.value())
-            self._seg_len_effective = self._seg_len_manual
+            self._seg_len_manual = float(self._sp_seg_len.value()); self._seg_len_effective = self._seg_len_manual
         self._bench_param("seg_auto", int(self._seg_len_auto))
         self._emit_config()
         self._update_plot(flush_only=True, force_mode=self._mode)
@@ -462,10 +373,8 @@ class EEGLiveDisplay(BasePlugin):
         self._bench_param("force_nch", v)
         self._emit_config()
         if self._mode == "raw" and self._raw is not None:
-            try:
-                names = list(self._raw.ch_names)
-            except Exception:
-                names = []
+            try: names = list(self._raw.ch_names)
+            except Exception: names = []
             names = self._apply_force_nch_to_names(names)
             self._populate_channels(names)
         elif self._mode == "segment" and self._last_names:
@@ -481,10 +390,7 @@ class EEGLiveDisplay(BasePlugin):
             return
         if self.chk_all and self.chk_all.isChecked():
             self._sel_keep_all = True
-            self._sel_names = set(
-                self._norm_name(self.channel_list.item(i).text())
-                for i in range(self.channel_list.count())
-            )
+            self._sel_names = set(self._norm_name(self.channel_list.item(i).text()) for i in range(self.channel_list.count()))
         else:
             self._sel_keep_all = False
             names = set()
@@ -495,56 +401,42 @@ class EEGLiveDisplay(BasePlugin):
             self._sel_names = names
 
     def _apply_force_nch_to_names(self, names):
-        if not names:
-            return []
+        if not names: return []
         if self._force_nch and self._force_nch > 0:
             return list(names)[: min(self._force_nch, len(names))]
         return list(names)
 
     def _apply_force_nch_to_array(self, arr, names):
-        if arr is None:
-            return arr, names
+        if arr is None: return arr, names
         n_ch = arr.shape[0]
         if self._force_nch and self._force_nch > 0 and n_ch > self._force_nch:
-            keep = self._force_nch
-            arr = arr[:keep, :]
-            if names:
-                names = list(names)[:keep]
+            keep = self._force_nch; arr = arr[:keep, :]
+            if names: names = list(names)[:keep]
         return arr, names
 
     def _populate_channels(self, ch_names):
-        if self.channel_list is None:
-            return
+        if self.channel_list is None: return
         ch_names = self._apply_force_nch_to_names(ch_names)
-        keep_all = bool(self._sel_keep_all)
-        sel_set = set(self._sel_names)
-
-        self.channel_list.blockSignals(True)
-        self.channel_list.clear()
+        keep_all = bool(self._sel_keep_all); sel_set = set(self._sel_names)
+        self.channel_list.blockSignals(True); self.channel_list.clear()
         for name in ch_names:
             it = QListWidgetItem(name)
             it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
             it.setCheckState(Qt.Checked if (keep_all or self._norm_name(name) in sel_set) else Qt.Unchecked)
             self.channel_list.addItem(it)
         self.channel_list.blockSignals(False)
-
         if self.chk_all:
-            self.chk_all.blockSignals(True)
-            self.chk_all.setChecked(keep_all)
-            self.chk_all.blockSignals(False)
-
+            self.chk_all.blockSignals(True); self.chk_all.setChecked(keep_all); self.chk_all.blockSignals(False)
         self._ui_ch_names = list(ch_names)
 
     def _selected_indices(self, all_names=None):
-        if self.channel_list is None:
-            return []
+        if self.channel_list is None: return []
         if self.channel_list.count() == 0:
             if all_names is not None:
                 names_trim = self._apply_force_nch_to_names(all_names)
                 return list(range(len(names_trim)))
             return []
-        if self.chk_all and self.chk_all.isChecked():
-            return list(range(self.channel_list.count()))
+        if self.chk_all and self.chk_all.isChecked(): return list(range(self.channel_list.count()))
         picks = []
         for i in range(self.channel_list.count()):
             if self.channel_list.item(i).checkState() == Qt.Checked:
@@ -553,10 +445,7 @@ class EEGLiveDisplay(BasePlugin):
 
     # -------------------- ring buffer --------------------
     def _reset_segment_buffer(self):
-        self._seg_buf = None
-        self._seg_buf_fs = 0.0
-        self._seg_buf_names = []
-        self._seg_buf_len = 0
+        self._seg_buf = None; self._seg_buf_fs = 0.0; self._seg_buf_names = []; self._seg_buf_len = 0
 
     def _ensure_seg_buffer(self, n_ch: int, fs: float, names):
         fs = float(fs or 0.0)
@@ -572,183 +461,183 @@ class EEGLiveDisplay(BasePlugin):
         )
         if need_new:
             self._seg_buf = np.zeros((n_ch, want_len), dtype=np.float32)
-            self._seg_buf_len = want_len
-            self._seg_buf_fs = fs
+            self._seg_buf_len = want_len; self._seg_buf_fs = fs
             self._seg_buf_names = list(names) if names else [f"ch{i+1}" for i in range(n_ch)]
 
     def _append_segment_to_buffer(self, seg: np.ndarray):
-        if self._seg_buf is None:
-            return
-        n_new = seg.shape[1]
-        n_buf = self._seg_buf.shape[1]
-        if n_new >= n_buf:
-            self._seg_buf[:, :] = seg[:, -n_buf:]
+        if self._seg_buf is None: return
+        n_new = seg.shape[1]; n_buf = self._seg_buf.shape[1]
+        if n_new >= n_buf: self._seg_buf[:, :] = seg[:, -n_buf:]
         else:
             self._seg_buf[:, :-n_new] = self._seg_buf[:, n_new:]
             self._seg_buf[:, -n_new:] = seg
 
     # -------------------- RAW tick --------------------
     def _on_tick(self):
-        if self._mode == "segment" or self._paused or self._raw is None:
-            return
+        if self._mode == "segment" or self._paused or self._raw is None: return
         try:
             n_times = int(getattr(self._raw, "n_times", 0))
             sfreq = float(getattr(self._raw, "info", {}).get("sfreq", 0.0))
         except Exception:
             n_times, sfreq = 0, 0.0
-        if n_times <= 0 or sfreq <= 0:
-            return
+        if n_times <= 0 or sfreq <= 0: return
         step = max(1, int(round(self._step_s * sfreq)))
-        if self._cursor == 0:
-            self._cursor = min(n_times, int(round(self._window_s * sfreq)))
+        if self._cursor == 0: self._cursor = min(n_times, int(round(self._window_s * sfreq)))
         self._cursor = min(self._cursor + step, n_times)
         if self._cursor >= n_times:
-            if self._loop:
-                self._cursor = min(int(round(self._window_s * sfreq)), n_times)
-            else:
-                self._paused = True
+            if self._loop: self._cursor = min(int(round(self._window_s * sfreq)), n_times)
+            else: self._paused = True
         self._schedule_update(mode="raw")
+
+    # -------------------- METRICS helpers --------------------
+    def _maybe_emit_stats(self):
+        now = time.time()
+        # RENDER_STATS (1 Hz)
+        if now - self._stats_last >= 1.0:
+            dt = max(1e-9, now - self._stats_last)
+            fps = self._stats_frames_since / dt
+            lost = max(0, self._stats_ticks_since - self._stats_frames_since)
+            total = max(1, self._stats_ticks_since)
+            dropped_pct = 100.0 * lost / total
+            try:
+                metrics().event(
+                    "RENDER_STATS",
+                    fps=f"{fps:.2f}",
+                    dropped_frames=lost,
+                    total_frames=total,
+                    dropped_frames_pct=f"{dropped_pct:.2f}"
+                )
+            except Exception:
+                pass
+            self._stats_last = now
+            self._stats_frames_since = 0
+            self._stats_ticks_since = 0
+
+        # CPU_MEM (1 Hz, optionnel)
+        if psutil and (now - self._cpu_last >= 1.0):
+            try:
+                cpu = psutil.cpu_percent(interval=None)
+                rss_mb = int(psutil.Process(os.getpid()).memory_info().rss / (1024*1024))
+                metrics().cpu_mem(cpu=cpu, rss_mb=rss_mb)
+            except Exception:
+                pass
+            self._cpu_last = now
 
     # -------------------- dessin --------------------
     def _maybe_draw(self, canvas):
+        if canvas is None or getattr(canvas, "figure", None) is None:
+            return
+        if hasattr(canvas, "isVisible") and not canvas.isVisible():
+            return
+
         now = time.monotonic()
-        if now - self._last_draw < 1.0 / float(self._max_fps):
+        min_dt = 1.0 / float(self._max_fps)
+
+        # throttling -> on ne dessine pas: frame "dropped"
+        if now - self._last_draw < min_dt:
+            if canvas is self.canvas:
+                self._frames_dropped += 1
+                if not self._stat_timer.isActive():
+                    self._stat_timer.start()
             canvas.draw_idle()
             return
+
         canvas.draw()
         self._last_draw = now
 
-        # BENCH HOOK: n’émettre que pour le canvas principal
-        if canvas is self.canvas and hasattr(self, "_bench"):
+        if canvas is self.canvas:
             try:
+                if not self._first_frame_logged:
+                    metrics().first_frame(seq=self._frame_count)
+                    self._first_frame_logged = True
+                metrics().frame_rendered(seq=self._frame_count, dropped=False)
                 self._frame_count += 1
-                self._bench.frameRendered.emit()
+                self._frames_rendered += 1
+                if not self._stat_timer.isActive():
+                    self._stat_timer.start()
             except Exception:
                 pass
 
+
+
     def _plot_data(self, data, times, names, title_prefix="EEG"):
-        if self._is_drawing:
-            return
+        if self.axes is None or self.canvas is None: return
+        if self._is_drawing: return
         self._is_drawing = True
         try:
-            ax = self.axes
-            ax.clear()
-
+            ax = self.axes; ax.clear()
             if data.shape[1] > self._max_points:
                 dec = int(np.ceil(data.shape[1] / self._max_points))
-                data = data[:, ::dec]
-                times = times[::dec]
-
+                data = data[:, ::dec]; times = times[::dec]
             n_ch = int(data.shape[0]) if data is not None else 0
             if n_ch == 0 or data.shape[1] == 0:
-                if self.label:
-                    self.label.setText("Aucun canal sélectionné")
-                ax.set_title("No Channels")
-                ax.set_xlabel("Temps (s)")
-                self._maybe_draw(self.canvas)
-                return
-
+                if self.label: self.label.setText("Aucun canal sélectionné")
+                ax.set_title("No Channels"); ax.set_xlabel("Temps (s)")
+                self._maybe_draw(self.canvas); return
             std = float(np.nanstd(data)) if np.isfinite(data).any() else 1.0
             spacing = std * 4 if std > 0 else 1.0
             offsets = np.arange(n_ch) * spacing
-            for i in range(n_ch):
-                ax.plot(times, data[i] + offsets[i], linewidth=0.8)
-
+            for i in range(n_ch): ax.plot(times, data[i] + offsets[i], linewidth=0.8)
             labels = names if names else [f"ch{i+1}" for i in range(n_ch)]
-            if n_ch <= 24:
-                sel_idx = list(range(n_ch))
+            if n_ch <= 24: sel_idx = list(range(n_ch))
             else:
-                step = int(np.ceil(n_ch / 24))
-                sel_idx = list(range(0, n_ch, step))
-            ax.set_yticks([offsets[i] for i in sel_idx])
-            ax.set_yticklabels([labels[i] for i in sel_idx])
-
-            ax.set_xlabel("Temps (s)")
-            ax.set_title(f"{title_prefix} — {n_ch} canal{'x' if n_ch > 1 else ''}")
+                step = int(np.ceil(n_ch / 24)); sel_idx = list(range(0, n_ch, step))
+            ax.set_yticks([offsets[i] for i in sel_idx]); ax.set_yticklabels([labels[i] for i in sel_idx])
+            ax.set_xlabel("Temps (s)"); ax.set_title(f"{title_prefix} — {n_ch} canal{'x' if n_ch > 1 else ''}")
             self._maybe_draw(self.canvas)
 
             if self._pop_canvas is not None and self._pop_ax is not None and self._popup is not None and self._popup.isVisible():
-                px_h = max(int(self._pop_row_h * n_ch), 300)
-                px_w = max(self._popup.width() - 60, 800)
-                fig = self._pop_ax.figure
-                dpi = fig.get_dpi()
+                px_h = max(int(self._pop_row_h * n_ch), 300); px_w = max(self._popup.width() - 60, 800)
+                fig = self._pop_ax.figure; dpi = fig.get_dpi()
                 fig.set_size_inches(px_w / dpi, px_h / dpi, forward=True)
-                self._pop_canvas.setMinimumHeight(px_h)
-                self._pop_canvas.setMinimumWidth(px_w)
+                self._pop_canvas.setMinimumHeight(px_h); self._pop_canvas.setMinimumWidth(px_w)
                 self._pop_ax.clear()
-                for i in range(n_ch):
-                    self._pop_ax.plot(times, data[i] + offsets[i], linewidth=0.8)
-                self._pop_ax.set_yticks([offsets[i] for i in sel_idx])
-                self._pop_ax.set_yticklabels([labels[i] for i in sel_idx])
-                self._pop_ax.set_xlabel("Temps (s)")
-                self._pop_ax.set_title(f"{title_prefix} — vue agrandie")
+                for i in range(n_ch): self._pop_ax.plot(times, data[i] + offsets[i], linewidth=0.8)
+                self._pop_ax.set_yticks([offsets[i] for i in sel_idx]); self._pop_ax.set_yticklabels([labels[i] for i in sel_idx])
+                self._pop_ax.set_xlabel("Temps (s)"); self._pop_ax.set_title(f"{title_prefix} — vue agrandie")
                 self._maybe_draw(self._pop_canvas)
         finally:
             self._is_drawing = False
 
     def _update_plot(self, flush_only=False, force_mode=None):
+        if self.axes is None or self.canvas is None: return
         mode = force_mode or self._mode
 
         # SEGMENT
         if mode == "segment" and self._seg_buf is not None and self._seg_buf_fs > 0:
             names = self._seg_buf_names if self._seg_buf_names else [f"ch{i+1}" for i in range(self._seg_buf.shape[0])]
-            if self.channel_list and self.channel_list.count() == 0:
-                self._populate_channels(names)
-
-            picks = self._selected_indices(all_names=names)
-            picks = [i for i in picks if 0 <= i < self._seg_buf.shape[0]]
+            if self.channel_list and self.channel_list.count() == 0: self._populate_channels(names)
+            picks = self._selected_indices(all_names=names); picks = [i for i in picks if 0 <= i < self._seg_buf.shape[0]]
             if not picks:
-                if self.label:
-                    self.label.setText("Aucun canal sélectionné")
-                self.axes.clear()
-                self.axes.set_title("No Channels")
-                self.axes.set_xlabel("Temps (s)")
-                self._maybe_draw(self.canvas)
-                return
-
-            data = self._seg_buf[picks, :]
-            fs = float(self._seg_buf_fs)
-            t = np.arange(self._seg_buf.shape[1], dtype=float) / fs
+                if self.label: self.label.setText("Aucun canal sélectionné")
+                self.axes.clear(); self.axes.set_title("No Channels"); self.axes.set_xlabel("Temps (s)")
+                self._maybe_draw(self.canvas); return
+            data = self._seg_buf[picks, :]; fs = float(self._seg_buf_fs); t = np.arange(self._seg_buf.shape[1], dtype=float) / fs
             sel_names = [names[i] for i in picks]
-
-            if self._seg_len_effective is not None and self._seg_len_effective > 0:
-                seg_len_txt = f", {self._seg_len_effective:.2f}s"
-            else:
-                seg_len_txt = ""
+            if self._seg_len_effective is not None and self._seg_len_effective > 0: seg_len_txt = f", {self._seg_len_effective:.2f}s"
+            else: seg_len_txt = ""
             if self._seg_total is not None:
-                seg_txt = f"EEG (segment {self._seg_index}/{self._seg_total}{seg_len_txt})"
-                lbl_seg = f"Segment {self._seg_index}/{self._seg_total}{seg_len_txt}"
+                seg_txt = f"EEG (segment {self._seg_index}/{self._seg_total}{seg_len_txt})"; lbl_seg = f"Segment {self._seg_index}/{self._seg_total}{seg_len_txt}"
             else:
-                seg_txt = f"EEG (segment {self._seg_index}/?{seg_len_txt})"
-                lbl_seg = f"Segment {self._seg_index}/?{seg_len_txt}"
-
+                seg_txt = f"EEG (segment {self._seg_index}/?{seg_len_txt})"; lbl_seg = f"Segment {self._seg_index}/?{seg_len_txt}"
             self._plot_data(data, t, sel_names, title_prefix=seg_txt)
-            if self.label and data.size:
-                self.label.setText(f"{lbl_seg} | fs={fs:.2f} Hz | fenêtre = {self._window_s:.1f}s")
+            if self.label and data.size: self.label.setText(f"{lbl_seg} | fs={fs:.2f} Hz | fenêtre = {self._window_s:.1f}s")
             return
 
         # RAW
         raw = self._raw
         if raw is None:
-            self.axes.clear()
-            self.axes.set_title("No Data")
-            self.axes.set_xlabel("Temps (s)")
-            self._maybe_draw(self.canvas)
-            if self.label:
-                self.label.setText("Aucun signal EEG")
+            self.axes.clear(); self.axes.set_title("No Data"); self.axes.set_xlabel("Temps (s)"); self._maybe_draw(self.canvas)
+            if self.label: self.label.setText("Aucun signal EEG")
             return
 
         try:
-            sfreq = float(raw.info.get("sfreq", 0.0))
-            n_times = int(getattr(raw, "n_times", 0))
+            sfreq = float(raw.info.get("sfreq", 0.0)); n_times = int(getattr(raw, "n_times", 0))
         except Exception:
             sfreq, n_times = 0.0, 0
         if sfreq <= 0 or n_times <= 0:
-            self.axes.clear()
-            self.axes.set_title("Invalid signal")
-            self._maybe_draw(self.canvas)
-            if self.label:
-                self.label.setText("Signal invalide")
+            self.axes.clear(); self.axes.set_title("Invalid signal"); self._maybe_draw(self.canvas)
+            if self.label: self.label.setText("Signal invalide")
             return
 
         N = max(1, int(round(self._window_s * sfreq)))
@@ -769,31 +658,22 @@ class EEGLiveDisplay(BasePlugin):
             picks = [i for i in picks if i < min(self._force_nch, len(all_names or []))]
 
         if len(picks) == 0:
-            if self.label:
-                self.label.setText("Aucun canal sélectionné")
-            self.axes.clear()
-            self.axes.set_title("No Channels")
-            self.axes.set_xlabel("Temps (s)")
-            self._maybe_draw(self.canvas)
+            if self.label: self.label.setText("Aucun canal sélectionné")
+            self.axes.clear(); self.axes.set_title("No Channels"); self.axes.set_xlabel("Temps (s)"); self._maybe_draw(self.canvas)
             return
 
         try:
             data, times = raw[picks, start:stop]
         except Exception:
-            if self.label:
-                self.label.setText("Erreur d'accès aux données")
-            self.axes.clear()
-            self.axes.set_title("Data error")
-            self._maybe_draw(self.canvas)
+            if self.label: self.label.setText("Erreur d'accès aux données")
+            self.axes.clear(); self.axes.set_title("Data error"); self._maybe_draw(self.canvas)
             return
 
         if data.size:
             if self._raw_prev_times_last is not None:
-                if times[0] <= 1e-9:
-                    self._raw_time_shift = float(self._raw_prev_times_last)
+                if times[0] <= 1e-9: self._raw_time_shift = float(self._raw_prev_times_last)
             abs_times = times + self._raw_time_shift
-            self._raw_prev_times_first = float(abs_times[0])
-            self._raw_prev_times_last = float(abs_times[-1])
+            self._raw_prev_times_first = float(abs_times[0]); self._raw_prev_times_last = float(abs_times[-1])
         else:
             abs_times = times
 
@@ -809,75 +689,55 @@ class EEGLiveDisplay(BasePlugin):
             self.label.setText(f"t = {abs_times[-1]:.2f}s | fenêtre = {self._window_s:.1f}s")
 
     def _schedule_update(self, mode=None):
-        if mode:
-            self._mode = mode
-        if self._pending_update:
-            return
-        self._pending_update = True
+        if mode: self._mode = mode
+        # chaque demande de mise à jour = "tick" attendu côté rendu (utile pour dropped %)
+        self._stats_ticks_since += 1
+        self._maybe_emit_stats()
 
+        if self._pending_update: return
+        self._pending_update = True
         def _do():
             self._pending_update = False
             self._update_plot(flush_only=True, force_mode=self._mode)
-
         QTimer.singleShot(0, _do)
 
     # -------------------- execute --------------------
     def execute(self, inputs=None, **kwargs):
-        args = {}
-        if isinstance(inputs, dict):
-            args.update(inputs)
+        args = {}; 
+        if isinstance(inputs, dict): args.update(inputs)
         args.update(kwargs)
 
-        # meta & noms
         ch_kw = args.get("ch_names", None)
         if isinstance(ch_kw, (list, tuple)) and ch_kw:
             new_names = self._apply_force_nch_to_names(list(ch_kw))
-            need_rebuild = (
-                self._ui_ch_names is None
-                or len(self._ui_ch_names) != len(new_names)
-                or any(a != b for a, b in zip(self._ui_ch_names, new_names))
-            )
+            need_rebuild = (self._ui_ch_names is None or len(self._ui_ch_names) != len(new_names)
+                            or any(a != b for a, b in zip(self._ui_ch_names, new_names)))
             if need_rebuild:
-                self._snapshot_selection()
-                self._populate_channels(new_names)
+                self._snapshot_selection(); self._populate_channels(new_names)
 
         sf_kw = args.get("sfreq", None)
-        if isinstance(sf_kw, (int, float)):
-            self._last_fs = float(sf_kw)
+        if isinstance(sf_kw, (int, float)): self._last_fs = float(sf_kw)
 
         info = args.get("info", None)
         if isinstance(info, dict):
             if info.get("reset"):
-                self._cursor = 0
-                self._raw_time_shift = 0.0
-                self._raw_prev_times_last = None
-                self._raw_prev_times_first = None
-                self._seg_index = 0
+                self._cursor = 0; self._raw_time_shift = 0.0; self._raw_prev_times_last = None; self._raw_prev_times_first = None; self._seg_index = 0
             if "total_segments" in info:
-                try:
-                    self._seg_total = int(info["total_segments"])
-                except Exception:
-                    self._seg_total = None
+                try: self._seg_total = int(info["total_segments"])
+                except Exception: self._seg_total = None
             if "seg_total" in info:
-                try:
-                    self._seg_total = int(info["seg_total"])
-                except Exception:
-                    pass
+                try: self._seg_total = int(info["seg_total"])
+                except Exception: pass
             if "seg_index" in info:
-                try:
-                    self._seg_index = int(info["seg_index"])
-                except Exception:
-                    pass
+                try: self._seg_index = int(info["seg_index"])
+                except Exception: pass
             if "seg_len_s" in info:
                 try:
                     val = float(info["seg_len_s"])
                     if val > 0:
                         if self._seg_len_auto and self._sp_seg_len is not None:
-                            self._sp_seg_len.blockSignals(True)
-                            self._sp_seg_len.setValue(val)
-                            self._sp_seg_len.blockSignals(False)
-                        if not self._seg_len_auto:
-                            self._seg_len_manual = val
+                            self._sp_seg_len.blockSignals(True); self._sp_seg_len.setValue(val); self._sp_seg_len.blockSignals(False)
+                        if not self._seg_len_auto: self._seg_len_manual = val
                         self._seg_len_effective = val
                 except Exception:
                     pass
@@ -887,55 +747,37 @@ class EEGLiveDisplay(BasePlugin):
             seg_in = args.get("segment", None)
             if seg_in is None:
                 if self._mode == "segment":
-                    self._last_seg = None
-                    self._reset_segment_buffer()
+                    self._last_seg = None; self._reset_segment_buffer()
                     if self._raw is None:
-                        self.axes.clear()
-                        self.axes.set_title("Stopped")
-                        self.axes.set_xlabel("Temps (s)")
-                        self._maybe_draw(self.canvas)
-                        if self.label:
-                            self.label.setText("Segment: disconnected")
+                        if self.axes is not None:
+                            self.axes.clear(); self.axes.set_title("Stopped"); self.axes.set_xlabel("Temps (s)"); self._maybe_draw(self.canvas)
+                        if self.label: self.label.setText("Segment: disconnected")
                         self._mode = "idle"
                     else:
-                        self._mode = "raw"
-                        self._paused = False
-                        if not self._timer.isActive():
-                            self._timer.start()
+                        self._mode = "raw"; self._paused = False
+                        if not self._timer.isActive(): self._timer.start()
                 return {}
             else:
                 arr = np.asarray(seg_in)
-                if arr.ndim == 1:
-                    arr = arr[None, :]
+                if arr.ndim == 1: arr = arr[None, :]
 
                 n_kw = len(ch_kw) if isinstance(ch_kw, (list, tuple)) else None
                 n_known = len(self._last_names) if self._last_names else None
 
-                if arr.ndim == 2:
-                    n0, n1 = arr.shape
-                    trans = False
-                    if n_kw is not None:
-                        trans = (n1 == n_kw) if (n0 != n_kw) else False
-                    elif n_known is not None:
-                        trans = (n1 == n_known) if (n0 != n_known) else False
-                    else:
-                        trans = (n0 < n1)
-                    if trans:
-                        arr = arr.T
+            if arr.ndim == 2:
+                n0, n1 = arr.shape; trans = False
+                if n_kw is not None: trans = (n1 == n_kw) and (n0 != n_kw)
+                elif n_known is not None: trans = (n1 == n_known) and (n0 != n_known)
+                else: trans = (n0 > n1)
+                if trans: arr = arr.T
 
                 self._last_seg = arr.astype(np.float32, copy=False)
-
-                if isinstance(ch_kw, (list, tuple)) and ch_kw:
-                    self._last_names = list(ch_kw)
-                else:
-                    self._last_names = [f"ch{i+1}" for i in range(self._last_seg.shape[0])]
-
+                if isinstance(ch_kw, (list, tuple)) and ch_kw: self._last_names = list(ch_kw)
+                else: self._last_names = [f"ch{i+1}" for i in range(self._last_seg.shape[0])]
                 sf = args.get("sfreq", None)
-                if isinstance(sf, (int, float)):
-                    self._last_fs = float(sf)
+                if isinstance(sf, (int, float)): self._last_fs = float(sf)
 
                 self._last_seg, self._last_names = self._apply_force_nch_to_array(self._last_seg, self._last_names)
-
                 self._ensure_seg_buffer(self._last_seg.shape[0], self._last_fs, self._last_names)
                 self._append_segment_to_buffer(self._last_seg)
 
@@ -951,97 +793,69 @@ class EEGLiveDisplay(BasePlugin):
                 if self._seg_len_auto:
                     self._seg_len_effective = calc_len
                     if (calc_len is not None) and (self._sp_seg_len is not None):
-                        self._sp_seg_len.blockSignals(True)
-                        self._sp_seg_len.setValue(max(0.0, calc_len))
-                        self._sp_seg_len.blockSignals(False)
+                        self._sp_seg_len.blockSignals(True); self._sp_seg_len.setValue(max(0.0, calc_len)); self._sp_seg_len.blockSignals(False)
                 else:
                     if self._seg_len_manual is None and calc_len is not None:
                         self._seg_len_manual = calc_len
                         if self._sp_seg_len is not None:
-                            self._sp_seg_len.blockSignals(True)
-                            self._sp_seg_len.setValue(calc_len)
-                            self._sp_seg_len.blockSignals(False)
+                            self._sp_seg_len.blockSignals(True); self._sp_seg_len.setValue(calc_len); self._sp_seg_len.blockSignals(False)
                     self._seg_len_effective = float(self._seg_len_manual) if self._seg_len_manual else calc_len
 
                 if self.channel_list:
                     need = (self.channel_list.count() != len(self._last_names)) or (self._ui_ch_names is None)
                     if need:
-                        self._snapshot_selection()
-                        self._populate_channels(self._last_names)
+                        self._snapshot_selection(); self._populate_channels(self._last_names)
 
                 self._mode = "segment"
-                if self._timer.isActive():
-                    self._timer.stop()
-                if not self._paused:
-                    self._schedule_update(mode="segment")
+                if self._timer.isActive(): self._timer.stop()
+                if not self._paused: self._schedule_update(mode="segment")
 
         # MODE RAW
         if "raw" in args:
             new_raw = args.get("raw", None)
             if new_raw is None:
-                if self._timer.isActive():
-                    self._timer.stop()
-                self._raw = None
-                self._raw_time_shift = 0.0
-                self._raw_prev_times_last = None
-                self._raw_prev_times_first = None
-                if self._mode != "segment":
-                    self.axes.clear()
-                    self.axes.set_title("No Data")
-                    self.axes.set_xlabel("Temps (s)")
-                    self._maybe_draw(self.canvas)
-                    if self.label:
-                        self.label.setText("Aucun signal EEG")
+                if self._timer.isActive(): self._timer.stop()
+                self._raw = None; self._last_raw_obj_id = None
+                self._raw_time_shift = 0.0; self._raw_prev_times_last = None; self._raw_prev_times_first = None
+                if self._mode != "segment" and self.axes is not None:
+                    self.axes.clear(); self.axes.set_title("No Data"); self.axes.set_xlabel("Temps (s)"); self._maybe_draw(self.canvas)
+                    if self.label: self.label.setText("Aucun signal EEG")
             else:
-                old_raw = self._raw
-                changed = (old_raw is None)
-                try:
-                    new_names_full = list(new_raw.ch_names)
-                except Exception:
-                    new_names_full = []
-                try:
-                    new_fs = float(new_raw.info.get("sfreq", 0.0))
-                except Exception:
-                    new_fs = 0.0
+                if self._last_raw_obj_id is not None and id(new_raw) == self._last_raw_obj_id and self._mode == "raw":
+                    return {}
+                old_raw = self._raw; changed = (old_raw is None)
+                try: new_names_full = list(new_raw.ch_names)
+                except Exception: new_names_full = []
+                try: new_fs = float(new_raw.info.get("sfreq", 0.0))
+                except Exception: new_fs = 0.0
 
                 if old_raw is not None:
-                    try:
-                        old_names_full = list(old_raw.ch_names)
-                    except Exception:
-                        old_names_full = []
-                    try:
-                        old_fs = float(old_raw.info.get("sfreq", 0.0))
-                    except Exception:
-                        old_fs = 0.0
-                    if (len(new_names_full) != len(old_names_full)) or any(a != b for a, b in zip(new_names_full, old_names_full)):
-                        changed = True
-                    if abs(new_fs - old_fs) > 1e-9:
-                        changed = True
+                    try: old_names_full = list(old_raw.ch_names)
+                    except Exception: old_names_full = []
+                    try: old_fs = float(old_raw.info.get("sfreq", 0.0))
+                    except Exception: old_fs = 0.0
+                    if (len(new_names_full) != len(old_names_full)) or any(a != b for a, b in zip(new_names_full, old_names_full)): changed = True
+                    if abs(new_fs - old_fs) > 1e-9: changed = True
 
-                self._raw = new_raw
+                self._raw = new_raw; self._last_raw_obj_id = id(new_raw)
+
                 new_names = self._apply_force_nch_to_names(new_names_full)
                 self._populate_channels(new_names)
 
                 if changed:
-                    self._cursor = 0
-                    self._raw_time_shift = 0.0
-                    self._raw_prev_times_last = None
-                    self._raw_prev_times_first = None
+                    self._cursor = 0; self._raw_time_shift = 0.0; self._raw_prev_times_last = None; self._raw_prev_times_first = None
                 else:
                     try:
                         n_times = int(getattr(self._raw, "n_times", 0))
                         max_win = int(round(self._window_s * new_fs)) if new_fs > 0 else 1
-                        if self._cursor < max_win:
-                            self._cursor = max(self._cursor, max_win)
+                        if self._cursor < max_win: self._cursor = max(self._cursor, max_win)
                         self._cursor = min(self._cursor, n_times)
                     except Exception:
                         pass
 
                 if self._mode != "segment":
-                    self._mode = "raw"
-                    self._paused = False
-                    if not self._timer.isActive():
-                        self._timer.start()
+                    self._mode = "raw"; self._paused = False
+                    if not self._timer.isActive(): self._timer.start()
 
         if self._mode == "segment" and self._seg_buf is not None and self._seg_buf_fs > 0 and not self._paused:
             self._schedule_update(mode="segment")
@@ -1192,16 +1006,57 @@ class EEGLiveDisplay(BasePlugin):
     # -------------------- cleanup --------------------
     def _on_destroy(self, *_):
         try:
-            if self._timer.isActive():
-                self._timer.stop()
+            if self._timer.isActive(): self._timer.stop()
         except Exception:
             pass
         try:
-            if self._popup is not None:
-                self._popup.close()
+            if self._popup is not None: self._popup.close()
         except Exception:
             pass
-        self._popup = None
-        self._pop_canvas = None
-        self._pop_ax = None
-        self._pop_scroll = None
+        self._popup = None; self._pop_canvas = None; self._pop_ax = None; self._pop_scroll = None
+
+    def on_remove(self):
+        self._on_destroy()
+        self._raw = None; self._last_raw_obj_id = None
+        self._reset_segment_buffer()
+
+        try:
+            if self._stat_timer.isActive():
+                self._stat_timer.stop()
+        except Exception:
+            pass
+
+
+    def _emit_render_stats(self):
+        try:
+            dt = max(1e-6, time.monotonic() - self._last_stat_t)
+            total = self._frames_rendered + self._frames_dropped
+            fps = self._frames_rendered / dt
+            drop_pct = (100.0 * self._frames_dropped / total) if total > 0 else 0.0
+
+            # Débit affiché ≈ (#canaux visibles * points/trace * fps) [samples/s]
+            n_ch = self.channel_list.count() if self.channel_list else 0
+            points = 0
+            if self._mode == "segment" and self._seg_buf is not None:
+                points = self._seg_buf.shape[1]
+            elif self._mode == "raw":
+                # borné par max_points (décimation)
+                points = min(self._max_points, int(self._window_s * float(self._last_fs or 0.0)))
+
+            throughput_sps = float(n_ch * points * fps)
+
+            metrics().log(
+                "RENDER_STATS",
+                fps=f"{fps:.2f}",
+                dropped_frames=self._frames_dropped,
+                total_frames=total,
+                dropped_frames_pct=f"{drop_pct:.2f}",
+                throughput_sps=f"{throughput_sps:.0f}",
+            )
+        except Exception:
+            pass
+        finally:
+            self._frames_rendered = 0
+            self._frames_dropped = 0
+            self._last_stat_t = time.monotonic()
+

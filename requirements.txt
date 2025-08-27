@@ -16,3 +16,6 @@ h5py
 pyyaml
 psutil
 pandas
+pyvista 
+pyvistaqt 
+vtk

@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "EEGLiveDisplay_158ec6",
+      "type": "EEGLiveDisplay",
+      "position": [
+        713.0,
+        46.0
+      ],
+      "config": {
+        "loop": true,
+        "window_s": 10.0,
+        "step_s": 0.2,
+        "seg_len_auto": true,
+        "seg_len_manual": null,
+        "force_nch": 0,
+        "max_points": 3000,
+        "max_fps": 20
+      }
+    },
+    {
+      "name": "MNENotchFilterPlugin_c61842",
+      "type": "MNENotchFilterPlugin",
+      "position": [
+        284.0,
+        110.0
+      ],
+      "config": {
+        "freqs": [
+          90.0
+        ],
+        "harmonics_max": 0,
+        "notch_widths": null,
+        "fir_design": "firwin",
+        "phase": "zero",
+        "picks_eeg_only": true
+      }
+    },
+    {
+      "name": "EEGUniversalReader_fc4bf6",
+      "type": "EEGUniversalReader",
+      "position": [
+        -14.0,
+        61.0
+      ],
+      "config": {
+        "units": "V",
+        "chunk_s": 1.0,
+        "overlap_s": 0.0,
+        "loop": false,
+        "resample_hz": 0,
+        "eeg_only": true,
+        "incl_eog": false,
+        "incl_emg": false,
+        "incl_stim": false,
+        "path": "D:/rad-bci-python_test/eeg_recording/testfile2.edf"
+      }
+    },
+    {
+      "name": "MNEBandpassFilterPlugin_0cb0b3",
+      "type": "MNEBandpassFilterPlugin",
+      "position": [
+        399.0,
+        302.0
+      ],
+      "config": {
+        "l_freq": 1.0,
+        "h_freq": 4.0,
+        "fir_design": "firwin",
+        "phase": "zero",
+        "picks_eeg_only": true
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "MNEBandpassFilterPlugin_0cb0b3",
+      "from_pin": "raw",
+      "to": "EEGLiveDisplay_158ec6",
+      "to_pin": "raw"
+    },
+    {
+      "from": "MNENotchFilterPlugin_c61842",
+      "from_pin": "raw",
+      "to": "MNEBandpassFilterPlugin_0cb0b3",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGUniversalReader_fc4bf6",
+      "from_pin": "raw",
+      "to": "MNENotchFilterPlugin_c61842",
+      "to_pin": "raw"
+    }
+  ]
+}
