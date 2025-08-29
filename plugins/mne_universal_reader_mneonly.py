@@ -840,6 +840,17 @@ class EEGUniversalReader(BasePlugin):
         self._worker.finished.connect(self._worker.deleteLater)
         self._thr.finished.connect(self._thr.deleteLater)
 
+        
+        
+        from core.metrics_logger import is_active, metrics
+
+        # ... juste avant self._thr.start():
+        try:
+            if is_active():
+                metrics().start_ttfp()  # démarre la mesure TTFP au début du streaming
+        except Exception:
+            pass
+
         self._thr.start()
 
     def _on_event(self, ev):

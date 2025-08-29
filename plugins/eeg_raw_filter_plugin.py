@@ -3,10 +3,13 @@
 from rx.subject import BehaviorSubject
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QDoubleSpinBox, QLineEdit, QCheckBox, QComboBox,
+    QDoubleSpinBox, QLineEdit, QCheckBox, QComboBox, QSpinBox,
     QLayout, QSizePolicy, QApplication
 )
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
+import time
+import atexit
+import sip  # pour détecter les objets Qt déjà détruits
 
 from core.node_base import BasePlugin
 from core.ui_kit import UiKit
@@ -25,11 +28,10 @@ except Exception:
             def ttfp(self, *a, **k): pass
         return _Noop()
 
-import atexit
-
 
 # ---------------- Worker ----------------
 class _FilterWorker(QObject):
+    # finished(raw_filtered, info_dict_avec_metrics)
     finished = pyqtSignal(object, dict)
     failed   = pyqtSignal(str)
 
@@ -39,6 +41,7 @@ class _FilterWorker(QObject):
         self.params = dict(params or {})
 
     def run(self):
+        """Filtrage MNE en tâche de fond + mesure de durée & throughput."""
         try:
             import mne
             raw_in = self.raw
@@ -57,20 +60,34 @@ class _FilterWorker(QObject):
             do_notch   = bool(p.get("enable_notch", False))
             notch_list = list(p.get("notch_freqs", [])) if p.get("notch_freqs", []) else []
             picks_mode = str(p.get("picks", "all"))
+            fir_taps   = int(p.get("fir_taps", 401))
 
             raw = raw_in if in_place else raw_in.copy()
 
-            # Assure le chargement des données (corrige l'erreur MNE)
+            # Assure le chargement des données (évite surprises sur preload)
             try:
                 if not getattr(raw, "preload", False):
-                    raw.load_data()  # charge en RAM (float64 par défaut)
-                    # option: réduire en float32 pour perf/mémoire
-                    #try:
-                    #    raw._data = raw._data.astype("float32", copy=False)
-                    #except Exception:
-                    #    pass
+                    raw.load_data()
+                    # raw._data = raw._data.astype("float32", copy=False)
             except Exception:
                 pass
+
+            # Stats d'entrée (n_ch, n_samples, fs)
+            try:
+                fs = float(raw.info.get("sfreq", 0.0))
+            except Exception:
+                fs = 0.0
+            try:
+                n_ch = len(raw.ch_names)
+            except Exception:
+                n_ch = 0
+            try:
+                n_samples = int(raw.n_times)
+            except Exception:
+                try:
+                    n_samples = int(raw.get_data(stop=None).shape[1])
+                except Exception:
+                    n_samples = 0
 
             # Détermination des picks
             picks = None
@@ -82,13 +99,22 @@ class _FilterWorker(QObject):
                 except Exception:
                     picks = None
 
+            # --- Mesure du temps (filtrage effectif) ---
+            t0 = time.perf_counter()
+
+            filter_length = fir_taps if method == "fir" else "auto"
+
             # Notch
             if do_notch and notch_list:
                 try:
-                    # phase n'est pertinent que pour FIR; MNE ignore pour IIR
-                    raw.notch_filter(freqs=notch_list, picks=picks, method=method, phase=phase, verbose=False)
+                    if method == "fir":
+                        raw.notch_filter(freqs=notch_list, picks=picks,
+                                         method=method, phase=phase,
+                                         filter_length=filter_length, verbose=False)
+                    else:
+                        raw.notch_filter(freqs=notch_list, picks=picks,
+                                         method=method, verbose=False)
                 except TypeError:
-                    # compat anciennes versions sans 'phase'
                     raw.notch_filter(freqs=notch_list, picks=picks, method=method, verbose=False)
 
             # BP/LP/HP
@@ -96,17 +122,40 @@ class _FilterWorker(QObject):
             h_freq = float(lp) if (do_lp and lp and lp > 0) else None
             if l_freq is not None or h_freq is not None:
                 try:
-                    raw.filter(l_freq=l_freq, h_freq=h_freq, picks=picks, method=method, phase=phase, verbose=False)
+                    if method == "fir":
+                        raw.filter(l_freq=l_freq, h_freq=h_freq, picks=picks,
+                                   method=method, phase=phase,
+                                   filter_length=filter_length, verbose=False)
+                    else:
+                        raw.filter(l_freq=l_freq, h_freq=h_freq, picks=picks,
+                                   method=method, verbose=False)
                 except TypeError:
-                    # compat sans 'phase'
                     raw.filter(l_freq=l_freq, h_freq=h_freq, picks=picks, method=method, verbose=False)
 
+            dt = max(0.0, time.perf_counter() - t0)  # secondes
+
+            # Throughput & RT factor
+            total_samples = max(0, n_ch * n_samples)
+            throughput_sps = (float(total_samples) / dt) if dt > 0 else 0.0
+            seg_real_s = (float(n_samples) / fs) if fs and fs > 0 else 0.0
+            rt_factor = (seg_real_s / dt) if dt > 0 else 0.0
+
             info_msg = {
-                "sfreq": float(raw.info.get("sfreq", 0.0)),
+                "sfreq": float(fs),
                 "ch_names": list(raw.ch_names),
-                "note": f"filtered (hp={l_freq}, lp={h_freq}, notch={notch_list}, method={method}, phase={phase}, picks={picks_mode})",
+                "note": f"filtered (hp={l_freq}, lp={h_freq}, notch={notch_list}, method={method}, phase={phase}, picks={picks_mode}, fir_taps={fir_taps})",
+                "__metrics__": {
+                    "group": method,            # 'fir' ou 'iir'
+                    "dur_s": dt,               # durée de traitement
+                    "throughput_sps": throughput_sps,
+                    "rt_factor": rt_factor,
+                    "n_ch": n_ch,
+                    "n": n_samples,
+                    "fs": fs,
+                }
             }
             self.finished.emit(raw, info_msg)
+
         except Exception as e:
             self.failed.emit(str(e))
 
@@ -144,6 +193,7 @@ class EEGRawFilterPlugin(BasePlugin):
         self._phase = "zero"
         self._picks_mode = "all"
         self._in_place = False
+        self._fir_taps = 401  # NEW
 
         # état
         self._raw_in = None
@@ -168,6 +218,14 @@ class EEGRawFilterPlugin(BasePlugin):
             pass
         atexit.register(self.on_remove)
 
+    # ---------- helpers UI sûrs ----------
+    def _set_status(self, text: str):
+        try:
+            if self._lbl is not None and not sip.isdeleted(self._lbl):
+                self._lbl.setText(str(text))
+        except Exception:
+            pass
+
     # ---------- Config I/O ----------
     def export_config(self) -> dict:
         try:
@@ -185,6 +243,7 @@ class EEGRawFilterPlugin(BasePlugin):
             "phase": str(self._phase),
             "picks": str(self._picks_mode),
             "in_place": bool(self._in_place),
+            "fir_taps": int(self._fir_taps),  # NEW
         }
 
     def _emit_config(self):
@@ -239,6 +298,7 @@ class EEGRawFilterPlugin(BasePlugin):
         set_str("_phase", "phase", allowed=["zero","zero-double"])
         set_str("_picks_mode", "picks", allowed=["all","eeg"])
         set_bool("_in_place", "in_place")
+        set_float("_fir_taps", "fir_taps", 21, 20001)  # NEW
 
         try:
             if hasattr(self, "chk_hp") and self.chk_hp:
@@ -261,6 +321,9 @@ class EEGRawFilterPlugin(BasePlugin):
                 self.cmb_picks.blockSignals(True); self.cmb_picks.setCurrentText(self._picks_mode); self.cmb_picks.blockSignals(False)
             if hasattr(self, "chk_inplace") and self.chk_inplace:
                 self.chk_inplace.blockSignals(True); self.chk_inplace.setChecked(self._in_place); self.chk_inplace.blockSignals(False)
+            if hasattr(self, "spn_fir_taps") and self.spn_fir_taps:
+                self.spn_fir_taps.blockSignals(True); self.spn_fir_taps.setValue(int(self._fir_taps)); self.spn_fir_taps.blockSignals(False)
+                self.spn_fir_taps.setEnabled(self._method == "fir")
         except Exception:
             pass
 
@@ -278,10 +341,12 @@ class EEGRawFilterPlugin(BasePlugin):
                 "notch_freqs": {"type": "list", "help": "Fréquences notch (CSV)", "label": "Notch freqs"},
                 "method": {"type": "enum", "enum": ["fir", "iir"], "label": "Méthode"},
                 "phase": {"type": "enum", "enum": ["zero","zero-double"], "label": "Phase"},
+                "fir_taps": {"type": "int", "min": 21, "max": 20001, "step": 2, "label": "FIR taps"},  # NEW
                 "picks": {"type": "enum", "enum": ["all","eeg"], "label": "Picks"},
                 "in_place": {"type": "bool", "label": "In-place"},
             },
-            "_order": ["enable_hp","hp","enable_lp","lp","enable_notch","notch_freqs","method","phase","picks","in_place"],
+            "_order": ["enable_hp","hp","enable_lp","lp","enable_notch","notch_freqs",
+                       "method","phase","fir_taps","picks","in_place"],
         }
 
     def build_widget(self) -> QWidget:
@@ -341,6 +406,16 @@ class EEGRawFilterPlugin(BasePlugin):
         self.cmb_phase.currentTextChanged.connect(self._on_params_changed)
         row3.addWidget(self.cmb_phase)
 
+        row3.addSpacing(12)
+        row3.addWidget(QLabel("FIR taps:"))
+        self.spn_fir_taps = QSpinBox()
+        self.spn_fir_taps.setRange(21, 20001)
+        self.spn_fir_taps.setSingleStep(2)
+        self.spn_fir_taps.setValue(int(self._fir_taps))
+        self.spn_fir_taps.setEnabled(self._method == "fir")
+        self.spn_fir_taps.valueChanged.connect(self._on_params_changed)
+        row3.addWidget(self.spn_fir_taps)
+
         self.chk_inplace = QCheckBox("In-place"); self.chk_inplace.setChecked(self._in_place)
         self.chk_inplace.stateChanged.connect(self._on_params_changed)
         row3.addWidget(self.chk_inplace)
@@ -381,11 +456,32 @@ class EEGRawFilterPlugin(BasePlugin):
             self._raw_in = None
             self.outputs["raw"].on_next(None)
             self.outputs["info"].on_next({"note": "disconnected"})
-            if self._lbl: self._lbl.setText("Disconnected")
+            self._set_status("Disconnected")
             self._stop_thread_blocking(force=True)
             return {}
 
         if raw is not None:
+            # log d’entrée (RAW_IN) avec dimensions
+            try:
+                fs = float(getattr(raw.info, "get", lambda *_: 0.0)("sfreq", 0.0))
+            except Exception:
+                try:
+                    fs = float(raw.info.get("sfreq", 0.0))
+                except Exception:
+                    fs = 0.0
+            try:
+                n_ch = len(raw.ch_names)
+            except Exception:
+                n_ch = 0
+            try:
+                n_samples = int(raw.n_times)
+            except Exception:
+                n_samples = 0
+            try:
+                metrics().event("RAW_IN", fs=fs, n_ch=n_ch, n=n_samples)
+            except Exception:
+                pass
+
             self._raw_in = raw
             self.outputs["raw"].on_next(raw)
             self._emit_meta_from_raw(raw, note="input")
@@ -438,6 +534,7 @@ class EEGRawFilterPlugin(BasePlugin):
             "phase": phase,
             "in_place": in_place,
             "picks": picks_mode,
+            "fir_taps": int(self.spn_fir_taps.value()) if getattr(self, "spn_fir_taps", None) is not None else int(self._fir_taps),
         }
 
     def _on_params_changed(self, *args):
@@ -453,6 +550,7 @@ class EEGRawFilterPlugin(BasePlugin):
             "phase": self._phase,
             "in_place": self._in_place,
             "picks": self._picks_mode,
+            "fir_taps": self._fir_taps,
         }
         # read NEW from UI
         self._enable_hp = self.chk_hp.isChecked()
@@ -465,6 +563,7 @@ class EEGRawFilterPlugin(BasePlugin):
         self._phase = self.cmb_phase.currentText()
         self._in_place = self.chk_inplace.isChecked()
         self._picks_mode = self.cmb_picks.currentText()
+        self._fir_taps = int(self.spn_fir_taps.value()) if getattr(self, "spn_fir_taps", None) is not None else int(self._fir_taps)
 
         # log PARAM_CHANGE (clé par clé)
         new = {
@@ -478,6 +577,7 @@ class EEGRawFilterPlugin(BasePlugin):
             "phase": self._phase,
             "in_place": self._in_place,
             "picks": self._picks_mode,
+            "fir_taps": self._fir_taps,
         }
         try:
             for k, v_old in old.items():
@@ -487,18 +587,25 @@ class EEGRawFilterPlugin(BasePlugin):
         except Exception:
             pass
 
+        # enable/disable taps selon méthode
+        try:
+            if getattr(self, "spn_fir_taps", None):
+                self.spn_fir_taps.setEnabled(self._method == "fir")
+        except Exception:
+            pass
+
         self._emit_config()
         self._schedule_apply()
 
     def _schedule_apply(self):
         if self._raw_in is None:
-            if self._lbl: self._lbl.setText("Idle (no raw)")
+            self._set_status("Idle (no raw)")
             return
         params = self._gather_params()
         self._last_params = params
         if self._busy:
             self._rerun = True
-            if self._lbl: self._lbl.setText("Filtering… (queued)")
+            self._set_status("Filtering… (queued)")
             return
         self._run_filter_async(params)
 
@@ -510,14 +617,17 @@ class EEGRawFilterPlugin(BasePlugin):
         if self._thread is not None and self._thread.isRunning():
             ok = self._stop_thread_blocking(force=True)
             if not ok:
-                if self._lbl: self._lbl.setText("Filtering… (waiting previous)")
+                self._set_status("Filtering… (waiting previous)")
                 return
 
         self._busy = True
         self._rerun = False
-        if self._lbl: self._lbl.setText("Filtering…")
+        self._set_status("Filtering…")
+        # Log de début avec group=method
         try:
-            metrics().event("FILTER_START", **(params or {}))
+            p = dict(params or {})
+            p["group"] = p.get("method", "fir")
+            metrics().event("FILTER_START", **p)
         except Exception:
             pass
 
@@ -554,13 +664,55 @@ class EEGRawFilterPlugin(BasePlugin):
 
     def _on_done(self, raw_filt, info_msg):
         self._busy = False
+
+        # Récupère les métriques calculées par le worker
+        m = {}
         try:
-            metrics().event("FILTER_DONE")
+            if isinstance(info_msg, dict):
+                m = dict(info_msg.get("__metrics__", {}) or {})
+        except Exception:
+            m = {}
+
+        # Log FILTER_DONE avec mesures (débit inclus)
+        try:
+            if not m:
+                # fallback minimal si jamais
+                try:
+                    fs = float(raw_filt.info.get("sfreq", 0.0))
+                except Exception:
+                    fs = 0.0
+                try:
+                    n_ch = len(raw_filt.ch_names)
+                except Exception:
+                    n_ch = 0
+                try:
+                    n_samples = int(raw_filt.n_times)
+                except Exception:
+                    n_samples = 0
+                m = {
+                    "group": self._method,
+                    "dur_s": 0.0,
+                    "throughput_sps": 0.0,
+                    "rt_factor": 0.0,
+                    "n_ch": n_ch,
+                    "n": n_samples,
+                    "fs": fs,
+                }
+            metrics().event(
+                "FILTER_DONE",
+                group=m.get("group", self._method),
+                dur_s=m.get("dur_s", 0.0),
+                throughput_sps=m.get("throughput_sps", 0.0),
+                rt_factor=m.get("rt_factor", 0.0),
+                n_ch=m.get("n_ch", 0),
+                n=m.get("n", 0),
+                fs=m.get("fs", 0.0),
+            )
         except Exception:
             pass
 
         if self._raw_in is None:
-            if self._lbl: self._lbl.setText("Done (stale)")
+            self._set_status("Done (stale)")
         else:
             self.outputs["raw"].on_next(raw_filt)
             if isinstance(info_msg, dict):
@@ -570,11 +722,14 @@ class EEGRawFilterPlugin(BasePlugin):
                     self.outputs["sfreq"].on_next(fs)
                 if ch:
                     self.outputs["ch_names"].on_next(ch)
+                if "__metrics__" in info_msg:
+                    info_msg = dict(info_msg)
+                    info_msg.pop("__metrics__", None)
                 self.outputs["info"].on_next(info_msg)
             else:
                 self._emit_meta_from_raw(raw_filt, note="filtered")
 
-            if self._lbl: self._lbl.setText("Filtered")
+            self._set_status("Filtered")
 
         if self._rerun and self._raw_in is not None:
             self._rerun = False
@@ -584,11 +739,13 @@ class EEGRawFilterPlugin(BasePlugin):
     def _on_failed(self, err):
         self._busy = False
         try:
-            metrics().event("FILTER_FAIL", error=str(err))
+            # Ajoute group depuis le dernier paramétrage
+            grp = (self._last_params or {}).get("method", self._method)
+            metrics().event("FILTER_FAIL", group=grp, error=str(err).replace(",", ";"))
         except Exception:
             pass
 
-        if self._lbl: self._lbl.setText(f"Erreur: {err}")
+        self._set_status(f"Erreur: {err}")
         if self._rerun and self._raw_in is not None:
             self._rerun = False
             last = self._last_params or self._gather_params()
@@ -618,13 +775,13 @@ class EEGRawFilterPlugin(BasePlugin):
             pass
         finally:
             try:
-                if self._worker is not None:
+                if self._worker is not None and not sip.isdeleted(self._worker):
                     self._worker.deleteLater()
             except Exception:
                 pass
             self._worker = None
             try:
-                if th is not None:
+                if th is not None and not sip.isdeleted(th):
                     th.deleteLater()
             except Exception:
                 pass

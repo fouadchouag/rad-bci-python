@@ -4,13 +4,12 @@
 EEGLiveDisplay — affichage RAW/SEGMENT avec défilement fluide (Matplotlib+Qt)
 • Optimisations anti-lag: décimation, throttling FPS, maj différée via singleShot(0)
 • Compatibilité ConfigNode: export_config / import_config / config_hints + config_out
-• Hooks métriques complets:
-    - PARAM_CHANGE pour toute modif UI impactant le rendu
-    - START_TTFP (bouton)
-    - FIRST_FRAME (à la 1re frame effectivement dessinée)
-    - FRAME_RENDERED (à chaque draw effectif)
-    - RENDER_STATS (1 Hz): fps, dropped_frames, total_frames, dropped_frames_pct
-    - CPU_MEM (1 Hz, si psutil dispo — en plus du probe global possible)
+• Hooks métriques (pour TTFP / Throughput / Dropped / Latency):
+    - TTFP: event "TTFP" avec champ ttfp_s (s)
+    - FRAME_RENDERED avec lat_ms (ms) pour P50/P95
+    - FRAME_DROPPED quand throttle
+    - RENDER_STATS (2 s): fps, dropped_pct, throughput_sps (+ throughput_ksps)
+    - CPU_MEM (1 s, si psutil dispo)
 """
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
@@ -26,11 +25,7 @@ from rx.subject import BehaviorSubject
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-from core.metrics_logger import metrics  # <<< HOOKS METRICS
-
-from core.metrics_hotkeys import install_global_metrics_hotkeys
-install_global_metrics_hotkeys()
-
+from core.metrics_logger import metrics  # HOOKS METRICS
 
 try:
     import mne  # noqa: F401
@@ -43,7 +38,7 @@ try:
 except Exception:
     psutil = None
 
-# ---------- petite section repliable ----------
+
 class _CollapsibleSection(QWidget):
     def __init__(self, title="Paramètres", content: QWidget = None, collapsed=True, parent=None):
         super().__init__(parent)
@@ -107,7 +102,11 @@ class EEGLiveDisplay(BasePlugin):
         self._raw = None; self._last_raw_obj_id = None
         self._cursor = 0; self._paused = False; self._loop = True
         self._window_s = 10.0; self._step_s = 0.2
-        self._timer = QTimer(); self._timer.setInterval(100); self._timer.timeout.connect(self._on_tick)
+
+        # timers (⚠️ pas de parent QObject)
+        self._timer = QTimer()
+        self._timer.setInterval(100)
+        self._timer.timeout.connect(self._on_tick)
 
         # Horloge RAW monotone
         self._raw_time_shift = 0.0
@@ -136,33 +135,29 @@ class EEGLiveDisplay(BasePlugin):
         # micro-planification
         self._pending_update = False
 
+        # --- NEW: refs to spinboxes for max_points/fps
+        self._sp_max_points = None
+        self._sp_max_fps = None
+
         # --- METRICS state ---
         self._first_frame_logged = False
-        self._frame_count = 0
-
-        # après self._frame_count = 0
         self._frames_rendered = 0
         self._frames_dropped = 0
         self._last_stat_t = time.monotonic()
+
+        # stats périodiques (⚠️ pas de parent QObject)
         self._stat_timer = QTimer()
         self._stat_timer.setInterval(2000)  # stats toutes les 2s
         self._stat_timer.timeout.connect(self._emit_render_stats)
+        self._stat_timer.start()
 
-
-
-
-        self._stats_last = time.time()
-        self._stats_frames_since = 0
-        self._stats_ticks_since = 0
+        # CPU probe optionnel (1 Hz)
         self._cpu_last = time.time()
 
-        self._frames_rendered = 0
-        self._frames_dropped = 0
-        self._last_stat_t = time.monotonic()
-        self._stat_timer = QTimer()
-        self._stat_timer.setInterval(2000)  # toutes les 2s
-        self._stat_timer.timeout.connect(self._emit_render_stats)
-
+        # --- TTFP & latence par frame ---
+        self._ttfp_t0 = None        # perf_counter() quand 1ère donnée arrive (raw/segment)
+        self._ttfp_done = False     # True après 1ère frame dessinée
+        self._lat_last_req_t = None # perf_counter() au moment du schedule_update
 
     # --------------- config I/O ----------------
     def export_config(self) -> dict:
@@ -228,10 +223,20 @@ class EEGLiveDisplay(BasePlugin):
                 self._sp_force_nch.blockSignals(True); self._sp_force_nch.setValue(self._force_nch); self._sp_force_nch.blockSignals(False)
 
         mp = _get("max_points", int, self._max_points)
-        if mp is not None: self._max_points = int(mp)
+        if mp is not None:
+            self._max_points = int(mp)
+            if self._sp_max_points:
+                self._sp_max_points.blockSignals(True)
+                self._sp_max_points.setValue(self._max_points)
+                self._sp_max_points.blockSignals(False)
 
         fps = _get("max_fps", int, self._max_fps)
-        if fps is not None: self._max_fps = int(fps)
+        if fps is not None:
+            self._max_fps = int(fps)
+            if self._sp_max_fps:
+                self._sp_max_fps.blockSignals(True)
+                self._sp_max_fps.setValue(self._max_fps)
+                self._sp_max_fps.blockSignals(False)
 
         self._emit_config()
         self._schedule_update(mode=self._mode)
@@ -266,8 +271,6 @@ class EEGLiveDisplay(BasePlugin):
         btn_pause = QPushButton("Pause"); btn_pause.setCheckable(True); btn_pause.clicked.connect(lambda: self._on_toggle_pause(btn_pause)); row1.addWidget(btn_pause)
         btn_stop = QPushButton("Stop"); btn_stop.clicked.connect(self._on_stop); row1.addWidget(btn_stop)
         self.chk_loop = QCheckBox("Loop"); self.chk_loop.setChecked(self._loop); self.chk_loop.stateChanged.connect(self._on_loop_changed); row1.addWidget(self.chk_loop)
-        # --- START_TTFP (métrique) ---
-        # btn_ttfp = QPushButton("Start TTFP"); btn_ttfp.clicked.connect(lambda: self._on_ttfp()); row1.addWidget(btn_ttfp)
         row1.addStretch(1)
         row1.addWidget(QLabel("Window (s):"))
         sp_w = QDoubleSpinBox(); sp_w.setRange(0.5, 60.0); sp_w.setSingleStep(0.5); sp_w.setValue(self._window_s); sp_w.valueChanged.connect(self._on_window_changed); row1.addWidget(sp_w)
@@ -285,6 +288,27 @@ class EEGLiveDisplay(BasePlugin):
         self._sp_force_nch = QSpinBox(); self._sp_force_nch.setRange(0, 256); self._sp_force_nch.setValue(0); self._sp_force_nch.valueChanged.connect(self._on_force_nch_changed); row2.addWidget(self._sp_force_nch)
         row2.addStretch(1)
         pv.addLayout(row2)
+
+        # --- NOUVELLE RANGÉE : Max points / Max FPS ---
+        row3 = QHBoxLayout()
+        row3.addWidget(QLabel("Max points:"))
+        self._sp_max_points = QSpinBox()
+        self._sp_max_points.setRange(500, 20000)
+        self._sp_max_points.setSingleStep(100)
+        self._sp_max_points.setValue(self._max_points)
+        self._sp_max_points.valueChanged.connect(self._on_max_points_changed)
+        row3.addWidget(self._sp_max_points)
+
+        row3.addSpacing(12)
+        row3.addWidget(QLabel("Max FPS:"))
+        self._sp_max_fps = QSpinBox()
+        self._sp_max_fps.setRange(5, 120)
+        self._sp_max_fps.setSingleStep(1)
+        self._sp_max_fps.setValue(self._max_fps)
+        self._sp_max_fps.valueChanged.connect(self._on_max_fps_changed)
+        row3.addWidget(self._sp_max_fps)
+        row3.addStretch(1)
+        pv.addLayout(row3)
 
         self.channel_list = QListWidget(); self.channel_list.setMinimumHeight(80); self.channel_list.setMaximumHeight(140)
         self.channel_list.itemChanged.connect(self._on_item_changed)
@@ -310,12 +334,6 @@ class EEGLiveDisplay(BasePlugin):
         except Exception:
             pass
 
-    # def _on_ttfp(self):
-    #     try:
-    #         metrics().ttfp()
-    #     except Exception:
-    #         pass
-
     def _on_loop_changed(self, _state):
         self._loop = bool(self.chk_loop.isChecked()) if self.chk_loop else True
         self._bench_param("loop", int(self._loop))
@@ -325,6 +343,18 @@ class EEGLiveDisplay(BasePlugin):
         self._step_s = float(v)
         self._bench_param("step_s", v)
         self._emit_config()
+
+    def _on_max_points_changed(self, v: int):
+        self._max_points = int(v)
+        self._bench_param("max_points", self._max_points)
+        self._emit_config()
+        self._schedule_update(mode=self._mode)
+
+    def _on_max_fps_changed(self, v: int):
+        self._max_fps = int(v)
+        self._bench_param("max_fps", self._max_fps)
+        self._emit_config()
+        # throttle appliqué dès la prochaine frame
 
     def _on_toggle_pause(self, btn):
         self._paused = btn.isChecked()
@@ -489,76 +519,69 @@ class EEGLiveDisplay(BasePlugin):
             else: self._paused = True
         self._schedule_update(mode="raw")
 
-    # -------------------- METRICS helpers --------------------
-    def _maybe_emit_stats(self):
-        now = time.time()
-        # RENDER_STATS (1 Hz)
-        if now - self._stats_last >= 1.0:
-            dt = max(1e-9, now - self._stats_last)
-            fps = self._stats_frames_since / dt
-            lost = max(0, self._stats_ticks_since - self._stats_frames_since)
-            total = max(1, self._stats_ticks_since)
-            dropped_pct = 100.0 * lost / total
-            try:
-                metrics().event(
-                    "RENDER_STATS",
-                    fps=f"{fps:.2f}",
-                    dropped_frames=lost,
-                    total_frames=total,
-                    dropped_frames_pct=f"{dropped_pct:.2f}"
-                )
-            except Exception:
-                pass
-            self._stats_last = now
-            self._stats_frames_since = 0
-            self._stats_ticks_since = 0
-
-        # CPU_MEM (1 Hz, optionnel)
-        if psutil and (now - self._cpu_last >= 1.0):
-            try:
-                cpu = psutil.cpu_percent(interval=None)
-                rss_mb = int(psutil.Process(os.getpid()).memory_info().rss / (1024*1024))
-                metrics().cpu_mem(cpu=cpu, rss_mb=rss_mb)
-            except Exception:
-                pass
-            self._cpu_last = now
-
-    # -------------------- dessin --------------------
+    # -------------------- dessin + métriques --------------------
     def _maybe_draw(self, canvas):
         if canvas is None or getattr(canvas, "figure", None) is None:
             return
         if hasattr(canvas, "isVisible") and not canvas.isVisible():
             return
 
-        now = time.monotonic()
-        min_dt = 1.0 / float(self._max_fps)
+        now_mono = time.monotonic()
+        now_perf = time.perf_counter()
 
-        # throttling -> on ne dessine pas: frame "dropped"
-        if now - self._last_draw < min_dt:
-            if canvas is self.canvas:
-                self._frames_dropped += 1
-                if not self._stat_timer.isActive():
-                    self._stat_timer.start()
-            canvas.draw_idle()
-            return
-
-        canvas.draw()
-        self._last_draw = now
-
-        if canvas is self.canvas:
+        # throttle : on "droppe" la frame si trop tôt
+        throttled = (now_mono - getattr(self, "_last_draw", 0.0)) < (1.0 / float(max(1, self._max_fps)))
+        if throttled:
+            self._frames_dropped += 1
             try:
-                if not self._first_frame_logged:
-                    metrics().first_frame(seq=self._frame_count)
-                    self._first_frame_logged = True
-                metrics().frame_rendered(seq=self._frame_count, dropped=False)
-                self._frame_count += 1
-                self._frames_rendered += 1
-                if not self._stat_timer.isActive():
-                    self._stat_timer.start()
+                metrics().event("FRAME_DROPPED", reason="throttle", max_fps=self._max_fps)
             except Exception:
                 pass
+            return  # pas de draw
 
+        # --- TTFP: première frame réellement rendue ---
+        is_first_render = (self._frames_rendered == 0)
+        if is_first_render and (self._ttfp_t0 is not None) and (not self._ttfp_done):
+            ttfp_s = float(now_perf - self._ttfp_t0)
+            try:
+                metrics().event("TTFP", ttfp_s=ttfp_s)
+            except Exception:
+                pass
+            self._ttfp_done = True
 
+        # --- Latence par frame (ms) = temps depuis la dernière demande de rendu ---
+        lat_ms = None
+        if self._lat_last_req_t is not None:
+            lat_ms = float((now_perf - self._lat_last_req_t) * 1000.0)
+
+        # draw
+        canvas.draw()
+        self._last_draw = now_mono
+        self._frames_rendered += 1
+
+        # event par frame (n_frames, p50/p95) + latence
+        try:
+            if not self._first_frame_logged:
+                metrics().event("FIRST_FRAME")
+                self._first_frame_logged = True
+            if lat_ms is not None:
+                metrics().event("FRAME_RENDERED", lat_ms=lat_ms)
+            else:
+                metrics().event("FRAME_RENDERED")
+        except Exception:
+            pass
+
+        # CPU_MEM 1 Hz (optionnel)
+        if psutil:
+            now2 = time.time()
+            if now2 - self._cpu_last >= 1.0:
+                try:
+                    cpu = float(psutil.cpu_percent(interval=None))
+                    rss_mb = int(psutil.Process(os.getpid()).memory_info().rss / (1024*1024))
+                    metrics().cpu_mem(cpu=cpu, rss_mb=rss_mb)
+                except Exception:
+                    pass
+                self._cpu_last = now2
 
     def _plot_data(self, data, times, names, title_prefix="EEG"):
         if self.axes is None or self.canvas is None: return
@@ -690,12 +713,12 @@ class EEGLiveDisplay(BasePlugin):
 
     def _schedule_update(self, mode=None):
         if mode: self._mode = mode
-        # chaque demande de mise à jour = "tick" attendu côté rendu (utile pour dropped %)
-        self._stats_ticks_since += 1
-        self._maybe_emit_stats()
-
         if self._pending_update: return
         self._pending_update = True
+
+        # horodatage pour la latence "request → render"
+        self._lat_last_req_t = time.perf_counter()
+
         def _do():
             self._pending_update = False
             self._update_plot(flush_only=True, force_mode=self._mode)
@@ -758,6 +781,11 @@ class EEGLiveDisplay(BasePlugin):
                         if not self._timer.isActive(): self._timer.start()
                 return {}
             else:
+                # point de départ TTFP si pas déjà armé
+                if self._ttfp_t0 is None:
+                    self._ttfp_t0 = time.perf_counter()
+                    self._ttfp_done = False
+
                 arr = np.asarray(seg_in)
                 if arr.ndim == 1: arr = arr[None, :]
 
@@ -823,11 +851,19 @@ class EEGLiveDisplay(BasePlugin):
             else:
                 if self._last_raw_obj_id is not None and id(new_raw) == self._last_raw_obj_id and self._mode == "raw":
                     return {}
+
+                # point de départ TTFP si pas déjà armé
+                if self._ttfp_t0 is None:
+                    self._ttfp_t0 = time.perf_counter()
+                    self._ttfp_done = False
+
                 old_raw = self._raw; changed = (old_raw is None)
                 try: new_names_full = list(new_raw.ch_names)
                 except Exception: new_names_full = []
                 try: new_fs = float(new_raw.info.get("sfreq", 0.0))
                 except Exception: new_fs = 0.0
+
+                new_fs = float(new_raw.info.get("sfreq", 0.0))
 
                 if old_raw is not None:
                     try: old_names_full = list(old_raw.ch_names)
@@ -1019,33 +1055,48 @@ class EEGLiveDisplay(BasePlugin):
         self._on_destroy()
         self._raw = None; self._last_raw_obj_id = None
         self._reset_segment_buffer()
-
         try:
             if self._stat_timer.isActive():
                 self._stat_timer.stop()
         except Exception:
             pass
 
-
+    # -------------------- stats périodiques --------------------
     def _emit_render_stats(self):
         try:
             dt = max(1e-6, time.monotonic() - self._last_stat_t)
-            total = self._frames_rendered + self._frames_dropped
-            fps = self._frames_rendered / dt
+            frames = self._frames_rendered
+            total   = frames + self._frames_dropped
+            fps     = frames / dt
             drop_pct = (100.0 * self._frames_dropped / total) if total > 0 else 0.0
 
-            # Débit affiché ≈ (#canaux visibles * points/trace * fps) [samples/s]
-            n_ch = self.channel_list.count() if self.channel_list else 0
-            points = 0
+            # --- n_ch (canaux effectivement affichés)
+            if self.channel_list and self.channel_list.count() > 0:
+                picks = self._selected_indices(all_names=self._ui_ch_names or [])
+                n_ch = len(picks)
+            elif self._mode == "segment" and self._seg_buf is not None:
+                n_ch = int(self._seg_buf.shape[0])
+            elif self._raw is not None:
+                try: n_ch = len(self._raw.ch_names)
+                except Exception: n_ch = 0
+            else:
+                n_ch = 0
+
+            # --- points (par trace)
             if self._mode == "segment" and self._seg_buf is not None:
-                points = self._seg_buf.shape[1]
-            elif self._mode == "raw":
-                # borné par max_points (décimation)
-                points = min(self._max_points, int(self._window_s * float(self._last_fs or 0.0)))
+                points = int(self._seg_buf.shape[1])
+            else:
+                fs = float(self._last_fs or 0.0)
+                if fs <= 0.0 and self._raw is not None:
+                    try: fs = float(self._raw.info.get("sfreq", 0.0))
+                    except Exception: fs = 0.0
+                points = int(round(max(0.0, self._window_s) * max(0.0, fs)))
+                points = min(points, int(self._max_points or points))
 
-            throughput_sps = float(n_ch * points * fps)
+            throughput_sps = float(n_ch * points * fps) if (n_ch > 0 and points > 0 and fps > 0.0) else 0.0
 
-            metrics().log(
+            # --- EMIT: toujours inclure throughput_sps
+            metrics().event(
                 "RENDER_STATS",
                 fps=f"{fps:.2f}",
                 dropped_frames=self._frames_dropped,
@@ -1059,4 +1110,3 @@ class EEGLiveDisplay(BasePlugin):
             self._frames_rendered = 0
             self._frames_dropped = 0
             self._last_stat_t = time.monotonic()
-

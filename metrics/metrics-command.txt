@@ -1,0 +1,14 @@
+python utils\metrics_eval.py runs --outdir metrics_results
+
+python utils\build_tables_from_metrics.py metrics_results --outdir out
+
+
+# 1) extraire les métriques de bas niveau
+python utils/metrics_eval.py runs --outdir metrics_results
+
+# 2) construire les tables article
+python utils/build_tables_from_metrics.py metrics_results --outdir out
+
+
+
+python utils\aggregator.py --logs ./logs --workflow "W?" --out1 table1.csv --out2 table2.csv
