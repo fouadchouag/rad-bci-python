@@ -28,6 +28,13 @@ except Exception:
 
 
 class ArrayToMNERaw(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'Array → MNE Raw (Adapter) — fixed v2',
+  'usage': 'Wire upstream data and route downstream.'}
+
     name = "Array → MNE Raw"
     language = "Python"
     category = "Input Nodes"

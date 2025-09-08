@@ -21,6 +21,24 @@ def _ensure_seg_2d(seg):
     return arr if arr.shape[0] < arr.shape[1] else arr.T  # (n_ch, n_t)
 
 class RiemannCovPlugin(BasePlugin):
+    help = help = { 'gotchas': ['Use adequate window length for low frequencies.'],
+  'inputs': {'segment': '2D float [ch x samples] or epochs', 'sfreq': 'float (Hz)'},
+  'outputs': { 'features': 'array/dict',
+               'freqs': 'optional freqs',
+               'psd': 'optional PSD'},
+  'parameters': [ { 'default': 1.0,
+                    'desc': 'Lower frequency',
+                    'name': 'fmin',
+                    'type': 'float',
+                    'unit': 'Hz'},
+                  { 'default': 40.0,
+                    'desc': 'Upper frequency',
+                    'name': 'fmax',
+                    'type': 'float',
+                    'unit': 'Hz'}],
+  'summary': "RiemannCov — calcule la covariance SPD d'un segment EEG.",
+  'usage': 'Connect windowed or epoched data; feed features to ML nodes.'}
+
     name = "RiemannCov"
     language = "Python"
     category = "ML / Riemann"

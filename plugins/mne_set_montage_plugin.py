@@ -23,6 +23,13 @@ except Exception:
 import re
 
 class MNERawSetMontage(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'MNE Set Montage (robuste)',
+  'usage': 'Wire upstream data and route downstream.'}
+
     name = "MNE Set Montage"
     language = "Python"
     category = "Transform Nodes"

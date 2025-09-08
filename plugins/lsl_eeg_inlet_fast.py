@@ -21,6 +21,8 @@ try:
 except Exception:
     from PyQt5.QtCore import QTimer
     class DropOldQueue:
+        
+
         def __init__(self): 
             import threading
             self._lock=threading.Lock(); self._item=None
@@ -58,9 +60,32 @@ class LSL_EEG_Inlet_Fast(BasePlugin):
     Entrées config :
       - config_in (dict), lsl_eeg_conf (dict)
     """
+
+    help = help = { 'gotchas': [ 'Verify channels and sampling rate.',
+               'Network hiccups may cause gaps—use buffering.'],
+  'inputs': {},
+  'outputs': { 'ch_names': 'List[str]',
+               'segment': '2D float [ch x samples]',
+               'sfreq': 'float (Hz)'},
+  'parameters': [ { 'default': 'EEG',
+                    'desc': 'LSL stream name to subscribe to',
+                    'name': 'stream_name',
+                    'type': 'str'},
+                  { 'default': 256,
+                    'desc': 'Samples per pull',
+                    'name': 'chunk_size',
+                    'type': 'int'},
+                  { 'default': 0.1,
+                    'desc': 'Pull timeout',
+                    'name': 'timeout',
+                    'type': 'float',
+                    'unit': 's'}],
+  'summary': 'Inlet EEG non-bloquant :',
+  'usage': 'Start external LSL stream; connect this inlet to processing pipeline.'}
+    
     name = "LSL_EEG_Inlet_Fast"
     language = "Python"
-    category = "IO"
+    category = "Input Nodes"
 
     # ---------- lifecycle ----------
     def setup(self):

@@ -59,8 +59,31 @@ if HAVE_MNE:
 
 
 class EEGSaver(BasePlugin):
+    help = help = { 'gotchas': ['Ensure write permissions and disk space.'],
+  'inputs': { 'epochs': 'mne.Epochs (opt.)',
+              'features': 'array/dict (opt.)',
+              'raw': 'mne.Raw (opt.)',
+              'segment': '2D float [ch x samples] (opt.)'},
+  'outputs': {},
+  'parameters': [ { 'default': './out',
+                    'desc': 'Target folder',
+                    'name': 'out_path',
+                    'type': 'path'},
+                  { 'default': 'csv',
+                    'desc': 'File format',
+                    'name': 'format',
+                    'type': 'str'},
+                  { 'default': True,
+                    'desc': 'Append to existing files',
+                    'name': 'append',
+                    'type': 'bool'}],
+  'summary': 'EEGSaver — sauvegarde EEG (Raw MNE ou segment numpy) en plusieurs '
+             'formats.',
+  'usage': 'Wire any stream you need to archive; set path/format.'}
+
     name = "EEGSaver"
     category = "Output Nodes"
+    language = "Python"
 
     def setup(self):
         # Entrées

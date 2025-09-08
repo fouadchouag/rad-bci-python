@@ -60,6 +60,16 @@ class _CollapsibleSection(QWidget):
 
 
 class ClassifierMetricsPlugin(BasePlugin):
+    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
+  'inputs': {'features': 'array/dict', 'model': 'trained model'},
+  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
+  'parameters': [ { 'default': 0.5,
+                    'desc': 'Decision threshold (if applicable)',
+                    'name': 'threshold',
+                    'type': 'float'}],
+  'summary': 'Évalue un dataset {X,y,y_names} (multi-classe) par CV.',
+  'usage': 'Connect features and a compatible model.'}
+
     """
     Évalue un dataset {X,y,y_names} (multi-classe) par CV.
     Entrée: dataset (dict) -> 'X':(N,d), 'y':(N,), 'y_names':[...]

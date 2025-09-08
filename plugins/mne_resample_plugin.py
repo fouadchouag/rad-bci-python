@@ -29,6 +29,13 @@ Number = Union[int, float]
 
 
 class MNEResamplePlugin(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'MNEResamplePlugin (final)',
+  'usage': 'Wire upstream data and route downstream.'}
+
     name = "MNEResample"
     language = "Python"
     category = "Preprocessing"

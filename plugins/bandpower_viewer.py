@@ -31,11 +31,33 @@ try:
     from core.collapsible import CollapsibleSection
 except Exception:
     class CollapsibleSection(QWidget):
+        
+
         def __init__(self, title, content, collapsed=True, parent=None):
             super().__init__(parent)
             lay = QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.addWidget(content)
 
 class BandpowerViewer(BasePlugin):
+    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
+  'outputs': {},
+  'parameters': [ { 'default': 50.0,
+                    'desc': 'Vertical scale',
+                    'name': 'scale_uv',
+                    'type': 'float',
+                    'unit': 'µV'},
+                  { 'default': 1.0,
+                    'desc': 'Scroll speed',
+                    'name': 'speed',
+                    'type': 'float'},
+                  { 'default': False,
+                    'desc': 'Show full screen',
+                    'name': 'fullscreen',
+                    'type': 'bool'}],
+  'summary': 'BandpowerViewer',
+  'usage': 'Connect upstream data; adjust view parameters.'}
+    
+
     name = "MNEBandpowerViewer"
     language = "Python"
     category = "Output Nodes"

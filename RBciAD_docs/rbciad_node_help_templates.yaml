@@ -1,0 +1,1539 @@
+acquisition_manager:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: 'Source node: provides EEG data or metadata for downstream processing.'
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+array_to_mne_raw_plugin:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+ball_feedback_plugin:
+  gotchas:
+  - Heavy rendering can reduce FPS—use decimation.
+  inputs:
+    segment: 2D float [ch x samples] or raw/derived
+    sfreq: float (Hz, if segment)
+  outputs: {}
+  parameters:
+  - default: '50.0'
+    desc: Vertical scale
+    name: scale_uv
+    type: float
+    unit: µV
+  - default: '1.0'
+    desc: Scroll speed
+    name: speed
+    type: float
+  - default: 'False'
+    desc: Fullscreen/Enlarge
+    name: fullscreen
+    type: bool
+  summary: Visualize signals, features or predictions in real-time.
+  usage: Connect upstream data; adjust scale and speed; optional fullscreen for demo.
+bandpower_ext_plugin:
+  gotchas:
+  - Use Welch windows long enough for low f.
+  - DC offsets can bias low-frequency power.
+  inputs:
+    segment: 2D float [ch x samples] or epochs
+    sfreq: float (Hz)
+  outputs:
+    features: dict/array of band powers
+    psd: array [ch x freq] (if PSD)
+  parameters:
+  - default: '1.0'
+    desc: Lower frequency
+    name: fmin
+    type: float
+    unit: Hz
+  - default: '40.0'
+    desc: Upper frequency
+    name: fmax
+    type: float
+    unit: Hz
+  - default: '[[''delta'',1,4],[''theta'',4,8],[''alpha'',8,13],[''beta'',13,30]]'
+    desc: Named bands
+    name: bands
+    type: list
+  summary: Compute spectral power (PSD, bandpower) from segments/epochs.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+bandpower_ext_plugin1:
+  gotchas:
+  - Use Welch windows long enough for low f.
+  - DC offsets can bias low-frequency power.
+  inputs:
+    segment: 2D float [ch x samples] or epochs
+    sfreq: float (Hz)
+  outputs:
+    features: dict/array of band powers
+    psd: array [ch x freq] (if PSD)
+  parameters:
+  - default: '1.0'
+    desc: Lower frequency
+    name: fmin
+    type: float
+    unit: Hz
+  - default: '40.0'
+    desc: Upper frequency
+    name: fmax
+    type: float
+    unit: Hz
+  - default: '[[''delta'',1,4],[''theta'',4,8],[''alpha'',8,13],[''beta'',13,30]]'
+    desc: Named bands
+    name: bands
+    type: list
+  summary: Compute spectral power (PSD, bandpower) from segments/epochs.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+bandpower_features_plugin:
+  gotchas:
+  - Use Welch windows long enough for low f.
+  - DC offsets can bias low-frequency power.
+  inputs:
+    segment: 2D float [ch x samples] or epochs
+    sfreq: float (Hz)
+  outputs:
+    features: dict/array of band powers
+    psd: array [ch x freq] (if PSD)
+  parameters:
+  - default: '1.0'
+    desc: Lower frequency
+    name: fmin
+    type: float
+    unit: Hz
+  - default: '40.0'
+    desc: Upper frequency
+    name: fmax
+    type: float
+    unit: Hz
+  - default: '[[''delta'',1,4],[''theta'',4,8],[''alpha'',8,13],[''beta'',13,30]]'
+    desc: Named bands
+    name: bands
+    type: list
+  summary: Compute spectral power (PSD, bandpower) from segments/epochs.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+bandpower_inspector_plugin:
+  gotchas:
+  - Use Welch windows long enough for low f.
+  - DC offsets can bias low-frequency power.
+  inputs:
+    segment: 2D float [ch x samples] or epochs
+    sfreq: float (Hz)
+  outputs:
+    features: dict/array of band powers
+    psd: array [ch x freq] (if PSD)
+  parameters:
+  - default: '1.0'
+    desc: Lower frequency
+    name: fmin
+    type: float
+    unit: Hz
+  - default: '40.0'
+    desc: Upper frequency
+    name: fmax
+    type: float
+    unit: Hz
+  - default: '[[''delta'',1,4],[''theta'',4,8],[''alpha'',8,13],[''beta'',13,30]]'
+    desc: Named bands
+    name: bands
+    type: list
+  summary: Compute spectral power (PSD, bandpower) from segments/epochs.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+bandpower_viewer:
+  gotchas:
+  - Heavy rendering can reduce FPS—use decimation.
+  inputs:
+    segment: 2D float [ch x samples] or raw/derived
+    sfreq: float (Hz, if segment)
+  outputs: {}
+  parameters:
+  - default: '50.0'
+    desc: Vertical scale
+    name: scale_uv
+    type: float
+    unit: µV
+  - default: '1.0'
+    desc: Scroll speed
+    name: speed
+    type: float
+  - default: 'False'
+    desc: Fullscreen/Enlarge
+    name: fullscreen
+    type: bool
+  summary: Visualize signals, features or predictions in real-time.
+  usage: Connect upstream data; adjust scale and speed; optional fullscreen for demo.
+bci_ball_controller:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+bci_collector_node:
+  gotchas: []
+  inputs:
+    in: various
+  outputs:
+    out: various
+  parameters:
+  - default: default
+    desc: Routing or aggregation mode
+    name: mode
+    type: str
+  summary: Utility node to orchestrate flows, collect streams, or broadcast config.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+bci_command_router:
+  gotchas: []
+  inputs:
+    in: various
+  outputs:
+    out: various
+  parameters:
+  - default: default
+    desc: Routing or aggregation mode
+    name: mode
+    type: str
+  summary: Utility node to orchestrate flows, collect streams, or broadcast config.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+bci_config_node:
+  gotchas: []
+  inputs:
+    in: various
+  outputs:
+    out: various
+  parameters:
+  - default: default
+    desc: Routing or aggregation mode
+    name: mode
+    type: str
+  summary: Utility node to orchestrate flows, collect streams, or broadcast config.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+bci_epoch_node:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+bci_features_node:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+bci_metrics_viewer:
+  gotchas:
+  - Heavy rendering can reduce FPS—use decimation.
+  inputs:
+    events: timing and counters
+    pred: optional for accuracy
+  outputs:
+    metrics: dict of metrics
+  parameters:
+  - default: '50'
+    desc: Sliding window size
+    name: window
+    type: int
+  summary: Compute or display online metrics (FPS, latency, CPU/RSS, accuracy).
+  usage: Connect upstream data; adjust scale and speed; optional fullscreen for demo.
+bci_online_metrics_node:
+  gotchas: []
+  inputs:
+    events: timing and counters
+    pred: optional for accuracy
+  outputs:
+    metrics: dict of metrics
+  parameters:
+  - default: '50'
+    desc: Sliding window size
+    name: window
+    type: int
+  summary: Compute or display online metrics (FPS, latency, CPU/RSS, accuracy).
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+bci_predictor_node:
+  gotchas:
+  - Balance classes and use CV.
+  - Persist model versions for reproducibility.
+  inputs:
+    features: array|dict
+    labels: array (for training)
+  outputs:
+    model: trained model (for trainers)
+    pred: predicted labels/probas (for runtime/apply)
+  parameters:
+  - default: LR
+    desc: Classifier type (LR/SVM/etc.)
+    name: model
+    type: str
+  - default: '5'
+    desc: Cross-Validation folds
+    name: cv
+    type: int
+  - default: standard
+    desc: Feature scaling
+    name: scaler
+    type: str
+  summary: Train/apply machine-learning models for BCI classification.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+bci_preproc_node:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+bci_trainer_node:
+  gotchas:
+  - Balance classes and use CV.
+  - Persist model versions for reproducibility.
+  inputs:
+    features: array|dict
+    labels: array (for training)
+  outputs:
+    model: trained model (for trainers)
+    pred: predicted labels/probas (for runtime/apply)
+  parameters:
+  - default: LR
+    desc: Classifier type (LR/SVM/etc.)
+    name: model
+    type: str
+  - default: '5'
+    desc: Cross-Validation folds
+    name: cv
+    type: int
+  - default: standard
+    desc: Feature scaling
+    name: scaler
+    type: str
+  summary: Train/apply machine-learning models for BCI classification.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+classifier_metrics_plugin:
+  gotchas:
+  - Balance classes and use CV.
+  - Persist model versions for reproducibility.
+  inputs:
+    events: timing and counters
+    pred: optional for accuracy
+  outputs:
+    metrics: dict of metrics
+  parameters:
+  - default: '50'
+    desc: Sliding window size
+    name: window
+    type: int
+  summary: Compute or display online metrics (FPS, latency, CPU/RSS, accuracy).
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+classifier_metrics_plugin1:
+  gotchas:
+  - Balance classes and use CV.
+  - Persist model versions for reproducibility.
+  inputs:
+    events: timing and counters
+    pred: optional for accuracy
+  outputs:
+    metrics: dict of metrics
+  parameters:
+  - default: '50'
+    desc: Sliding window size
+    name: window
+    type: int
+  summary: Compute or display online metrics (FPS, latency, CPU/RSS, accuracy).
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+classifier_runtime_plugin:
+  gotchas:
+  - Balance classes and use CV.
+  - Persist model versions for reproducibility.
+  inputs:
+    features: array|dict
+    labels: array (for training)
+  outputs:
+    model: trained model (for trainers)
+    pred: predicted labels/probas (for runtime/apply)
+  parameters:
+  - default: LR
+    desc: Classifier type (LR/SVM/etc.)
+    name: model
+    type: str
+  - default: '5'
+    desc: Cross-Validation folds
+    name: cv
+    type: int
+  - default: standard
+    desc: Feature scaling
+    name: scaler
+    type: str
+  summary: Train/apply machine-learning models for BCI classification.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+csp_apply_plugin:
+  gotchas:
+  - Balance classes and use CV.
+  - Persist model versions for reproducibility.
+  inputs:
+    features: array|dict
+    labels: array (for training)
+  outputs:
+    model: trained model (for trainers)
+    pred: predicted labels/probas (for runtime/apply)
+  parameters:
+  - default: LR
+    desc: Classifier type (LR/SVM/etc.)
+    name: model
+    type: str
+  - default: '5'
+    desc: Cross-Validation folds
+    name: cv
+    type: int
+  - default: standard
+    desc: Feature scaling
+    name: scaler
+    type: str
+  summary: Train/apply machine-learning models for BCI classification.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+csp_trainer_plugin:
+  gotchas:
+  - Balance classes and use CV.
+  - Persist model versions for reproducibility.
+  inputs:
+    features: array|dict
+    labels: array (for training)
+  outputs:
+    model: trained model (for trainers)
+    pred: predicted labels/probas (for runtime/apply)
+  parameters:
+  - default: LR
+    desc: Classifier type (LR/SVM/etc.)
+    name: model
+    type: str
+  - default: '5'
+    desc: Cross-Validation folds
+    name: cv
+    type: int
+  - default: standard
+    desc: Feature scaling
+    name: scaler
+    type: str
+  summary: Train/apply machine-learning models for BCI classification.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+eeg_channel_rms_plugin:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+eeg_classifier_2:
+  gotchas:
+  - Balance classes and use CV.
+  - Persist model versions for reproducibility.
+  inputs:
+    features: array|dict
+    labels: array (for training)
+  outputs:
+    model: trained model (for trainers)
+    pred: predicted labels/probas (for runtime/apply)
+  parameters:
+  - default: LR
+    desc: Classifier type (LR/SVM/etc.)
+    name: model
+    type: str
+  - default: '5'
+    desc: Cross-Validation folds
+    name: cv
+    type: int
+  - default: standard
+    desc: Feature scaling
+    name: scaler
+    type: str
+  summary: Train/apply machine-learning models for BCI classification.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+eeg_classifier_plugin:
+  gotchas:
+  - Balance classes and use CV.
+  - Persist model versions for reproducibility.
+  inputs:
+    features: array|dict
+    labels: array (for training)
+  outputs:
+    model: trained model (for trainers)
+    pred: predicted labels/probas (for runtime/apply)
+  parameters:
+  - default: LR
+    desc: Classifier type (LR/SVM/etc.)
+    name: model
+    type: str
+  - default: '5'
+    desc: Cross-Validation folds
+    name: cv
+    type: int
+  - default: standard
+    desc: Feature scaling
+    name: scaler
+    type: str
+  summary: Train/apply machine-learning models for BCI classification.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+eeg_filter_plugin:
+  gotchas:
+  - Filter order must suit `sfreq` and transition width.
+  - Beware of edge effects on short windows.
+  inputs:
+    raw: mne.Raw (optional)
+    segment: 2D float [ch x samples] (optional)
+    sfreq: float (Hz, if segment)
+  outputs:
+    raw: filtered mne.Raw (if raw input)
+    segment: filtered array (if segment input)
+  parameters:
+  - default: '1.0'
+    desc: High-pass cutoff
+    name: hp
+    type: float|None
+    unit: Hz
+  - default: '40.0'
+    desc: Low-pass cutoff
+    name: lp
+    type: float|None
+    unit: Hz
+  - default: '50.0'
+    desc: Notch (mains)
+    name: notch
+    type: float|None
+    unit: Hz
+  summary: Apply temporal filtering (HP/LP/BP/Notch) to Raw or segment data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+eeg_filter_plugin1:
+  gotchas:
+  - Filter order must suit `sfreq` and transition width.
+  - Beware of edge effects on short windows.
+  inputs:
+    raw: mne.Raw (optional)
+    segment: 2D float [ch x samples] (optional)
+    sfreq: float (Hz, if segment)
+  outputs:
+    raw: filtered mne.Raw (if raw input)
+    segment: filtered array (if segment input)
+  parameters:
+  - default: '1.0'
+    desc: High-pass cutoff
+    name: hp
+    type: float|None
+    unit: Hz
+  - default: '40.0'
+    desc: Low-pass cutoff
+    name: lp
+    type: float|None
+    unit: Hz
+  - default: '50.0'
+    desc: Notch (mains)
+    name: notch
+    type: float|None
+    unit: Hz
+  summary: Apply temporal filtering (HP/LP/BP/Notch) to Raw or segment data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+eeg_filter_stateful:
+  gotchas:
+  - Filter order must suit `sfreq` and transition width.
+  - Beware of edge effects on short windows.
+  inputs:
+    raw: mne.Raw (optional)
+    segment: 2D float [ch x samples] (optional)
+    sfreq: float (Hz, if segment)
+  outputs:
+    raw: filtered mne.Raw (if raw input)
+    segment: filtered array (if segment input)
+  parameters:
+  - default: '1.0'
+    desc: High-pass cutoff
+    name: hp
+    type: float|None
+    unit: Hz
+  - default: '40.0'
+    desc: Low-pass cutoff
+    name: lp
+    type: float|None
+    unit: Hz
+  - default: '50.0'
+    desc: Notch (mains)
+    name: notch
+    type: float|None
+    unit: Hz
+  summary: Apply temporal filtering (HP/LP/BP/Notch) to Raw or segment data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+eeg_live_display_plugin:
+  gotchas:
+  - Heavy rendering can reduce FPS—use decimation.
+  inputs:
+    segment: 2D float [ch x samples] or raw/derived
+    sfreq: float (Hz, if segment)
+  outputs: {}
+  parameters:
+  - default: '50.0'
+    desc: Vertical scale
+    name: scale_uv
+    type: float
+    unit: µV
+  - default: '1.0'
+    desc: Scroll speed
+    name: speed
+    type: float
+  - default: 'False'
+    desc: Fullscreen/Enlarge
+    name: fullscreen
+    type: bool
+  summary: Visualize signals, features or predictions in real-time.
+  usage: Connect upstream data; adjust scale and speed; optional fullscreen for demo.
+eeg_mat_reader:
+  gotchas:
+  - 'Large files: prefer `segment` for smoother UI.'
+  - Check sampling frequency (`sfreq`) consistency.
+  inputs: {}
+  outputs:
+    ch_names: List[str]
+    events: array or list
+    raw: mne.Raw
+    segment: 2D float [ch x samples]
+    sfreq: float (Hz)
+  parameters:
+  - default: ''
+    desc: EDF/BDF/GDF/FIF/… file
+    name: filepath
+    type: path
+  - default: None
+    desc: Channels to load
+    name: picks
+    type: list|None
+  - default: '1.0'
+    desc: Window length for streaming
+    name: segment_len
+    type: float
+    unit: s
+  summary: Read EEG files/datasets using MNE-Python; emits Raw or segmented arrays.
+  usage: Place at the start of a pipeline. Select an EEG file; connect `raw` to processing
+    or `segment` to streaming nodes.
+eeg_raw_filter_plugin:
+  gotchas:
+  - Filter order must suit `sfreq` and transition width.
+  - Beware of edge effects on short windows.
+  inputs:
+    raw: mne.Raw (optional)
+    segment: 2D float [ch x samples] (optional)
+    sfreq: float (Hz, if segment)
+  outputs:
+    raw: filtered mne.Raw (if raw input)
+    segment: filtered array (if segment input)
+  parameters:
+  - default: '1.0'
+    desc: High-pass cutoff
+    name: hp
+    type: float|None
+    unit: Hz
+  - default: '40.0'
+    desc: Low-pass cutoff
+    name: lp
+    type: float|None
+    unit: Hz
+  - default: '50.0'
+    desc: Notch (mains)
+    name: notch
+    type: float|None
+    unit: Hz
+  summary: Apply temporal filtering (HP/LP/BP/Notch) to Raw or segment data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+eeg_reader_plugin:
+  gotchas:
+  - 'Large files: prefer `segment` for smoother UI.'
+  - Check sampling frequency (`sfreq`) consistency.
+  inputs: {}
+  outputs:
+    ch_names: List[str]
+    events: array or list
+    raw: mne.Raw
+    segment: 2D float [ch x samples]
+    sfreq: float (Hz)
+  parameters:
+  - default: ''
+    desc: EDF/BDF/GDF/FIF/… file
+    name: filepath
+    type: path
+  - default: None
+    desc: Channels to load
+    name: picks
+    type: list|None
+  - default: '1.0'
+    desc: Window length for streaming
+    name: segment_len
+    type: float
+    unit: s
+  summary: Read EEG files/datasets using MNE-Python; emits Raw or segmented arrays.
+  usage: Place at the start of a pipeline. Select an EEG file; connect `raw` to processing
+    or `segment` to streaming nodes.
+eeg_saver:
+  gotchas:
+  - Ensure write permissions.
+  - Large arrays may need chunked writes.
+  inputs:
+    epochs: mne.Epochs (optional)
+    features: array/dict (optional)
+    raw: mne.Raw (optional)
+    segment: 2D float [ch x samples] (optional)
+  outputs: {}
+  parameters:
+  - default: ./out
+    desc: Output folder
+    name: out_path
+    type: path
+  - default: csv
+    desc: csv/npy/edf/...
+    name: format
+    type: str
+  - default: 'True'
+    desc: Append vs overwrite
+    name: append
+    type: bool
+  summary: Save streams or epochs/features to disk (CSV/NPY/EDF/etc.).
+  usage: Connect data to save; set folder/format; enable append to accumulate logs.
+eeg_visualizer_plugin:
+  gotchas:
+  - Heavy rendering can reduce FPS—use decimation.
+  inputs:
+    segment: 2D float [ch x samples] or raw/derived
+    sfreq: float (Hz, if segment)
+  outputs: {}
+  parameters:
+  - default: '50.0'
+    desc: Vertical scale
+    name: scale_uv
+    type: float
+    unit: µV
+  - default: '1.0'
+    desc: Scroll speed
+    name: speed
+    type: float
+  - default: 'False'
+    desc: Fullscreen/Enlarge
+    name: fullscreen
+    type: bool
+  summary: Visualize signals, features or predictions in real-time.
+  usage: Connect upstream data; adjust scale and speed; optional fullscreen for demo.
+evoked_viewer:
+  gotchas:
+  - Heavy rendering can reduce FPS—use decimation.
+  inputs:
+    segment: 2D float [ch x samples] or raw/derived
+    sfreq: float (Hz, if segment)
+  outputs: {}
+  parameters:
+  - default: '50.0'
+    desc: Vertical scale
+    name: scale_uv
+    type: float
+    unit: µV
+  - default: '1.0'
+    desc: Scroll speed
+    name: speed
+    type: float
+  - default: 'False'
+    desc: Fullscreen/Enlarge
+    name: fullscreen
+    type: bool
+  summary: Visualize signals, features or predictions in real-time.
+  usage: Connect upstream data; adjust scale and speed; optional fullscreen for demo.
+gdf_reader_plugin:
+  gotchas:
+  - 'Large files: prefer `segment` for smoother UI.'
+  - Check sampling frequency (`sfreq`) consistency.
+  inputs: {}
+  outputs:
+    ch_names: List[str]
+    events: array or list
+    raw: mne.Raw
+    segment: 2D float [ch x samples]
+    sfreq: float (Hz)
+  parameters:
+  - default: ''
+    desc: EDF/BDF/GDF/FIF/… file
+    name: filepath
+    type: path
+  - default: None
+    desc: Channels to load
+    name: picks
+    type: list|None
+  - default: '1.0'
+    desc: Window length for streaming
+    name: segment_len
+    type: float
+    unit: s
+  summary: Read EEG files/datasets using MNE-Python; emits Raw or segmented arrays.
+  usage: Place at the start of a pipeline. Select an EEG file; connect `raw` to processing
+    or `segment` to streaming nodes.
+lsl_eeg_inlet:
+  gotchas:
+  - Verify the stream with LSL Browser.
+  - Match channel order across devices.
+  inputs: {}
+  outputs:
+    ch_names: List[str]
+    segment: 2D float [ch x samples]
+    sfreq: float (Hz)
+  parameters:
+  - default: EEG
+    desc: LSL stream name
+    name: stream_name
+    type: str
+  - default: '256'
+    desc: Samples per pull
+    name: chunk_size
+    type: int
+  - default: '0.1'
+    desc: Pull timeout
+    name: timeout
+    type: float
+    unit: s
+  summary: Acquire live data via LabStreamingLayer (LSL).
+  usage: Start the LSL stream externally, then connect this inlet to processing nodes.
+lsl_eeg_inlet_fast:
+  gotchas:
+  - Verify the stream with LSL Browser.
+  - Match channel order across devices.
+  inputs: {}
+  outputs:
+    ch_names: List[str]
+    segment: 2D float [ch x samples]
+    sfreq: float (Hz)
+  parameters:
+  - default: EEG
+    desc: LSL stream name
+    name: stream_name
+    type: str
+  - default: '256'
+    desc: Samples per pull
+    name: chunk_size
+    type: int
+  - default: '0.1'
+    desc: Pull timeout
+    name: timeout
+    type: float
+    unit: s
+  summary: Acquire live data via LabStreamingLayer (LSL).
+  usage: Start the LSL stream externally, then connect this inlet to processing nodes.
+lsl_inlet_plugin:
+  gotchas:
+  - Verify the stream with LSL Browser.
+  - Match channel order across devices.
+  inputs: {}
+  outputs:
+    ch_names: List[str]
+    segment: 2D float [ch x samples]
+    sfreq: float (Hz)
+  parameters:
+  - default: EEG
+    desc: LSL stream name
+    name: stream_name
+    type: str
+  - default: '256'
+    desc: Samples per pull
+    name: chunk_size
+    type: int
+  - default: '0.1'
+    desc: Pull timeout
+    name: timeout
+    type: float
+    unit: s
+  summary: Acquire live data via LabStreamingLayer (LSL).
+  usage: Start the LSL stream externally, then connect this inlet to processing nodes.
+lsl_markers_inlet:
+  gotchas:
+  - Verify the stream with LSL Browser.
+  - Match channel order across devices.
+  inputs: {}
+  outputs:
+    ch_names: List[str]
+    segment: 2D float [ch x samples]
+    sfreq: float (Hz)
+  parameters:
+  - default: EEG
+    desc: LSL stream name
+    name: stream_name
+    type: str
+  - default: '256'
+    desc: Samples per pull
+    name: chunk_size
+    type: int
+  - default: '0.1'
+    desc: Pull timeout
+    name: timeout
+    type: float
+    unit: s
+  summary: Acquire live data via LabStreamingLayer (LSL).
+  usage: Start the LSL stream externally, then connect this inlet to processing nodes.
+markers_to_classidx:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mat_to_mne_raw_plugin:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mne_average_plugin:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mne_average_reference_plugin:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mne_bandpass_filter_plugin:
+  gotchas:
+  - Filter order must suit `sfreq` and transition width.
+  - Beware of edge effects on short windows.
+  inputs:
+    raw: mne.Raw (optional)
+    segment: 2D float [ch x samples] (optional)
+    sfreq: float (Hz, if segment)
+  outputs:
+    raw: filtered mne.Raw (if raw input)
+    segment: filtered array (if segment input)
+  parameters:
+  - default: '1.0'
+    desc: High-pass cutoff
+    name: hp
+    type: float|None
+    unit: Hz
+  - default: '40.0'
+    desc: Low-pass cutoff
+    name: lp
+    type: float|None
+    unit: Hz
+  - default: '50.0'
+    desc: Notch (mains)
+    name: notch
+    type: float|None
+    unit: Hz
+  summary: Apply temporal filtering (HP/LP/BP/Notch) to Raw or segment data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mne_bandpower_extractor_plugin:
+  gotchas:
+  - Use Welch windows long enough for low f.
+  - DC offsets can bias low-frequency power.
+  inputs:
+    segment: 2D float [ch x samples] or epochs
+    sfreq: float (Hz)
+  outputs:
+    features: dict/array of band powers
+    psd: array [ch x freq] (if PSD)
+  parameters:
+  - default: '1.0'
+    desc: Lower frequency
+    name: fmin
+    type: float
+    unit: Hz
+  - default: '40.0'
+    desc: Upper frequency
+    name: fmax
+    type: float
+    unit: Hz
+  - default: '[[''delta'',1,4],[''theta'',4,8],[''alpha'',8,13],[''beta'',13,30]]'
+    desc: Named bands
+    name: bands
+    type: list
+  summary: Compute spectral power (PSD, bandpower) from segments/epochs.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mne_baseline_plugin:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mne_dataset_loader_plugin:
+  gotchas:
+  - 'Large files: prefer `segment` for smoother UI.'
+  - Check sampling frequency (`sfreq`) consistency.
+  inputs: {}
+  outputs:
+    ch_names: List[str]
+    events: array or list
+    raw: mne.Raw
+    segment: 2D float [ch x samples]
+    sfreq: float (Hz)
+  parameters:
+  - default: ''
+    desc: EDF/BDF/GDF/FIF/… file
+    name: filepath
+    type: path
+  - default: None
+    desc: Channels to load
+    name: picks
+    type: list|None
+  - default: '1.0'
+    desc: Window length for streaming
+    name: segment_len
+    type: float
+    unit: s
+  summary: Read EEG files/datasets using MNE-Python; emits Raw or segmented arrays.
+  usage: Place at the start of a pipeline. Select an EEG file; connect `raw` to processing
+    or `segment` to streaming nodes.
+mne_epochs_lite:
+  gotchas:
+  - Baseline and reject thresholds affect results.
+  - Event alignment must be verified.
+  inputs:
+    events: array/list [onsets, ids]
+    raw: mne.Raw (for epoching)
+  outputs:
+    epochs: mne.Epochs
+  parameters:
+  - default: '-0.2'
+    desc: Epoch start
+    name: tmin
+    type: float
+    unit: s
+  - default: '0.8'
+    desc: Epoch end
+    name: tmax
+    type: float
+    unit: s
+  - default: auto
+    desc: Event mapping
+    name: event_id
+    type: dict|int
+  summary: Segment continuous data into epochs based on events; or convert epochs
+    to segments.
+  usage: Connect `raw` and `events`; tune time window and event IDs; feed epochs to
+    features/ML.
+mne_epochs_plugin:
+  gotchas:
+  - Baseline and reject thresholds affect results.
+  - Event alignment must be verified.
+  inputs:
+    events: array/list [onsets, ids]
+    raw: mne.Raw (for epoching)
+  outputs:
+    epochs: mne.Epochs
+  parameters:
+  - default: '-0.2'
+    desc: Epoch start
+    name: tmin
+    type: float
+    unit: s
+  - default: '0.8'
+    desc: Epoch end
+    name: tmax
+    type: float
+    unit: s
+  - default: auto
+    desc: Event mapping
+    name: event_id
+    type: dict|int
+  summary: Segment continuous data into epochs based on events; or convert epochs
+    to segments.
+  usage: Connect `raw` and `events`; tune time window and event IDs; feed epochs to
+    features/ML.
+mne_epochs_to_segments:
+  gotchas:
+  - Baseline and reject thresholds affect results.
+  - Event alignment must be verified.
+  inputs:
+    events: array/list [onsets, ids]
+    raw: mne.Raw (for epoching)
+  outputs:
+    epochs: mne.Epochs
+  parameters:
+  - default: '-0.2'
+    desc: Epoch start
+    name: tmin
+    type: float
+    unit: s
+  - default: '0.8'
+    desc: Epoch end
+    name: tmax
+    type: float
+    unit: s
+  - default: auto
+    desc: Event mapping
+    name: event_id
+    type: dict|int
+  summary: Segment continuous data into epochs based on events; or convert epochs
+    to segments.
+  usage: Connect `raw` and `events`; tune time window and event IDs; feed epochs to
+    features/ML.
+mne_ica_plugin:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mne_ica_viewer:
+  gotchas:
+  - Heavy rendering can reduce FPS—use decimation.
+  inputs:
+    segment: 2D float [ch x samples] or raw/derived
+    sfreq: float (Hz, if segment)
+  outputs: {}
+  parameters:
+  - default: '50.0'
+    desc: Vertical scale
+    name: scale_uv
+    type: float
+    unit: µV
+  - default: '1.0'
+    desc: Scroll speed
+    name: speed
+    type: float
+  - default: 'False'
+    desc: Fullscreen/Enlarge
+    name: fullscreen
+    type: bool
+  summary: Visualize signals, features or predictions in real-time.
+  usage: Connect upstream data; adjust scale and speed; optional fullscreen for demo.
+mne_ica_viewer_simple:
+  gotchas:
+  - Heavy rendering can reduce FPS—use decimation.
+  inputs:
+    segment: 2D float [ch x samples] or raw/derived
+    sfreq: float (Hz, if segment)
+  outputs: {}
+  parameters:
+  - default: '50.0'
+    desc: Vertical scale
+    name: scale_uv
+    type: float
+    unit: µV
+  - default: '1.0'
+    desc: Scroll speed
+    name: speed
+    type: float
+  - default: 'False'
+    desc: Fullscreen/Enlarge
+    name: fullscreen
+    type: bool
+  summary: Visualize signals, features or predictions in real-time.
+  usage: Connect upstream data; adjust scale and speed; optional fullscreen for demo.
+mne_notch_filter_plugin:
+  gotchas:
+  - Filter order must suit `sfreq` and transition width.
+  - Beware of edge effects on short windows.
+  inputs:
+    raw: mne.Raw (optional)
+    segment: 2D float [ch x samples] (optional)
+    sfreq: float (Hz, if segment)
+  outputs:
+    raw: filtered mne.Raw (if raw input)
+    segment: filtered array (if segment input)
+  parameters:
+  - default: '1.0'
+    desc: High-pass cutoff
+    name: hp
+    type: float|None
+    unit: Hz
+  - default: '40.0'
+    desc: Low-pass cutoff
+    name: lp
+    type: float|None
+    unit: Hz
+  - default: '50.0'
+    desc: Notch (mains)
+    name: notch
+    type: float|None
+    unit: Hz
+  summary: Apply temporal filtering (HP/LP/BP/Notch) to Raw or segment data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mne_psd_welch_plugin:
+  gotchas:
+  - Use Welch windows long enough for low f.
+  - DC offsets can bias low-frequency power.
+  inputs:
+    segment: 2D float [ch x samples] or epochs
+    sfreq: float (Hz)
+  outputs:
+    features: dict/array of band powers
+    psd: array [ch x freq] (if PSD)
+  parameters:
+  - default: '1.0'
+    desc: Lower frequency
+    name: fmin
+    type: float
+    unit: Hz
+  - default: '40.0'
+    desc: Upper frequency
+    name: fmax
+    type: float
+    unit: Hz
+  - default: '[[''delta'',1,4],[''theta'',4,8],[''alpha'',8,13],[''beta'',13,30]]'
+    desc: Named bands
+    name: bands
+    type: list
+  summary: Compute spectral power (PSD, bandpower) from segments/epochs.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mne_resample_plugin:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mne_sample_loader_plugin:
+  gotchas:
+  - 'Large files: prefer `segment` for smoother UI.'
+  - Check sampling frequency (`sfreq`) consistency.
+  inputs: {}
+  outputs:
+    ch_names: List[str]
+    events: array or list
+    raw: mne.Raw
+    segment: 2D float [ch x samples]
+    sfreq: float (Hz)
+  parameters:
+  - default: ''
+    desc: EDF/BDF/GDF/FIF/… file
+    name: filepath
+    type: path
+  - default: None
+    desc: Channels to load
+    name: picks
+    type: list|None
+  - default: '1.0'
+    desc: Window length for streaming
+    name: segment_len
+    type: float
+    unit: s
+  summary: Read EEG files/datasets using MNE-Python; emits Raw or segmented arrays.
+  usage: Place at the start of a pipeline. Select an EEG file; connect `raw` to processing
+    or `segment` to streaming nodes.
+mne_set_montage_plugin:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mne_ssp_projs_plugin:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mne_tfr_morlet_plugin:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+mne_universal_reader_mneonly:
+  gotchas:
+  - 'Large files: prefer `segment` for smoother UI.'
+  - Check sampling frequency (`sfreq`) consistency.
+  inputs: {}
+  outputs:
+    ch_names: List[str]
+    events: array or list
+    raw: mne.Raw
+    segment: 2D float [ch x samples]
+    sfreq: float (Hz)
+  parameters:
+  - default: ''
+    desc: EDF/BDF/GDF/FIF/… file
+    name: filepath
+    type: path
+  - default: None
+    desc: Channels to load
+    name: picks
+    type: list|None
+  - default: '1.0'
+    desc: Window length for streaming
+    name: segment_len
+    type: float
+    unit: s
+  summary: Read EEG files/datasets using MNE-Python; emits Raw or segmented arrays.
+  usage: Place at the start of a pipeline. Select an EEG file; connect `raw` to processing
+    or `segment` to streaming nodes.
+mne_viewer2d_plugin:
+  gotchas:
+  - Heavy rendering can reduce FPS—use decimation.
+  inputs:
+    segment: 2D float [ch x samples] or raw/derived
+    sfreq: float (Hz, if segment)
+  outputs: {}
+  parameters:
+  - default: '50.0'
+    desc: Vertical scale
+    name: scale_uv
+    type: float
+    unit: µV
+  - default: '1.0'
+    desc: Scroll speed
+    name: speed
+    type: float
+  - default: 'False'
+    desc: Fullscreen/Enlarge
+    name: fullscreen
+    type: bool
+  summary: Visualize signals, features or predictions in real-time.
+  usage: Connect upstream data; adjust scale and speed; optional fullscreen for demo.
+online_metrics_node:
+  gotchas: []
+  inputs:
+    events: timing and counters
+    pred: optional for accuracy
+  outputs:
+    metrics: dict of metrics
+  parameters:
+  - default: '50'
+    desc: Sliding window size
+    name: window
+    type: int
+  summary: Compute or display online metrics (FPS, latency, CPU/RSS, accuracy).
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+psd_band_features_lite:
+  gotchas:
+  - Use Welch windows long enough for low f.
+  - DC offsets can bias low-frequency power.
+  inputs:
+    segment: 2D float [ch x samples] or epochs
+    sfreq: float (Hz)
+  outputs:
+    features: dict/array of band powers
+    psd: array [ch x freq] (if PSD)
+  parameters:
+  - default: '1.0'
+    desc: Lower frequency
+    name: fmin
+    type: float
+    unit: Hz
+  - default: '40.0'
+    desc: Upper frequency
+    name: fmax
+    type: float
+    unit: Hz
+  - default: '[[''delta'',1,4],[''theta'',4,8],[''alpha'',8,13],[''beta'',13,30]]'
+    desc: Named bands
+    name: bands
+    type: list
+  summary: Compute spectral power (PSD, bandpower) from segments/epochs.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+psd_topo_viewer:
+  gotchas:
+  - Heavy rendering can reduce FPS—use decimation.
+  inputs:
+    segment: 2D float [ch x samples] or raw/derived
+    sfreq: float (Hz, if segment)
+  outputs: {}
+  parameters:
+  - default: '50.0'
+    desc: Vertical scale
+    name: scale_uv
+    type: float
+    unit: µV
+  - default: '1.0'
+    desc: Scroll speed
+    name: speed
+    type: float
+  - default: 'False'
+    desc: Fullscreen/Enlarge
+    name: fullscreen
+    type: bool
+  summary: Visualize signals, features or predictions in real-time.
+  usage: Connect upstream data; adjust scale and speed; optional fullscreen for demo.
+psd_visualizer:
+  gotchas:
+  - Heavy rendering can reduce FPS—use decimation.
+  inputs:
+    segment: 2D float [ch x samples] or raw/derived
+    sfreq: float (Hz, if segment)
+  outputs: {}
+  parameters:
+  - default: '50.0'
+    desc: Vertical scale
+    name: scale_uv
+    type: float
+    unit: µV
+  - default: '1.0'
+    desc: Scroll speed
+    name: speed
+    type: float
+  - default: 'False'
+    desc: Fullscreen/Enlarge
+    name: fullscreen
+    type: bool
+  summary: Visualize signals, features or predictions in real-time.
+  usage: Connect upstream data; adjust scale and speed; optional fullscreen for demo.
+raw_window_slicer_plugin:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: Processing step that transforms EEG data.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+riemann_cov_plugin:
+  gotchas:
+  - Balance classes and use CV.
+  - Persist model versions for reproducibility.
+  inputs:
+    features: array|dict
+    labels: array (for training)
+  outputs:
+    model: trained model (for trainers)
+    pred: predicted labels/probas (for runtime/apply)
+  parameters:
+  - default: LR
+    desc: Classifier type (LR/SVM/etc.)
+    name: model
+    type: str
+  - default: '5'
+    desc: Cross-Validation folds
+    name: cv
+    type: int
+  - default: standard
+    desc: Feature scaling
+    name: scaler
+    type: str
+  summary: Train/apply machine-learning models for BCI classification.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+riemann_ts_apply_plugin:
+  gotchas:
+  - Balance classes and use CV.
+  - Persist model versions for reproducibility.
+  inputs:
+    features: array|dict
+    labels: array (for training)
+  outputs:
+    model: trained model (for trainers)
+    pred: predicted labels/probas (for runtime/apply)
+  parameters:
+  - default: LR
+    desc: Classifier type (LR/SVM/etc.)
+    name: model
+    type: str
+  - default: '5'
+    desc: Cross-Validation folds
+    name: cv
+    type: int
+  - default: standard
+    desc: Feature scaling
+    name: scaler
+    type: str
+  summary: Train/apply machine-learning models for BCI classification.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+riemann_ts_trainer_plugin:
+  gotchas:
+  - Balance classes and use CV.
+  - Persist model versions for reproducibility.
+  inputs:
+    features: array|dict
+    labels: array (for training)
+  outputs:
+    model: trained model (for trainers)
+    pred: predicted labels/probas (for runtime/apply)
+  parameters:
+  - default: LR
+    desc: Classifier type (LR/SVM/etc.)
+    name: model
+    type: str
+  - default: '5'
+    desc: Cross-Validation folds
+    name: cv
+    type: int
+  - default: standard
+    desc: Feature scaling
+    name: scaler
+    type: str
+  summary: Train/apply machine-learning models for BCI classification.
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+synthetic_lr_plugin:
+  gotchas: []
+  inputs: {}
+  outputs: {}
+  parameters: []
+  summary: 'Source node: provides EEG data or metadata for downstream processing.'
+  usage: Connect an upstream source, set parameters if any, then route outputs to
+    the next node.
+tfr_viewer:
+  gotchas:
+  - Heavy rendering can reduce FPS—use decimation.
+  inputs:
+    segment: 2D float [ch x samples] or raw/derived
+    sfreq: float (Hz, if segment)
+  outputs: {}
+  parameters:
+  - default: '50.0'
+    desc: Vertical scale
+    name: scale_uv
+    type: float
+    unit: µV
+  - default: '1.0'
+    desc: Scroll speed
+    name: speed
+    type: float
+  - default: 'False'
+    desc: Fullscreen/Enlarge
+    name: fullscreen
+    type: bool
+  summary: Visualize signals, features or predictions in real-time.
+  usage: Connect upstream data; adjust scale and speed; optional fullscreen for demo.

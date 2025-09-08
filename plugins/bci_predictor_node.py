@@ -32,6 +32,16 @@ def _features_to_vec(features: dict, band_labels: list):
 
 
 class BCI_Predictor(BasePlugin):
+    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
+  'inputs': {'features': 'array/dict', 'model': 'trained model'},
+  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
+  'parameters': [ { 'default': 0.5,
+                    'desc': 'Decision threshold (if applicable)',
+                    'name': 'threshold',
+                    'type': 'float'}],
+  'summary': 'Prédicteur en ligne pour BCI.',
+  'usage': 'Connect features and a compatible model.'}
+
     """
     Prédicteur en ligne pour BCI.
     Entrées data:

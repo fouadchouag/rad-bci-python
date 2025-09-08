@@ -1,0 +1,10 @@
+@startuml
+start
+:Open Low-Code Creator;
+:Define meta (name I/O lang);
+:Generate skeleton;
+:Edit source (IDE);
+:Load/Validate;
+:Add to palette (Registry);
+stop
+@enduml

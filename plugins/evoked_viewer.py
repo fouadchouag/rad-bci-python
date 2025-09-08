@@ -29,6 +29,8 @@ except Exception:
 
 
 class _BigDialog(QDialog):
+   
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Evoked – Agrandi")
@@ -40,9 +42,29 @@ class _BigDialog(QDialog):
 
 
 class EvokedViewer(BasePlugin):
+    
+    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
+  'outputs': {},
+  'parameters': [ { 'default': 50.0,
+                    'desc': 'Vertical scale',
+                    'name': 'scale_uv',
+                    'type': 'float',
+                    'unit': 'µV'},
+                  { 'default': 1.0,
+                    'desc': 'Scroll speed',
+                    'name': 'speed',
+                    'type': 'float'},
+                  { 'default': False,
+                    'desc': 'Show full screen',
+                    'name': 'fullscreen',
+                    'type': 'bool'}],
+  'summary': 'EvokedViewer (single-channel capable)',
+  'usage': 'Connect upstream data; adjust view parameters.'}
+     
     name = "EvokedViewer"
     language = "Python"
-    category = "Visualization"
+    category = "Output Nodes"
     supports_collapse = True
     start_hidden = True
 

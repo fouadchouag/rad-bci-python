@@ -1,0 +1,35 @@
+@startuml
+' Polyglot JSON I/O & isolation (Section 4.4)
+skinparam defaultFontName Helvetica
+title Polyglot node wrapper — JSON I/O and fault isolation
+
+actor "Reactive Engine" as RX
+participant "Wrapper (Host)" as WR
+participant "input.json" as IN <<file>>
+participant "External Process\n(C/C++/Rust/Node.js)" as EXT
+participant "output.json" as OUT <<file>>
+participant "UI Log" as LOG
+participant "Timeout" as T
+
+RX -> WR : execute(node, payload)
+WR -> IN : write input.json
+WR -> EXT ++ : spawn(cmd, args)\nworking dir = temp_io/
+T -> WR : start(timeout_ms)
+EXT -> IN : read input.json
+EXT -> OUT : write output.json
+EXT -> WR -- : exit(code=0)
+T -> WR : cancel()
+WR -> OUT : read output.json
+WR -> RX : publish(result)
+
+== Error path (timeout) ==
+RX -> WR : execute(node, payload)
+WR -> IN : write input.json
+WR -> EXT ++ : spawn(...)
+T -> WR : start(timeout_ms)
+... processing stalls ...
+T -> WR : timeout!
+WR -> EXT -- : kill/process.terminate()
+WR -> LOG : error("timeout", stderr tail, exit-code)
+WR -> RX : onError(node, "timeout")
+@enduml

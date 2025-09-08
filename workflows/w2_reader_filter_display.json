@@ -2,11 +2,11 @@
   "version": 2,
   "nodes": [
     {
-      "name": "EEGLiveDisplay_a0966b",
+      "name": "EEGLiveDisplay_1515b2",
       "type": "EEGLiveDisplay",
       "position": [
-        943.0,
-        82.0
+        662.0,
+        50.0
       ],
       "config": {
         "loop": true,
@@ -14,17 +14,17 @@
         "step_s": 0.25,
         "seg_len_auto": true,
         "seg_len_manual": null,
-        "force_nch": 32,
+        "force_nch": 64,
         "max_points": 3000,
         "max_fps": 20
       }
     },
     {
-      "name": "EEGUniversalReader_9d3958",
+      "name": "EEGUniversalReader_29227c",
       "type": "EEGUniversalReader",
       "position": [
-        59.0,
-        69.0
+        6.0,
+        1.0
       ],
       "config": {
         "units": "V",
@@ -44,15 +44,15 @@
         "preview_s": 0.0,
         "stream_decim": 1,
         "bigfile_threshold_mb": 128.0,
-        "path": "D:\\rad-bci-python_test\\eeg_recording\\testfile2.edf"
+        "path": "D:\\rad-bci-python_test\\eeg_recording\\BCI2005_I.gdf"
       }
     },
     {
-      "name": "EEGRawFilterPlugin_522b7f",
+      "name": "EEGRawFilterPlugin_42ecb0",
       "type": "EEGRawFilterPlugin",
       "position": [
-        386.0,
-        73.0
+        322.0,
+        28.0
       ],
       "config": {
         "enable_hp": true,
@@ -74,34 +74,34 @@
   ],
   "connections": [
     {
-      "from": "EEGRawFilterPlugin_522b7f",
-      "from_pin": "ch_names",
-      "to": "EEGLiveDisplay_a0966b",
-      "to_pin": "ch_names"
+      "from": "EEGUniversalReader_29227c",
+      "from_pin": "raw",
+      "to": "EEGRawFilterPlugin_42ecb0",
+      "to_pin": "raw"
     },
     {
-      "from": "EEGRawFilterPlugin_522b7f",
-      "from_pin": "sfreq",
-      "to": "EEGLiveDisplay_a0966b",
-      "to_pin": "sfreq"
+      "from": "EEGRawFilterPlugin_42ecb0",
+      "from_pin": "raw",
+      "to": "EEGLiveDisplay_1515b2",
+      "to_pin": "raw"
     },
     {
-      "from": "EEGRawFilterPlugin_522b7f",
+      "from": "EEGRawFilterPlugin_42ecb0",
       "from_pin": "info",
-      "to": "EEGLiveDisplay_a0966b",
+      "to": "EEGLiveDisplay_1515b2",
       "to_pin": "info"
     },
     {
-      "from": "EEGRawFilterPlugin_522b7f",
-      "from_pin": "raw",
-      "to": "EEGLiveDisplay_a0966b",
-      "to_pin": "raw"
+      "from": "EEGRawFilterPlugin_42ecb0",
+      "from_pin": "sfreq",
+      "to": "EEGLiveDisplay_1515b2",
+      "to_pin": "sfreq"
     },
     {
-      "from": "EEGUniversalReader_9d3958",
-      "from_pin": "raw",
-      "to": "EEGRawFilterPlugin_522b7f",
-      "to_pin": "raw"
+      "from": "EEGRawFilterPlugin_42ecb0",
+      "from_pin": "ch_names",
+      "to": "EEGLiveDisplay_1515b2",
+      "to_pin": "ch_names"
     }
   ]
 }

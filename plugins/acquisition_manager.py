@@ -56,6 +56,8 @@ def _hann_edge(N: int, edge_ratio: float = 0.12) -> np.ndarray:
 
 # ---------- Bridge Qt (thread -> GUI) ----------
 class _QtBridge(QObject):
+   
+
     sig_info = pyqtSignal(dict)           # info/meta/statut
     sig_seg  = pyqtSignal(object, int)    # ndarray, run_id
 
@@ -99,8 +101,16 @@ class _LSLPicker(QDialog):
 
 # ===================== Plugin =========================
 class AcquisitionManager(BasePlugin):
+    help = help = { 'gotchas': [],
+                   'inputs': {},
+                   'outputs': {'segment': '2D float [ch x samples]'},
+                   'parameters': [],
+                   'summary': 'AcquisitionManager (léger) — LSL | Emulator | Native (disabled)',
+                   'usage': 'Connect to processing nodes.'}
+     
     name = "AcquisitionManager"
     category = "Input Nodes"
+    language = "Python"
     start_hidden = True
     supports_collapse = True
 

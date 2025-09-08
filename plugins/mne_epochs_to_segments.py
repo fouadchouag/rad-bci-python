@@ -20,6 +20,22 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QFormLayout, QDoubleSpinBox, Q
 
 
 class MNEEpochsToSegments(BasePlugin):
+    help = help = { 'gotchas': ['Check event alignment and baseline.'],
+  'inputs': {'events': 'array/list (optional)', 'raw': 'mne.Raw'},
+  'outputs': {'epochs': 'mne.Epochs (if events)', 'segment': '2D float [ch x samples]'},
+  'parameters': [ { 'default': -0.2,
+                    'desc': 'Epoch start',
+                    'name': 'tmin',
+                    'type': 'float',
+                    'unit': 's'},
+                  { 'default': 0.8,
+                    'desc': 'Epoch end',
+                    'name': 'tmax',
+                    'type': 'float',
+                    'unit': 's'}],
+  'summary': 'MNEEpochsToSegments',
+  'usage': 'Connect Raw; optionally provide events; route to features/ML.'}
+
     name = "MNEEpochsToSegments"
     language = "Python"
     category = "Segmentation"

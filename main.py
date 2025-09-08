@@ -14,6 +14,7 @@ def main():
     window = MainWindow()
     window.show()
     window.setWindowTitle(f"RBciAD {__version__} – Reactive BCI Builder")
+    window.showMaximized()
 
     # 3) Installer les hotkeys F9/F10 pour les métriques (aucun fichier créé tant qu'on n'appuie pas)
     try:

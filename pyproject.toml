@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rbciad"
+version = "0.1.0"
+description = "RBciAD — Reactive BCI Builder"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "RBciAD Team" }]
+
+# --- Dépendances de base (runtime minimal pour 95% des utilisateurs) ---
+dependencies = [
+  "PyQt5>=5.15",
+  "numpy",
+  "scipy",
+  "matplotlib",
+  "pyqtgraph",
+  "rx>=3",
+  "mne",
+  "pyyaml",
+  "psutil"
+]
+
+# --- Commande terminal ---
+[project.scripts]
+rbciad = "rbciad_app.__main__:main"  # lanceur fourni dans rbciad_app/
+
+[tool.setuptools]
+packages = { find = { where = ["."] } }
+include-package-data = true
+
+# --- Embarquer l’aide offline (docs MkDocs copiées dans rbciad_app/docs_site/) ---
+[tool.setuptools.package-data]
+rbciad_app = ["docs_site/**/*"]
+
+# --- Extras installables à la demande ---
+[project.optional-dependencies]
+webhelp = ["PyQtWebEngine"]              # Fenêtre d'aide intégrée (sinon navigateur)
+lsl = ["pylsl", "mne-lsl"]               # Acquisition LabStreamingLayer
+brainflow = ["brainflow"]                # SDK BrainFlow
+ml = ["pandas", "scikit-learn", "h5py"]  # Data / ML / HDF5
+viz3d = ["pyvista", "pyvistaqt", "vtk"]  # 3D (lourd)
+dev = ["mkdocs-material", "mkdocstrings[python]", "pytest", "build"]
+
+# Un "full" pratique qui combine tout (optionnel)
+full = ["rbciad[webhelp,lsl,brainflow,ml,viz3d]"]

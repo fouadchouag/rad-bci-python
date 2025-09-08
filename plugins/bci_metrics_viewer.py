@@ -66,6 +66,26 @@ def _to_int(x, default=0):
 
 
 class BCI_MetricsViewer(BasePlugin):
+    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
+  'outputs': {},
+  'parameters': [ { 'default': 50.0,
+                    'desc': 'Vertical scale',
+                    'name': 'scale_uv',
+                    'type': 'float',
+                    'unit': 'µV'},
+                  { 'default': 1.0,
+                    'desc': 'Scroll speed',
+                    'name': 'speed',
+                    'type': 'float'},
+                  { 'default': False,
+                    'desc': 'Show full screen',
+                    'name': 'fullscreen',
+                    'type': 'bool'}],
+  'summary': "Affiche les métriques d'un modèle entraîné (venant de "
+             'BCI_Trainer.report).',
+  'usage': 'Connect upstream data; adjust view parameters.'}
+
     """
     Affiche les métriques d'un modèle entraîné (venant de BCI_Trainer.report).
 

@@ -30,6 +30,16 @@ def _features_to_vec(features: dict, band_labels: list):
 
 
 class BCICollector(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'in': 'various'},
+  'outputs': {'out': 'various'},
+  'parameters': [ { 'default': 'default',
+                    'desc': 'Routing/aggregation mode',
+                    'name': 'mode',
+                    'type': 'str'}],
+  'summary': 'Utility/orchestration node for routing, collection or metrics.',
+  'usage': 'Drop in where coordination is needed.'}
+
     name = "BCICollector"
     language = "Python"
     category = "BCI/Utils"

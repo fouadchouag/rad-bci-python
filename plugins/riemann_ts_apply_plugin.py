@@ -14,6 +14,16 @@ from rx.subject import BehaviorSubject
 from core.node_base import BasePlugin
 
 class RiemannTSApplyPlugin(BasePlugin):
+    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
+  'inputs': {'features': 'array/dict', 'model': 'trained model'},
+  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
+  'parameters': [ { 'default': 0.5,
+                    'desc': 'Decision threshold (if applicable)',
+                    'name': 'threshold',
+                    'type': 'float'}],
+  'summary': 'RiemannTSApply — applique la Tangent Space pour obtenir des features 1D.',
+  'usage': 'Connect features and a compatible model.'}
+
     name = "RiemannTSApply"
     language = "Python"
     category = "ML / Riemann"

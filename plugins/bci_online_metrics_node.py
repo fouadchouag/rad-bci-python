@@ -13,6 +13,16 @@ from core.collapsible import CollapsibleSection
 
 
 class BCI_OnlineMetrics(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'in': 'various'},
+  'outputs': {'out': 'various'},
+  'parameters': [ { 'default': 'default',
+                    'desc': 'Routing/aggregation mode',
+                    'name': 'mode',
+                    'type': 'str'}],
+  'summary': 'Métriques en ligne (rolling):',
+  'usage': 'Drop in where coordination is needed.'}
+
     """
     Métriques en ligne (rolling):
       - accuracy sur la dernière fenêtre W

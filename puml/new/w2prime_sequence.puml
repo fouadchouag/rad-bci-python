@@ -1,0 +1,19 @@
+@startuml
+actor User
+participant "Node Editor" as UI
+participant "Reactive Engine" as RX
+participant "EEGUniversalReader" as R
+participant "Polyglot Wrapper" as PW
+participant "External Filter\n(Rust/C++)" as EXE
+participant "LiveDisplay" as V
+
+User -> UI : Param change
+UI -> RX : onChange
+RX -> R : segments
+R -> RX : emit(segments)
+RX -> PW : to input.json
+PW -> EXE : spawn/stdin
+EXE -> PW : stdout/output.json
+PW -> RX : emit(segments_filtered)
+RX -> V : redraw
+@enduml

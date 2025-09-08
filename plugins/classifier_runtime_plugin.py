@@ -5,6 +5,16 @@ from rx.subject import BehaviorSubject
 from core.node_base import BasePlugin
 
 class ClassifierRuntimePlugin(BasePlugin):
+    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
+  'inputs': {'features': 'array/dict', 'model': 'trained model'},
+  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
+  'parameters': [ { 'default': 0.5,
+                    'desc': 'Decision threshold (if applicable)',
+                    'name': 'threshold',
+                    'type': 'float'}],
+  'summary': 'Apply a trained model or compute predictions/probabilities.',
+  'usage': 'Connect features and a compatible model.'}
+
     name = "ClassifierRuntime"
     language = "Python"
     category = "ML / Classifier"

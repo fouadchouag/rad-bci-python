@@ -29,6 +29,25 @@ except Exception:
 
 
 class _BigDlg(QDialog):
+    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
+  'outputs': {},
+  'parameters': [ { 'default': 50.0,
+                    'desc': 'Vertical scale',
+                    'name': 'scale_uv',
+                    'type': 'float',
+                    'unit': 'µV'},
+                  { 'default': 1.0,
+                    'desc': 'Scroll speed',
+                    'name': 'speed',
+                    'type': 'float'},
+                  { 'default': False,
+                    'desc': 'Show full screen',
+                    'name': 'fullscreen',
+                    'type': 'bool'}],
+  'summary': 'MNEICAViewer (simple & robuste)',
+  'usage': 'Connect upstream data; adjust view parameters.'}
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("ICA – Agrandi")

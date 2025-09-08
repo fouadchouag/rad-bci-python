@@ -96,6 +96,17 @@ def _bandpower_vec(segment, ch_names, sfreq, preset="MI", relative=True, nperseg
 
 
 class EEGClassifier2(BasePlugin):
+    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
+  'inputs': {'features': 'array/dict', 'model': 'trained model'},
+  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
+  'parameters': [ { 'default': 0.5,
+                    'desc': 'Decision threshold (if applicable)',
+                    'name': 'threshold',
+                    'type': 'float'}],
+  'summary': 'BCI trainer compact : collecte multi-classe, CV, entraînement et '
+             'prédiction.',
+  'usage': 'Connect features and a compatible model.'}
+
     """
     BCI trainer compact : collecte multi-classe, CV, entraînement et prédiction.
 

@@ -1,0 +1,78 @@
+@startuml
+' RBciAD — Unified Appendix Diagram (Word-optimized)
+' Bigger fonts + shorter labels for readability when pasted into Word.
+
+' --- Global style ---
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 16
+skinparam packageStyle rectangle
+skinparam ArrowThickness 2
+skinparam ArrowColor #444444
+
+' You can also change overall size:
+scale 1.6
+
+' --- Colors ---
+skinparam rectangle {
+  RoundCorner 12
+  BorderColor #333333
+  BackgroundColor #f8f9fa
+}
+
+title RBciAD — System Overview (windowing & latency)
+
+package "Host Process (Python / PyQt)" #e8f0fe {
+  rectangle "UI (PyQt)\nNode Graph • LiveDisplay • Low-code" as UI
+  rectangle "Reactive Engine (RxPy)\nNodeGraph • Edges • Cache" as RX #eaf7ea
+  rectangle "Plugin Manager\nDiscovery • Registration • Palette" as PM
+  rectangle "Acquisition Manager\nSources • Ring Buffer • Events" as ACQ
+  rectangle "Python Nodes (in-process)\nEEGReader • Filter • Features • Viz" as NPY
+  rectangle "External Wrapper\nJSON I/O • Timeout • Exit code" as WRAP #fff3cd
+  rectangle "Metrics Logger\nCSV events" as LOG
+}
+
+package "External Process (per node)" #fff3cd {
+  rectangle "External Node\n(C/C++/Rust/Node.js)" as NEXT
+}
+
+package "Sources" {
+  rectangle "EDF/BDF (MNE)" as EDF
+  rectangle "LSL (pylsl)" as LSL
+}
+
+EDF -down-> ACQ
+LSL -down-> ACQ
+ACQ -right-> RX : chunks (n_s×n_ch, sr_hz,\nch_names, ts_src)\nWindowReady(win_s, hop_s)
+RX -down-> NPY
+RX -down-> WRAP
+WRAP -down-> NEXT : spawn + JSON
+RX -right-> UI : frames (windowed)
+UI -right-> LOG : renderer counters
+ACQ -down-> LOG : SAMPLES_IN
+RX -right-> LOG : PARAM_CHANGE, FRAME
+UI -left-> PM : palette refresh
+PM -down-> NPY : register()
+PM -down-> WRAP : register()
+
+' --- Windowing / Ring buffer (short note) ---
+note right of ACQ
+  Windowing & Ring Buffer
+  L = ceil(win_s × sr_hz) samples/ch
+  hop_s = win_s × (1 − overlap)
+end note
+
+' --- Versioned propagation & latency (short note) ---
+note bottom of RX
+  Versioned propagation
+  Edit k at t_k^pc with u_k
+  First frame j with t_j^fr > t_k^pc and v_j ≥ u_k
+  Δt_k = t_j^fr − t_k^pc ;  TTFP = t^first − t^start
+end note
+
+legend right
+  Solid arrows: data/control flow
+  Dashed boundary: external process
+  Logger: TTFP, P50/P95, FPS, Throughput, Dropped %, CPU/RSS
+end legend
+@enduml

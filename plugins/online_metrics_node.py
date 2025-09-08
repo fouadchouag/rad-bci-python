@@ -37,6 +37,16 @@ def _cohen_kappa(conf):
 
 
 class OnlineMetrics(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'in': 'various'},
+  'outputs': {'out': 'various'},
+  'parameters': [ { 'default': 'default',
+                    'desc': 'Routing/aggregation mode',
+                    'name': 'mode',
+                    'type': 'str'}],
+  'summary': 'Compare en ligne pred_idx vs y_idx et calcule:',
+  'usage': 'Drop in where coordination is needed.'}
+
     """
     Compare en ligne pred_idx vs y_idx et calcule:
       - accuracy roulante (fenêtre N)

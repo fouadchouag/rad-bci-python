@@ -60,6 +60,16 @@ def _value_to_str(x):
 
 
 class BCI_ConfigNode(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'in': 'various'},
+  'outputs': {'out': 'various'},
+  'parameters': [ { 'default': 'default',
+                    'desc': 'Routing/aggregation mode',
+                    'name': 'mode',
+                    'type': 'str'}],
+  'summary': 'Config manager « no-code » :',
+  'usage': 'Drop in where coordination is needed.'}
+
     """
     Config manager « no-code » :
       • Scan des nœuds (export_config / config_out)

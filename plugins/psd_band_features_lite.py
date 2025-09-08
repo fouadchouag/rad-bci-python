@@ -28,6 +28,24 @@ from core.collapsible import CollapsibleSection
 
 
 class PSDBandFeaturesLite(BasePlugin):
+    help = help = { 'gotchas': ['Use adequate window length for low frequencies.'],
+  'inputs': {'segment': '2D float [ch x samples] or epochs', 'sfreq': 'float (Hz)'},
+  'outputs': { 'features': 'array/dict',
+               'freqs': 'optional freqs',
+               'psd': 'optional PSD'},
+  'parameters': [ { 'default': 1.0,
+                    'desc': 'Lower frequency',
+                    'name': 'fmin',
+                    'type': 'float',
+                    'unit': 'Hz'},
+                  { 'default': 40.0,
+                    'desc': 'Upper frequency',
+                    'name': 'fmax',
+                    'type': 'float',
+                    'unit': 'Hz'}],
+  'summary': 'PSDBandFeaturesLite',
+  'usage': 'Connect windowed or epoched data; feed features to ML nodes.'}
+
     name = "PSDBandFeaturesLite"
     language = "Python"
     category = "Features"

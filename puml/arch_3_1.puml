@@ -1,0 +1,39 @@
+@startuml
+' Architecture & data flow
+skinparam defaultFontName Helvetica
+skinparam rectangle {
+  BackgroundColor #f5f5f5
+  BorderColor #333333
+  RoundCorner 12
+}
+
+title RBciAD Architecture & Data Flow
+
+rectangle "Sources" as S #white {
+  rectangle "EDF/BDF Reader (MNE)" as EDF
+  rectangle "LSL Reader" as LSL
+}
+
+rectangle "Acquisition Manager\nRing Buffer + Event Bus" as ACQ #e8f0fe
+rectangle "Reactive Graph (RxPy)\nNodes & Streams" as RX #eaf7ea
+
+rectangle "Python Nodes\n(in-process)" as PY
+rectangle "External Nodes\n(C/C++/Rust/Node.js)\nJSON I/O via subprocess" as EXT #fff3cd
+
+rectangle "LiveDisplay\n(Qt/Matplotlib)" as LIVE
+rectangle "Logger / Metrics\n(CSV events)" as LOG
+rectangle "Storage / Exports" as ST
+
+EDF -down-> ACQ
+LSL -down-> ACQ
+ACQ -right-> RX : chunks (n_s×n_ch, sr_hz,\nch_names, ts_src)
+RX -down-> PY
+RX -down-> EXT
+PY -up-> RX
+EXT -up-> RX : JSON {input.json → output.json}
+RX -right-> LIVE : frames (windowed)
+ACQ -right-> LOG : SAMPLES_IN, CPU, RSS,\nFRAME, PARAM_CHANGE
+LIVE -down-> LOG : renderer counters
+RX .. ST
+
+@enduml

@@ -42,6 +42,25 @@ from core.collapsible import CollapsibleSection
 
 
 class PSDVisualizer(BasePlugin):
+    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
+  'outputs': {},
+  'parameters': [ { 'default': 50.0,
+                    'desc': 'Vertical scale',
+                    'name': 'scale_uv',
+                    'type': 'float',
+                    'unit': 'µV'},
+                  { 'default': 1.0,
+                    'desc': 'Scroll speed',
+                    'name': 'speed',
+                    'type': 'float'},
+                  { 'default': False,
+                    'desc': 'Show full screen',
+                    'name': 'fullscreen',
+                    'type': 'bool'}],
+  'summary': 'PSDVisualizer',
+  'usage': 'Connect upstream data; adjust view parameters.'}
+
     name = "PSDVisualizer"
     language = "Python"
     category = "Output Nodes"

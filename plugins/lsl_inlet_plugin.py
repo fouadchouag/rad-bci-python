@@ -60,6 +60,28 @@ class _QtBridge(QObject):
 
 # ===================== Plugin =========================
 class LSLInletPlugin(BasePlugin):
+    help = help = { 'gotchas': [ 'Verify channels and sampling rate.',
+               'Network hiccups may cause gaps—use buffering.'],
+  'inputs': {},
+  'outputs': { 'ch_names': 'List[str]',
+               'segment': '2D float [ch x samples]',
+               'sfreq': 'float (Hz)'},
+  'parameters': [ { 'default': 'EEG',
+                    'desc': 'LSL stream name to subscribe to',
+                    'name': 'stream_name',
+                    'type': 'str'},
+                  { 'default': 256,
+                    'desc': 'Samples per pull',
+                    'name': 'chunk_size',
+                    'type': 'int'},
+                  { 'default': 0.1,
+                    'desc': 'Pull timeout',
+                    'name': 'timeout',
+                    'type': 'float',
+                    'unit': 's'}],
+  'summary': 'LSL Inlet — compatible LiveDisplay / SliceFilter',
+  'usage': 'Start external LSL stream; connect this inlet to processing pipeline.'}
+
     name = "LSL Inlet"
     category = "Input Nodes"
     start_hidden = True

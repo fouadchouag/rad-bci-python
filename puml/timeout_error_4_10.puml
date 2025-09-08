@@ -1,0 +1,18 @@
+@startuml
+' Fault isolation and timeouts (Section 4.10)
+skinparam defaultFontName Helvetica
+title External node timeout — error surfacing without freezing GUI
+
+participant "Host GUI" as GUI
+participant "Wrapper" as WR
+participant "External Process" as EXT
+participant "UI Log" as LOG
+
+GUI -> WR : run(node, payload, timeout=2000ms)
+WR -> EXT ++ : spawn()
+... external work ...
+== Timeout fires ==
+WR -> EXT -- : terminate()
+WR -> LOG : ERROR node.timeout (stderr tail)
+WR -> GUI : onError(node, "timeout")\nGUI remains responsive
+@enduml

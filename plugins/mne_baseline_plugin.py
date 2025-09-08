@@ -30,6 +30,13 @@ import mne
 
 
 class MNEBaselinePlugin(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'MNEBaselinePlugin',
+  'usage': 'Wire upstream data and route downstream.'}
+
     name = "MNEBaseline"
     language = "Python"
     category = "Segmentation / Baseline"

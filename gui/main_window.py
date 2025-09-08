@@ -4,9 +4,10 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QGraphicsView, QGraphicsScene, QLabel, QScrollArea, QFrame,
     QGraphicsPathItem, QFileDialog, QAction,
-    QDialog, QListWidget, QDialogButtonBox
+    QDialog, QListWidget, QDialogButtonBox, QSplitter
 )
 from PyQt5.QtCore import Qt, QPointF
+from PyQt5.QtGui import QColor
 import sip
 
 import json
@@ -18,17 +19,17 @@ import numpy as np
 import os
 import logging
 from core.plugin_registry import discover_plugins
-from .node_item import NodeItem
+from .node_item import NodeItem, LANG_BADGE, BADGE_SCALE
 from gui.lowcode_creator import LowCodeCreator
 from .connection_item import ConnectionItem
 
-# ✅ perf: initialiser tôt la limite de threads BLAS pour éviter l'over-subscription
+# ✅ perf
 try:
     from core.rt_perf import init_fast_defaults
 except Exception:
-    def init_fast_defaults(*_a, **_k): pass  # fallback no-op
+    def init_fast_defaults(*_a, **_k): pass
 
-# Templates : import relatif (prioritaire) puis absolu en fallback
+# Templates
 try:
     from .workflow_templates import TEMPLATES, instantiate_template
 except Exception:
@@ -78,6 +79,7 @@ class MainWindow(QMainWindow):
         self.scene = QGraphicsScene()
         self.scene.setSceneRect(0, 0, 3000, 3000)
         self.view = QGraphicsView(self.scene)
+        self.view.centerOn(0, 0)
 
         # Z-order
         self._z_counter = 0
@@ -114,8 +116,7 @@ class MainWindow(QMainWindow):
         for cls in self.all_plugins:
             self.logger.info(f"   - {cls.__name__}")
 
-        # 🔥 IMPORTANT: plus de démarrage auto des métriques ici.
-        # On installe seulement les hotkeys F9/F10 (ne créent aucun fichier tant qu'on n'appuie pas).
+        # Hotkeys métriques
         try:
             from core.metrics_hotkeys import install_global_metrics_hotkeys
             install_global_metrics_hotkeys(app_name="RBciAD", out_dir="runs")
@@ -145,8 +146,6 @@ class MainWindow(QMainWindow):
         if self.log_dock is not None:
             btn_logs.toggled.connect(lambda vis: self.log_dock.setVisible(vis))
 
-        # (❌ supprimé) Boutons TTFP/Bench/Metrics
-
         for btn in [btn_new, btn_load, btn_save, btn_save_as, btn_lowcode, btn_logs]:
             btn.setMinimumHeight(40)
             btn.setStyleSheet("font-weight: bold; font-size: 14px;")
@@ -157,10 +156,7 @@ class MainWindow(QMainWindow):
         toolbar_widget.setFixedHeight(60)
         main_layout.addWidget(toolbar_widget)
 
-        # Centre
-        center_layout = QHBoxLayout()
-
-        # Palette
+        # --- Palette (gauche) + Éditeur (centre) dans un QSplitter dimensionnable
         self.palette_frame = QFrame()
         self.palette_layout = QVBoxLayout(self.palette_frame)
         self.palette_frame.setLayout(self.palette_layout)
@@ -168,16 +164,22 @@ class MainWindow(QMainWindow):
         palette_scroll = QScrollArea()
         palette_scroll.setWidgetResizable(True)
         palette_scroll.setWidget(self.palette_frame)
-        palette_scroll.setFixedWidth(220)
 
-        center_layout.addWidget(palette_scroll)
-        center_layout.addWidget(self.view, stretch=1)
+        # Splitter horizontal (palette ↔ éditeur)
+        self.splitter = QSplitter(Qt.Horizontal, self)
+        self.splitter.addWidget(palette_scroll)
+        self.splitter.addWidget(self.view)
+        self.palette_frame.setMinimumWidth(160)
+        self.splitter.setSizes([240, 960])
+        self.splitter.setStretchFactor(0, 0)
+        self.splitter.setStretchFactor(1, 1)
 
+        main_layout.addWidget(self.splitter, stretch=1)
+
+        # Fichier courant
         self.workflow_label = QLabel("🗂️ Aucun fichier")
         self.workflow_label.setStyleSheet("font-style: italic; color: gray; margin-left: 8px;")
         main_layout.addWidget(self.workflow_label)
-
-        main_layout.addLayout(center_layout)
 
         # Connexions
         btn_new.clicked.connect(self._action_new_workflow_from_template)
@@ -204,9 +206,92 @@ class MainWindow(QMainWindow):
             pass
         return super().closeEvent(ev)
 
+    # ---------- Helpers langage (palette) ----------
+    def _canon_language(self, s: str) -> str:
+        s = (s or "").strip().lower()
+        if s in ("py", "python"): return "Python"
+        if s in ("rs", "rust"): return "Rust"
+        if s in ("js", "node", "nodejs", "node.js", "javascript"): return "Node.js"
+        if s in ("c++", "cpp"): return "C++"
+        if s in ("jl", "julia"): return "Julia"
+        if s in ("r", "r-lang", "rscript"): return "R"
+        if s in ("sh", "bash", "shell"): return "Shell"
+        if s in ("go", "golang"): return "Go"
+        if s in ("c",): return "C"
+        return s.capitalize()
+
+    def _detect_language_from_class(self, plugin_class):
+        # attribut explicite d’abord : language puis lang
+        lang = getattr(plugin_class, "language", None) or getattr(plugin_class, "lang", None)
+        if isinstance(lang, str) and lang.strip():
+            return self._canon_language(lang)
+
+        # heuristiques légères
+        cname = plugin_class.__name__.lower()
+        mod   = getattr(plugin_class, "__module__", "").lower()
+        hint  = " ".join([cname, mod])
+        if any(k in hint for k in ["rust", "cargo"]): return "Rust"
+        if any(k in hint for k in ["node", "node.js", "javascript"]): return "Node.js"
+        if any(k in hint for k in ["cpp", "c++"]): return "C++"
+        if "julia" in hint: return "Julia"
+        if "rscript" in hint or cname.endswith("r"): return "R"
+        return "Python"
+
+    # ---------- Widget ligne palette avec badge ----------
+    def _make_palette_row(self, plugin_class):
+        row = QWidget(self.palette_frame)
+        hl = QHBoxLayout(row)
+        hl.setContentsMargins(8, 4, 8, 4)
+
+        # espace horizontal de la ligne (échelle appliquée)
+        spacing_base = 8
+        hl.setSpacing(max(4, int(round(spacing_base * BADGE_SCALE))))
+
+        name = getattr(plugin_class, "name", plugin_class.__name__)
+        lang = self._detect_language_from_class(plugin_class)
+        code, color = LANG_BADGE.get(lang, (lang.upper()[:2], QColor(40, 120, 200)))
+
+        btn = QPushButton(name, row)
+        btn.setFlat(True)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setStyleSheet("""
+            QPushButton { text-align: left; color: #222; background: transparent; border: none; }
+            QPushButton:hover { color: #000; }
+        """)
+        btn.clicked.connect(lambda _, cls=plugin_class: self._add_node(cls))
+
+        # tailles "de base" du badge palette (en px), puis échelle
+        base_font_px  = 11
+        base_pad_x_px = 6
+        base_pad_y_px = 2
+        base_radius   = 7
+
+        font_px  = max(8, int(round(base_font_px  * BADGE_SCALE)))
+        pad_x_px = max(3, int(round(base_pad_x_px * BADGE_SCALE)))
+        pad_y_px = max(1, int(round(base_pad_y_px * BADGE_SCALE)))
+        radius   = max(5, int(round(base_radius   * BADGE_SCALE)))
+
+        badge = QLabel(code, row)
+        badge.setStyleSheet(f"""
+            QLabel {{
+                color: white;
+                background-color: rgba({color.red()},{color.green()},{color.blue()},255);
+                border-radius: {radius}px;
+                padding: {pad_y_px}px {pad_x_px}px;
+                font-weight: bold;
+                font-size: {font_px}px;
+            }}
+        """)
+
+        hl.addWidget(btn, 1, Qt.AlignVCenter)
+        hl.addWidget(badge, 0, Qt.AlignRight | Qt.AlignVCenter)
+        return row
+
+
     def _populate_palette(self):
         self.plugins_by_category = discover_plugins()
         self.plugin_classes_by_name = {}
+        self._normalize_plugin_languages()
 
         self.logger.info("📦 Plugins détectés :")
         for cat, plugins in self.plugins_by_category.items():
@@ -221,8 +306,16 @@ class MainWindow(QMainWindow):
         # Reconstruire la palette + registre
         for category, plugin_list in self.plugins_by_category.items():
             cat_label = QLabel(f"📁 {category}")
-            cat_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+            cat_label.setStyleSheet("font-weight: bold; margin-top: 10px; color: #222;")
             self.palette_layout.addWidget(cat_label)
+
+            # conteneur de catégorie (permet add_plugin_to_palette)
+            container = QWidget(self.palette_frame)
+            v = QVBoxLayout(container)
+            v.setContentsMargins(0, 0, 0, 0)
+            v.setSpacing(2)
+            self.palette_layout.addWidget(container)
+            self.category_widgets[category] = v
 
             for plugin_class in plugin_list:
                 self.plugin_classes_by_name[plugin_class.__name__] = plugin_class
@@ -231,27 +324,29 @@ class MainWindow(QMainWindow):
                 except Exception:
                     pass
 
-                btn = QPushButton(plugin_class.name)
-                btn.clicked.connect(lambda _, cls=plugin_class: self._add_node(cls))
-                self.palette_layout.addWidget(btn)
+                row = self._make_palette_row(plugin_class)
+                v.addWidget(row)
+
+        # push en bas pour éviter collage
+        self.palette_layout.addStretch(1)
 
     def add_plugin_to_palette(self, category, plugin_class):
         if category not in self.category_widgets:
             label = QLabel(f"📁 {category}")
-            label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+            label.setStyleSheet("font-weight: bold; margin-top: 10px; color: #222;")
             self.palette_layout.addWidget(label)
 
-            layout = QVBoxLayout()
-            container = QWidget()
-            container.setLayout(layout)
+            container = QWidget(self.palette_frame)
+            v = QVBoxLayout(container)
+            v.setContentsMargins(0, 0, 0, 0)
+            v.setSpacing(2)
             self.palette_layout.addWidget(container)
 
-            self.category_widgets[category] = layout
+            self.category_widgets[category] = v
 
-        layout = self.category_widgets[category]
-        btn = QPushButton(plugin_class.name)
-        btn.clicked.connect(lambda _, cls=plugin_class: self._add_node(cls))
-        layout.addWidget(btn)
+        v = self.category_widgets[category]
+        row = self._make_palette_row(plugin_class)
+        v.addWidget(row)
 
         self.plugin_classes_by_name[plugin_class.__name__] = plugin_class
         try:
@@ -798,3 +893,13 @@ class MainWindow(QMainWindow):
             context = "\n".join(f"{i+1:>4}: {lines[i]}" for i in range(start, end))
             msg = (f"JSON invalide (ligne {line}, colonne {col}): {e.msg}\nContexte proche:\n{context}")
             raise RuntimeError(msg) from e
+        
+    def _normalize_plugin_languages(self):
+        for _, plugin_list in self.plugins_by_category.items():
+            for cls in plugin_list:
+                val = getattr(cls, "language", None) or getattr(cls, "lang", None)
+                if not isinstance(val, str) or not val.strip():
+                    setattr(cls, "language", "Python")  # défaut
+                else:
+                    setattr(cls, "language", self._canon_language(val))
+

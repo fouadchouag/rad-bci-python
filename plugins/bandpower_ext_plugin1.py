@@ -28,9 +28,28 @@ except Exception:
     UiKit = None
 
 class BandpowerExt(BasePlugin):
-    name = "BandpowerExt_1"
+    help = help = { 'gotchas': ['Use adequate window length for low frequencies.'],
+  'inputs': {'segment': '2D float [ch x samples] or epochs', 'sfreq': 'float (Hz)'},
+  'outputs': { 'features': 'array/dict',
+               'freqs': 'optional freqs',
+               'psd': 'optional PSD'},
+  'parameters': [ { 'default': 1.0,
+                    'desc': 'Lower frequency',
+                    'name': 'fmin',
+                    'type': 'float',
+                    'unit': 'Hz'},
+                  { 'default': 40.0,
+                    'desc': 'Upper frequency',
+                    'name': 'fmax',
+                    'type': 'float',
+                    'unit': 'Hz'}],
+  'summary': 'BandpowerExt — extrait des puissances de bandes par canal depuis des '
+             'segments.',
+  'usage': 'Connect windowed or epoched data; feed features to ML nodes.'}
+
+    name = "BandpowerExt_param"
     language = "Python"
-    category = "Signal Processing"
+    category = "Processing Nodes"
 
     def setup(self):
         self.inputs["segment"]   = BehaviorSubject(None)

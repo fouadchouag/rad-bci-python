@@ -32,6 +32,17 @@ _CMD2VEC = {
 
 
 class BCI_CommandRouter(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'in': 'various'},
+  'outputs': {'out': 'various'},
+  'parameters': [ { 'default': 'default',
+                    'desc': 'Routing/aggregation mode',
+                    'name': 'mode',
+                    'type': 'str'}],
+  'summary': 'Transforme les prédictions en commandes stables '
+             '(LEFT/RIGHT/UP/DOWN/STOP)',
+  'usage': 'Drop in where coordination is needed.'}
+
     """
     Transforme les prédictions en commandes stables (LEFT/RIGHT/UP/DOWN/STOP)
     avec seuil de confiance, dwell, lissage majorité et période réfractaire.

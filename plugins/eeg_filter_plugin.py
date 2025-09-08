@@ -65,6 +65,31 @@ class _CollapsibleSection(QWidget):
 
 
 class EEGFilterPlugin(BasePlugin):
+    help = help = { 'gotchas': [ 'Choose FIR/IIR consistent with sfreq.',
+               'Mind edge effects on short windows.'],
+  'inputs': { 'raw': 'mne.Raw (opt.)',
+              'segment': '2D float [ch x samples] (opt.)',
+              'sfreq': 'float (Hz if segment)'},
+  'outputs': {'raw': 'filtered Raw', 'segment': 'filtered array'},
+  'parameters': [ { 'default': 1.0,
+                    'desc': 'High-pass cutoff',
+                    'name': 'hp',
+                    'type': 'float|None',
+                    'unit': 'Hz'},
+                  { 'default': 40.0,
+                    'desc': 'Low-pass cutoff',
+                    'name': 'lp',
+                    'type': 'float|None',
+                    'unit': 'Hz'},
+                  { 'default': 50.0,
+                    'desc': 'Notch (mains)',
+                    'name': 'notch',
+                    'type': 'float|None',
+                    'unit': 'Hz'}],
+  'summary': 'EEGSliceFilter : filtrage streaming (HP/LP/Notch) par fenêtres avec état '
+             'persistant',
+  'usage': 'Insert after a reader or inlet; tune band edges.'}
+
     name = "EEGSliceFilter"
     category = "Processing Nodes"
     language = "Python"
@@ -526,4 +551,3 @@ class EEGFilterPlugin(BasePlugin):
             self.outputs["segment"].on_next(arr)
             self._emit_meta_if_changed()
             return {}
-

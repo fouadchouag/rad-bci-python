@@ -19,6 +19,13 @@ except Exception:
     HAVE_MNE = False
 
 class MNEAveragePlugin(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'MNEAveragePlugin',
+  'usage': 'Wire upstream data and route downstream.'}
+
     name = "MNEAverage"
     language = "Python"
     category = "Segmentation/ERP"

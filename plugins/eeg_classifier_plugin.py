@@ -77,6 +77,16 @@ class _CollapsibleSection(QWidget):
 
 
 class EEGClassifierPlugin(BasePlugin):
+    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
+  'inputs': {'features': 'array/dict', 'model': 'trained model'},
+  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
+  'parameters': [ { 'default': 0.5,
+                    'desc': 'Decision threshold (if applicable)',
+                    'name': 'threshold',
+                    'type': 'float'}],
+  'summary': 'Classification 2 classes (Left/Right) simplifiée.',
+  'usage': 'Connect features and a compatible model.'}
+
     """
     Classification 2 classes (Left/Right) simplifiée.
     Entrées :

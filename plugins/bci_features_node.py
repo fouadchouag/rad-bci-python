@@ -129,6 +129,13 @@ def _time_windows_from_text(text: str):
 
 
 class BCI_Features(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'Processing step for EEG streams.',
+  'usage': 'Wire upstream data and route downstream.'}
+
     name = "BCI_Features"
     language = "Python"
     category = "BCI/ML"

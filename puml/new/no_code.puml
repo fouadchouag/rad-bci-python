@@ -1,0 +1,9 @@
+@startuml
+start
+:Select node in Palette;
+:Drop on Canvas;
+:Drag to connect Pins;
+:Graph updated;
+:Engine notified;
+stop
+@enduml

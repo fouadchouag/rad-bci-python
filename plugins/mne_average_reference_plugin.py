@@ -25,6 +25,13 @@ from core.collapsible import CollapsibleSection
 
 
 class MNEAverageReferencePlugin(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'MNEAverageReference',
+  'usage': 'Wire upstream data and route downstream.'}
+
     name = "MNEAverageReference"
     language = "Python"
     category = "Preprocessing"

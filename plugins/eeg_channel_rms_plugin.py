@@ -57,6 +57,14 @@ class CollapsibleSection(QWidget):
 
 
 class EEGChannelRMSPlugin(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'EEGChannelRMSPlugin — Convert Raw/segment to per-channel scalar values '
+             '(RMS)',
+  'usage': 'Wire upstream data and route downstream.'}
+
     name = "EEGChannelRMS"
     language = "Python"
     category = "Processing"

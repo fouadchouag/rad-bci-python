@@ -41,6 +41,13 @@ Number = Union[int, float]
 
 
 class MNEICAPlugin(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'MNEICAPlugin (anti-freeze, pins réduits)',
+  'usage': 'Wire upstream data and route downstream.'}
+
     name = "MNEICA"
     language = "Python"
     category = "Preprocessing"

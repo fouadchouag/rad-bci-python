@@ -25,6 +25,28 @@ except Exception:
 
 
 class LSL_EEG_Inlet(BasePlugin):
+    help = help = { 'gotchas': [ 'Verify channels and sampling rate.',
+               'Network hiccups may cause gaps—use buffering.'],
+  'inputs': {},
+  'outputs': { 'ch_names': 'List[str]',
+               'segment': '2D float [ch x samples]',
+               'sfreq': 'float (Hz)'},
+  'parameters': [ { 'default': 'EEG',
+                    'desc': 'LSL stream name to subscribe to',
+                    'name': 'stream_name',
+                    'type': 'str'},
+                  { 'default': 256,
+                    'desc': 'Samples per pull',
+                    'name': 'chunk_size',
+                    'type': 'int'},
+                  { 'default': 0.1,
+                    'desc': 'Pull timeout',
+                    'name': 'timeout',
+                    'type': 'float',
+                    'unit': 's'}],
+  'summary': 'Inlet LSL générique pour flux EEG (float32, multi-canaux).',
+  'usage': 'Start external LSL stream; connect this inlet to processing pipeline.'}
+
     """
     Inlet LSL générique pour flux EEG (float32, multi-canaux).
 
@@ -40,7 +62,7 @@ class LSL_EEG_Inlet(BasePlugin):
     """
     name = "LSL_EEG_Inlet"
     language = "Python"
-    category = "I/O"
+    category = "Input Nodes"
 
     # -------- lifecycle --------
     def setup(self):

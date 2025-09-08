@@ -14,6 +14,13 @@ from core.collapsible import CollapsibleSection
 
 
 class MarkersToClassIdx(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'Convertit des marqueurs LSL (strings) en y_idx (int) et y_name (str).',
+  'usage': 'Wire upstream data and route downstream.'}
+
     """
     Convertit des marqueurs LSL (strings) en y_idx (int) et y_name (str).
 

@@ -1,0 +1,119 @@
+@startuml
+' RBciAD — OOP class diagram (modules & classes)
+skinparam defaultFontName Helvetica
+skinparam class {
+  BackgroundColor #ffffff
+  BorderColor #333333
+}
+
+title RBciAD — OOP Modules & Classes (simplified)
+
+package core {
+  class NodeGraph {
+    + add_node(n: NodeBase)
+    + connect(out: Port, in: Port)
+    + propagate()
+  }
+  class ReactiveEngine {
+    + schedule(n: NodeBase)
+    + on_event(e: Event)
+  }
+  class EventBus {
+    + publish(e: Event)
+    + subscribe(topic, cb)
+  }
+}
+
+package nodes {
+  abstract class NodeBase {
+    + id: str
+    + inputs: dict<str, Port>
+    + outputs: dict<str, Port>
+    + setup(ctx)
+    + execute(ctx)
+  }
+  class PythonNode extends NodeBase
+  class ExternalNode extends NodeBase {
+    - cmd: str
+    - workdir: Path
+    + build_input_json()
+    + run_subprocess(timeout_ms: int)
+    + read_output_json()
+  }
+  class EEGReader extends PythonNode
+  class EEGFilter extends PythonNode
+  class FeatureExtractor extends PythonNode
+  class ClassifierTrainer extends PythonNode
+  class PredictionVisualizer extends PythonNode
+  class LiveDisplay extends PythonNode {
+    + render(window)
+    + counters(): dict
+  }
+}
+
+package io {
+  class AcquisitionManager {
+    + prepare(source: Source)
+    + start(); + pause(); + resume(); + stop(); + teardown()
+    + ring_buffer: RingBuffer
+    + emit_window_ready()
+  }
+  interface Source {
+    + start(); + read()
+    + sr_hz: float; + ch_names: list[str]
+  }
+  class EDFSource implements Source
+  class LSLSource implements Source
+  class RingBuffer {
+    + L: int
+    + append(chunk)
+    + view_last(L): ndarray
+  }
+}
+
+package plugins {
+  class PluginManager {
+    + discover(paths: list[Path])
+    + register(cls)
+    + palette: dict
+  }
+}
+
+package infra {
+  class JSONProtocol {
+    + write_input(path, payload)
+    + read_output(path) : dict
+  }
+  class ExternalWrapper {
+    + spawn(cmd, args)
+    + enforce_timeout(ms)
+    + capture_logs()
+  }
+  class MetricsLogger {
+    + log(event, payload)
+  }
+}
+
+' Relationships
+NodeGraph --> ReactiveEngine
+ReactiveEngine --> EventBus
+AcquisitionManager --> RingBuffer
+AcquisitionManager --> Source
+EDFSource ..|> Source
+LSLSource ..|> Source
+PythonNode --|> NodeBase
+ExternalNode --|> NodeBase
+EEGReader --|> PythonNode
+EEGFilter --|> PythonNode
+FeatureExtractor --|> PythonNode
+ClassifierTrainer --|> PythonNode
+PredictionVisualizer --|> PythonNode
+LiveDisplay --|> PythonNode
+PluginManager --> NodeBase : register()
+ExternalWrapper --> ExternalNode
+JSONProtocol --> ExternalNode
+MetricsLogger --> LiveDisplay : counters()
+MetricsLogger --> AcquisitionManager : samples_in
+MetricsLogger --> ReactiveEngine : PARAM_CHANGE/FRAME
+
+@enduml

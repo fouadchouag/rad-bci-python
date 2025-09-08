@@ -74,6 +74,13 @@ def _design_fir_bandpass(fs, f_lo, f_hi, numtaps=257):
 
 
 class BCIPreprocNode(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'Pré-traitement générique (causal) pour EEG:',
+  'usage': 'Wire upstream data and route downstream.'}
+
     """
     Pré-traitement générique (causal) pour EEG:
       - Band-pass, Notch (50/60Hz + harmoniques), CAR

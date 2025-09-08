@@ -1,0 +1,1919 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Reactive BCI Builder — User & Developer Documentation">
+      
+      
+      
+      
+        <link rel="prev" href="../guide.html">
+      
+      
+        <link rel="next" href="../nodes.html">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.18">
+    
+    
+      
+        <title>Nodes Catalog - RBciAD Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.7e37652d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#nodes-catalog" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../index.html" title="RBciAD Docs" class="md-header__button md-logo" aria-label="RBciAD Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            RBciAD Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Nodes Catalog
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../index.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../index.md" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/index.html" class="md-tabs__link">
+          
+  
+  
+  Developer
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../ref/api.html" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../index.html" title="RBciAD Docs" class="md-nav__button md-logo" aria-label="RBciAD Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    RBciAD Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    User Guide
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            User Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Nodes Catalog
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="index.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Nodes Catalog
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Analysis
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bcicontrol" class="md-nav__link">
+    <span class="md-ellipsis">
+      BCI/Control
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bcifeedback" class="md-nav__link">
+    <span class="md-ellipsis">
+      BCI/Feedback
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bciml" class="md-nav__link">
+    <span class="md-ellipsis">
+      BCI/ML
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bcipreproc" class="md-nav__link">
+    <span class="md-ellipsis">
+      BCI/Preproc
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bcisegmentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      BCI/Segmentation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bciutils" class="md-nav__link">
+    <span class="md-ellipsis">
+      BCI/Utils
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom" class="md-nav__link">
+    <span class="md-ellipsis">
+      Custom
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#input-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Input Nodes
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ml" class="md-nav__link">
+    <span class="md-ellipsis">
+      ML
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ml-classifier" class="md-nav__link">
+    <span class="md-ellipsis">
+      ML / Classifier
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ml-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      ML / Features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ml-riemann" class="md-nav__link">
+    <span class="md-ellipsis">
+      ML / Riemann
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Output Nodes
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#preprocessing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preprocessing
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Processing
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#processing-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Processing Nodes
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#segmentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Segmentation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#segmentation-baseline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Segmentation / Baseline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#segmentationerp" class="md-nav__link">
+    <span class="md-ellipsis">
+      Segmentation/ERP
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#time-frequency" class="md-nav__link">
+    <span class="md-ellipsis">
+      Time-Frequency
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transform-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Transform Nodes
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#visualization" class="md-nav__link">
+    <span class="md-ellipsis">
+      Visualization
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nodes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    All Nodes (quick link)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Developer
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Developer
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/node-quickstart.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Quickstart
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/io-types.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    I/O Types
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/plugin-api.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Plugin API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/polyglot-nodes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Polyglot Nodes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/help-system.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Help System
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/testing-and-debugging.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Testing & Debugging
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/customize-rbciad.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Customize RBCIAD
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/release-packaging.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Release & Packaging
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/troubleshooting.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Troubleshooting
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ref/api.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Analysis
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bcicontrol" class="md-nav__link">
+    <span class="md-ellipsis">
+      BCI/Control
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bcifeedback" class="md-nav__link">
+    <span class="md-ellipsis">
+      BCI/Feedback
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bciml" class="md-nav__link">
+    <span class="md-ellipsis">
+      BCI/ML
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bcipreproc" class="md-nav__link">
+    <span class="md-ellipsis">
+      BCI/Preproc
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bcisegmentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      BCI/Segmentation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bciutils" class="md-nav__link">
+    <span class="md-ellipsis">
+      BCI/Utils
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom" class="md-nav__link">
+    <span class="md-ellipsis">
+      Custom
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#input-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Input Nodes
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ml" class="md-nav__link">
+    <span class="md-ellipsis">
+      ML
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ml-classifier" class="md-nav__link">
+    <span class="md-ellipsis">
+      ML / Classifier
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ml-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      ML / Features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ml-riemann" class="md-nav__link">
+    <span class="md-ellipsis">
+      ML / Riemann
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Output Nodes
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#preprocessing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preprocessing
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Processing
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#processing-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Processing Nodes
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#segmentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Segmentation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#segmentation-baseline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Segmentation / Baseline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#segmentationerp" class="md-nav__link">
+    <span class="md-ellipsis">
+      Segmentation/ERP
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#time-frequency" class="md-nav__link">
+    <span class="md-ellipsis">
+      Time-Frequency
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transform-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Transform Nodes
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#visualization" class="md-nav__link">
+    <span class="md-ellipsis">
+      Visualization
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="nodes-catalog">Nodes Catalog<a class="headerlink" href="#nodes-catalog" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>Auto-generated from plugin <code>help</code> dicts. Use Shift+F1 on a node to open its page.</p>
+</blockquote>
+<h2 id="analysis">Analysis<a class="headerlink" href="#analysis" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="psdwelch.html">PSDWelch</a></td>
+<td>PSDWelchPlugin</td>
+</tr>
+</tbody>
+</table>
+<h2 id="bcicontrol">BCI/Control<a class="headerlink" href="#bcicontrol" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="bci_commandrouter.html">BCI_CommandRouter</a></td>
+<td>Transforme les prédictions en commandes stables (LEFT/RIGHT/UP/DOWN/STOP)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="bcifeedback">BCI/Feedback<a class="headerlink" href="#bcifeedback" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="bci_ballcontroller.html">BCI_BallController</a></td>
+<td>Contrôle une balle 2D à partir de pred_idx / proba.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="bciml">BCI/ML<a class="headerlink" href="#bciml" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="bci_features.html">BCI_Features</a></td>
+<td>Processing step for EEG streams.</td>
+</tr>
+<tr>
+<td><a href="bci_predictor.html">BCI_Predictor</a></td>
+<td>Prédicteur en ligne pour BCI.</td>
+</tr>
+<tr>
+<td><a href="bci_trainer.html">BCI_Trainer</a></td>
+<td>Entraîne un modèle scikit-learn en THREAD (non-bloquant UI) et publie un rapport complet.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="bcipreproc">BCI/Preproc<a class="headerlink" href="#bcipreproc" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="bci_preproc.html">BCI_Preproc</a></td>
+<td>Pré-traitement générique (causal) pour EEG:</td>
+</tr>
+</tbody>
+</table>
+<h2 id="bcisegmentation">BCI/Segmentation<a class="headerlink" href="#bcisegmentation" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="bci_epoch.html">BCI_Epoch</a></td>
+<td>Processing step for EEG streams.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="bciutils">BCI/Utils<a class="headerlink" href="#bciutils" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="bci_config.html">BCI_Config</a></td>
+<td>Config manager « no-code » :</td>
+</tr>
+<tr>
+<td><a href="bci_metricsviewer.html">BCI_MetricsViewer</a></td>
+<td>Affiche les métriques d'un modèle entraîné (venant de BCI_Trainer.report).</td>
+</tr>
+<tr>
+<td><a href="bci_onlinemetrics.html">BCI_OnlineMetrics</a></td>
+<td>Métriques en ligne (rolling):</td>
+</tr>
+<tr>
+<td><a href="bcicollector.html">BCICollector</a></td>
+<td>Utility/orchestration node for routing, collection or metrics.</td>
+</tr>
+<tr>
+<td><a href="markerstoclassidx.html">MarkersToClassIdx</a></td>
+<td>Convertit des marqueurs LSL (strings) en y_idx (int) et y_name (str).</td>
+</tr>
+<tr>
+<td><a href="onlinemetrics.html">OnlineMetrics</a></td>
+<td>Compare en ligne pred_idx vs y_idx et calcule:</td>
+</tr>
+</tbody>
+</table>
+<h2 id="custom">Custom<a class="headerlink" href="#custom" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="rawfilter_c.html">RawFilter_C</a></td>
+<td>RawFilter_C: custom node.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="features">Features<a class="headerlink" href="#features" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="psdbandfeatureslite.html">PSDBandFeaturesLite</a></td>
+<td>PSDBandFeaturesLite</td>
+</tr>
+</tbody>
+</table>
+<h2 id="input-nodes">Input Nodes<a class="headerlink" href="#input-nodes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="acquisitionmanager.html">AcquisitionManager</a></td>
+<td>AcquisitionManager (léger) — LSL | Emulator | Native (disabled)</td>
+</tr>
+<tr>
+<td><a href="array-mne-raw.html">Array → MNE Raw</a></td>
+<td>Array → MNE Raw (Adapter) — fixed v2</td>
+</tr>
+<tr>
+<td><a href="eegmatreader.html">EEGMatReader</a></td>
+<td>EEGMatReader — lecteur .mat (BBCI / BCI Competition / génériques)</td>
+</tr>
+<tr>
+<td><a href="eegreader.html">EEGReader</a></td>
+<td>Read EEG files/datasets with MNE-Python; emits Raw or window windows.</td>
+</tr>
+<tr>
+<td><a href="eeguniversalreader.html">EEGUniversalReader</a></td>
+<td>EEGUniversalReader — ultra-fast, tous formats MNE, avec métriques enrichies:</td>
+</tr>
+<tr>
+<td><a href="gdfreader.html">GDFReader</a></td>
+<td>Read EEG files/datasets with MNE-Python; emits Raw or window windows.</td>
+</tr>
+<tr>
+<td><a href="lsl-inlet.html">LSL Inlet</a></td>
+<td>LSL Inlet — compatible LiveDisplay / SliceFilter</td>
+</tr>
+<tr>
+<td><a href="lsl_eeg_inlet.html">LSL_EEG_Inlet</a></td>
+<td>Inlet LSL générique pour flux EEG (float32, multi-canaux).</td>
+</tr>
+<tr>
+<td><a href="lsl_eeg_inlet_fast.html">LSL_EEG_Inlet_Fast</a></td>
+<td>Inlet EEG non-bloquant :</td>
+</tr>
+<tr>
+<td><a href="lsl_markers_inlet.html">LSL_Markers_Inlet</a></td>
+<td>Inlet LSL pour flux de marqueurs (strings).</td>
+</tr>
+<tr>
+<td><a href="mat-mne-raw.html">MAT → MNE Raw</a></td>
+<td>MAT → MNE Raw (BNCI/BCI-Compatible Loader)</td>
+</tr>
+<tr>
+<td><a href="mnesampleloader.html">MNESampleLoader</a></td>
+<td>MNESampleLoader — charge le dataset d'exemple MNE (sample_audvis_raw.fif)</td>
+</tr>
+<tr>
+<td><a href="syntheticlr.html">SyntheticLR</a></td>
+<td>Génère un Raw MNE synthétique avec blocs alternés 'Left' / 'Right'.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="ml">ML<a class="headerlink" href="#ml" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="classifiermetrics.html">ClassifierMetrics</a></td>
+<td>Évalue un dataset publié par EEGClassifier (X/y) via CV.</td>
+</tr>
+<tr>
+<td><a href="classifiermetrics_1.html">ClassifierMetrics_1</a></td>
+<td>Évalue un dataset {X,y,y_names} (multi-classe) par CV.</td>
+</tr>
+<tr>
+<td><a href="eegclassifier.html">EEGClassifier</a></td>
+<td>Classification 2 classes (Left/Right) simplifiée.</td>
+</tr>
+<tr>
+<td><a href="eegclassifier_1.html">EEGClassifier_1</a></td>
+<td>Classif EEG multi-classe avec enregistrement par classe puis entraînement.</td>
+</tr>
+<tr>
+<td><a href="eegclassifier_2.html">EEGClassifier_2</a></td>
+<td>BCI trainer compact : collecte multi-classe, CV, entraînement et prédiction.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="ml-classifier">ML / Classifier<a class="headerlink" href="#ml-classifier" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="classifierruntime.html">ClassifierRuntime</a></td>
+<td>Apply a trained model or compute predictions/probabilities.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="ml-features">ML / Features<a class="headerlink" href="#ml-features" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="bandpowerfeatures.html">BandpowerFeatures</a></td>
+<td>BandpowerFeatures — extrait des features de puissance par bande (Welch).</td>
+</tr>
+<tr>
+<td><a href="csptrainer.html">CSPTrainer</a></td>
+<td>Train a machine-learning model for BCI.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="ml-riemann">ML / Riemann<a class="headerlink" href="#ml-riemann" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="riemanncov.html">RiemannCov</a></td>
+<td>RiemannCov — calcule la covariance SPD d'un segment EEG.</td>
+</tr>
+<tr>
+<td><a href="riemanntsapply.html">RiemannTSApply</a></td>
+<td>RiemannTSApply — applique la Tangent Space pour obtenir des features 1D.</td>
+</tr>
+<tr>
+<td><a href="riemanntstrainer.html">RiemannTSTrainer</a></td>
+<td>RiemannTSTrainer — apprend la Tangent Space (pyRiemann).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="output-nodes">Output Nodes<a class="headerlink" href="#output-nodes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="ballfeedback.html">BallFeedback</a></td>
+<td>Déplace une balle à gauche/droite selon la prédiction du classifieur.</td>
+</tr>
+<tr>
+<td><a href="bandpowerinspector.html">BandpowerInspector</a></td>
+<td>Inspecteur bandpower avec:</td>
+</tr>
+<tr>
+<td><a href="eegsaver.html">EEGSaver</a></td>
+<td>EEGSaver — sauvegarde EEG (Raw MNE ou segment numpy) en plusieurs formats.</td>
+</tr>
+<tr>
+<td><a href="eegvisualizer.html">EEGVisualizer</a></td>
+<td>Visualize signals, features or predictions.</td>
+</tr>
+<tr>
+<td><a href="evokedviewer.html">EvokedViewer</a></td>
+<td>EvokedViewer (single-channel capable)</td>
+</tr>
+<tr>
+<td><a href="mne-viewer-2d-montage-free.html">MNE Viewer 2D (montage-free)</a></td>
+<td>MNE Viewer 2D — Montage-Free Plots (markers-ready)</td>
+</tr>
+<tr>
+<td><a href="mnebandpowerviewer.html">MNEBandpowerViewer</a></td>
+<td>BandpowerViewer</td>
+</tr>
+<tr>
+<td><a href="psdvisualizer.html">PSDVisualizer</a></td>
+<td>PSDVisualizer</td>
+</tr>
+<tr>
+<td><a href="tfrviewer.html">TFRViewer</a></td>
+<td>TFRViewer — robuste au changement de fichier / nbre de canaux</td>
+</tr>
+</tbody>
+</table>
+<h2 id="preprocessing">Preprocessing<a class="headerlink" href="#preprocessing" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="mneaveragereference.html">MNEAverageReference</a></td>
+<td>MNEAverageReference</td>
+</tr>
+<tr>
+<td><a href="mnebandpassfilter.html">MNEBandpassFilter</a></td>
+<td>MNEBandpassFilterPlugin (final)</td>
+</tr>
+<tr>
+<td><a href="mneica.html">MNEICA</a></td>
+<td>MNEICAPlugin (anti-freeze, pins réduits)</td>
+</tr>
+<tr>
+<td><a href="mnenotchfilter.html">MNENotchFilter</a></td>
+<td>MNENotchFilterPlugin (final)</td>
+</tr>
+<tr>
+<td><a href="mneresample.html">MNEResample</a></td>
+<td>MNEResamplePlugin (final)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="processing">Processing<a class="headerlink" href="#processing" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="eegchannelrms.html">EEGChannelRMS</a></td>
+<td>EEGChannelRMSPlugin — Convert Raw/segment to per-channel scalar values (RMS)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="processing-nodes">Processing Nodes<a class="headerlink" href="#processing-nodes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="bandpowerext.html">BandpowerExt</a></td>
+<td>Entrées acceptées:</td>
+</tr>
+<tr>
+<td><a href="bandpowerext_param.html">BandpowerExt_param</a></td>
+<td>BandpowerExt — extrait des puissances de bandes par canal depuis des segments.</td>
+</tr>
+<tr>
+<td><a href="eegfilterstateful.html">EEGFilterStateful</a></td>
+<td>EEGFilterStateful — bandpass IIR à état (streaming)</td>
+</tr>
+<tr>
+<td><a href="eegrawfilter.html">EEGRawFilter</a></td>
+<td>Temporal filtering (HP/LP/BP/Notch) for Raw or windowed data.</td>
+</tr>
+<tr>
+<td><a href="eegslicefilter.html">EEGSliceFilter</a></td>
+<td>EEGSliceFilter : filtrage streaming (HP/LP/Notch) par fenêtres avec état persistant</td>
+</tr>
+<tr>
+<td><a href="rawwindowslicer.html">RawWindowSlicer</a></td>
+<td>Windowing/epoching: cut continuous data into segments/epochs.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="segmentation">Segmentation<a class="headerlink" href="#segmentation" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="mneepochs.html">MNEEpochs</a></td>
+<td>MNEEpochs</td>
+</tr>
+<tr>
+<td><a href="mneepochslite.html">MNEEpochsLite</a></td>
+<td>MNEEpochsLite — Epoching minimal &amp; robuste</td>
+</tr>
+<tr>
+<td><a href="mneepochstosegments.html">MNEEpochsToSegments</a></td>
+<td>MNEEpochsToSegments</td>
+</tr>
+</tbody>
+</table>
+<h2 id="segmentation-baseline">Segmentation / Baseline<a class="headerlink" href="#segmentation-baseline" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="mnebaseline.html">MNEBaseline</a></td>
+<td>MNEBaselinePlugin</td>
+</tr>
+</tbody>
+</table>
+<h2 id="segmentationerp">Segmentation/ERP<a class="headerlink" href="#segmentationerp" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="mneaverage.html">MNEAverage</a></td>
+<td>MNEAveragePlugin</td>
+</tr>
+</tbody>
+</table>
+<h2 id="time-frequency">Time-Frequency<a class="headerlink" href="#time-frequency" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="tfr-morlet.html">TFR (Morlet)</a></td>
+<td>MNETFRMorletPlugin (safe v3)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="transform-nodes">Transform Nodes<a class="headerlink" href="#transform-nodes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="mne-compute-ssp-projs.html">MNE Compute SSP Projs</a></td>
+<td>MNE Compute SSP Projs — rapide (EOG / ECG)</td>
+</tr>
+<tr>
+<td><a href="mne-set-montage.html">MNE Set Montage</a></td>
+<td>MNE Set Montage (robuste)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="visualization">Visualization<a class="headerlink" href="#visualization" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="psdtopoviewer.html">PSDTopoViewer</a></td>
+<td>PSDTopoViewer (lite + fullscreen)</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "content.code.copy", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.92b07e13.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -185,10 +185,35 @@ def _auto_channels(n: int) -> List[str]:
 
 
 class EEGMatReader(BasePlugin):
+    help = help = { 'gotchas': ['Large files: prefer windowed output.', 'Check montage and units.'],
+  'inputs': {},
+  'outputs': { 'ch_names': 'List[str]',
+               'events': 'array/list',
+               'raw': 'mne.Raw',
+               'segment': '2D float [ch x samples]',
+               'sfreq': 'float (Hz)'},
+  'parameters': [ { 'default': '',
+                    'desc': 'EDF/BDF/GDF/FIF/... file to load',
+                    'name': 'filepath',
+                    'type': 'path'},
+                  { 'default': None,
+                    'desc': 'Channels selection',
+                    'name': 'picks',
+                    'type': 'list|None'},
+                  { 'default': 1.0,
+                    'desc': 'Window length for streaming output',
+                    'name': 'segment_len',
+                    'type': 'float',
+                    'unit': 's'}],
+  'summary': 'EEGMatReader — lecteur .mat (BBCI / BCI Competition / génériques)',
+  'usage': 'Place at pipeline start; connect `raw` to MNE ops or `segment` to '
+           'streaming ops.'}
+
     name = "EEGMatReader"
     category = "Input Nodes"
     start_hidden = True
     supports_collapse = True
+    language = "Python"
 
     def setup(self):
         # Sorties

@@ -1,0 +1,47 @@
+@startuml
+skinparam componentStyle rectangle
+left to right direction
+
+package "GUI" {
+  [Node Editor] <<component>>
+  [Low-Code Creator] <<component>>
+}
+
+package "Engine" {
+  [Reactive Engine] <<component>>
+  [Registry/Loader] <<component>>
+  [Metrics Logger] <<component>>
+}
+
+package "Plugins (Python)" {
+  [EEGUniversalReader] <<component>>
+  [EEGFilter] <<component>>
+  [EEGLiveDisplay] <<component>>
+}
+
+package "Polyglot" {
+  [Polyglot Wrapper] <<component>>
+  [External Exec] <<external>>
+}
+
+package "I/O" {
+  [Data Sources\n(EDF/BDF/GDF/LSL)] <<external>>
+  [Sinks\n(Plots/Web/CSV)] <<external>>
+}
+
+[Node Editor] --> [Reactive Engine]
+[Low-Code Creator] --> [Registry/Loader]
+[Registry/Loader] --> [Node Editor]
+[Reactive Engine] --> [Registry/Loader]
+
+[Reactive Engine] --> [EEGUniversalReader]
+[EEGUniversalReader] --> [EEGFilter]
+[EEGFilter] --> [EEGLiveDisplay]
+
+[Reactive Engine] --> [Polyglot Wrapper]
+[Polyglot Wrapper] ..> [External Exec]
+
+[Data Sources] --> [EEGUniversalReader]
+[EEGLiveDisplay] --> [Sinks]
+[Reactive Engine] --> [Metrics Logger] --> [Sinks]
+@enduml

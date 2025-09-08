@@ -95,6 +95,17 @@ def _bandpower_vec(segment, ch_names, sfreq, preset="MI", relative=True, nperseg
 
 
 class EEGClassifierPlugin(BasePlugin):
+    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
+  'inputs': {'features': 'array/dict', 'model': 'trained model'},
+  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
+  'parameters': [ { 'default': 0.5,
+                    'desc': 'Decision threshold (if applicable)',
+                    'name': 'threshold',
+                    'type': 'float'}],
+  'summary': 'Classif EEG multi-classe avec enregistrement par classe puis '
+             'entraînement.',
+  'usage': 'Connect features and a compatible model.'}
+
     """
     Classif EEG multi-classe avec enregistrement par classe puis entraînement.
 

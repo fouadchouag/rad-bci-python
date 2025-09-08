@@ -66,6 +66,13 @@ class _CollapsibleSection(QWidget):
 
 
 class SyntheticLRPlugin(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {},
+  'outputs': {'segment': '2D float [ch x samples]'},
+  'parameters': [],
+  'summary': "Génère un Raw MNE synthétique avec blocs alternés 'Left' / 'Right'.",
+  'usage': 'Connect to processing nodes.'}
+
     """
     Génère un Raw MNE synthétique avec blocs alternés 'Left' / 'Right'.
     + Mode streaming avec contrôle Start/Stop.

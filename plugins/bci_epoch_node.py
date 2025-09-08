@@ -34,6 +34,13 @@ def _from_ns_nc(arr, was_T):
 
 
 class BCIEpochNode(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'Processing step for EEG streams.',
+  'usage': 'Wire upstream data and route downstream.'}
+
     name = "BCI_Epoch"
     language = "Python"
     category = "BCI/Segmentation"

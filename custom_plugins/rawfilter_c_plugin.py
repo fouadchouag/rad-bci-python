@@ -1,0 +1,530 @@
+
+# Wrapper auto-généré (typed+UI) pour RawFilter_C
+# ✨ Pins d'E/S selon la déclaration
+# ✨ Panneau de paramètres auto (build_widget)
+# 🔒 N'exécute le binaire que quand les entrées requises sont présentes
+# 🔁 Debounce 300 ms + recalcul auto à la volée
+# ⚡ Prévisualisation (fenêtre + décimation)
+# 🧠 Cache tolist() pour RAW inchangé
+# 🚀 Modes: auto / inprocess (Python) / subprocess (stdio→fallback)
+
+import os, sys, json, subprocess, threading, importlib
+from core.node_base import BasePlugin
+from rx.subject import BehaviorSubject
+
+# ---- Définition des paramètres (déclaratif) ----
+PARAM_DEFS = [{"name": "low", "type": "float", "default": "1.0", "min": "0.1", "max": "", "step": "0.1", "unit": "Hz", "choices": "", "tooltip": "High-pass cutoff"}, {"name": "high", "type": "float", "default": "40.0", "min": "1.0", "max": "nyquist", "step": "0.5", "unit": "Hz", "choices": "", "tooltip": "Low-pass cutoff"}, {"name": "notch", "type": "enum", "default": "off", "min": "", "max": "", "step": "", "unit": "", "choices": "off,50,60", "tooltip": "0=off / 50/60 Hz"}, {"name": "q", "type": "float", "default": "0.707", "min": "0.4", "max": "1.4", "step": "0.01", "unit": "", "choices": "", "tooltip": "Q factor"}, {"name": "order", "type": "int", "default": "2", "min": "1", "max": "8", "step": "1", "unit": "", "choices": "", "tooltip": "Filter order"}, {"name": "preview", "type": "bool", "default": "true", "tooltip": "Aperçu rapide: envoyer seulement la dernière fenêtre au binaire"}, {"name": "preview_window_s", "type": "float", "default": "10.0", "min": "1", "max": "60", "step": "1", "unit": "s", "tooltip": "Durée de la fenêtre envoyée en mode aperçu"}, {"name": "preview_decim", "type": "int", "default": "1", "min": "1", "max": "10", "step": "1", "tooltip": "Décimation appliquée avant envoi (1 = aucune)"}]
+
+class RawfilterCPlugin(BasePlugin):
+    help = { 'gotchas': [],
+  'inputs': {'raw': '2D float [ch x samples]', 'sfreq': 'float (Hz)'},
+  'outputs': {'raw': '2D float [ch x samples]'},
+  'parameters': [ { 'default': '1.0',
+                    'desc': 'High-pass cutoff',
+                    'name': 'low',
+                    'type': 'float',
+                    'unit': 'Hz'},
+                  { 'default': '40.0',
+                    'desc': 'Low-pass cutoff',
+                    'name': 'high',
+                    'type': 'float',
+                    'unit': 'Hz'},
+                  { 'default': 'off',
+                    'desc': '0=off / 50/60 Hz',
+                    'name': 'notch',
+                    'type': 'enum',
+                    'unit': ''},
+                  { 'default': '0.707',
+                    'desc': 'Q factor',
+                    'name': 'q',
+                    'type': 'float',
+                    'unit': ''},
+                  { 'default': '2',
+                    'desc': 'Filter order',
+                    'name': 'order',
+                    'type': 'int',
+                    'unit': ''}],
+  'summary': 'RawFilter_C: custom node.',
+  'usage': 'Connect as required by its inputs/outputs; adjust parameters as needed.'}
+    name = "RawFilter_C"
+    language = "C"
+    category = "Custom"
+    executable = r"custom_plugins/external_scripts/filter_c_project.exe"
+    exec_mode = "auto"   # "auto" | "inprocess" | "subprocess"
+
+    def setup(self):
+        self.inputs["raw"] = BehaviorSubject(None)
+        self.inputs["sfreq"] = BehaviorSubject(None)
+        self.outputs["raw"] = BehaviorSubject(None)
+        self._param_widgets = {}
+        self._param_values = {}
+        self._raw_list_cache = {'src_id': None, 'lst': None, 'shape': None, 'fs': None}
+        self._mne_cache = {}
+        # debounce timer
+        try:
+            from PyQt5.QtCore import QTimer
+            self._deb_timer = QTimer()
+            self._deb_timer.setSingleShot(True)
+            self._deb_timer.setInterval(300)
+            self._deb_timer.timeout.connect(self._recompute_from_cache)
+        except Exception:
+            self._deb_timer = None
+        # worker persistant (stdio)
+        self._proc = None
+
+    # ---------- modes ----------
+    def _resolve_exec_mode(self):
+        m = (self.exec_mode or "auto").strip().lower()
+        if m == "auto":
+            if (self.language == "Python") and str(self.executable).lower().endswith(".py"):
+                return "inprocess"
+            return "subprocess"
+        return m
+
+    # ---------- worker stdio ----------
+    def _ensure_worker(self):
+        if self._proc and self._proc.poll() is None:
+            return
+        try:
+            self._proc = subprocess.Popen(
+                [self.executable, "--stdio"],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, bufsize=1
+            )
+        except Exception:
+            self._proc = None
+
+    def _kill_worker(self):
+        try:
+            if self._proc and self._proc.poll() is None:
+                self._proc.terminate()
+        except Exception:
+            pass
+        self._proc = None
+
+    def _readline_with_timeout(self, timeout_s: float):
+        if not self._proc or not self._proc.stdout:
+            return None
+        out = {"line": None}
+        def _target():
+            try:
+                out["line"] = self._proc.stdout.readline()
+            except Exception:
+                out["line"] = None
+        t = threading.Thread(target=_target, daemon=True)
+        t.start()
+        t.join(timeout_s)
+        if t.is_alive():
+            return None
+        return out["line"]
+
+    def _rpc_call(self, payload: dict, timeout_s: float = 2.0) -> dict:
+        self._ensure_worker()
+        if self._proc is None:
+            raise RuntimeError("worker not available")
+        line = json.dumps(payload, separators=(",", ":")) + "\n"
+        try:
+            self._proc.stdin.write(line); self._proc.stdin.flush()
+        except Exception as e:
+            raise RuntimeError(f"worker write failed: {e}")
+        out_line = self._readline_with_timeout(timeout_s)
+        if not out_line:
+            raise TimeoutError("worker timeout / closed")
+        try:
+            return json.loads(out_line)
+        except Exception as e:
+            raise RuntimeError(f"invalid JSON from worker: {e}")
+
+    # ---------- UI de paramètres ----------
+    def build_widget(self):
+        try:
+            from PyQt5.QtWidgets import (
+                QWidget, QVBoxLayout, QFormLayout, QDoubleSpinBox, QSpinBox,
+                QCheckBox, QComboBox, QLineEdit, QToolButton, QSizePolicy
+            )
+            from PyQt5.QtCore import Qt
+        except Exception:
+            return None
+
+        if getattr(self, "_param_widget_cached", None) is not None:
+            return self._param_widget_cached
+
+        root = QWidget()
+        vbox = QVBoxLayout(root); vbox.setContentsMargins(0,0,0,0); vbox.setSpacing(0)
+
+        header = QToolButton(root)
+        header.setText("Paramètres"); header.setCheckable(True); header.setChecked(True)
+        header.setToolButtonStyle(Qt.ToolButtonTextBesideIcon); header.setArrowType(Qt.DownArrow)
+        header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        vbox.addWidget(header)
+
+        panel = QWidget(root)
+        form = QFormLayout(panel); form.setContentsMargins(6,6,6,6); form.setSpacing(6)
+        vbox.addWidget(panel)
+
+        def _update_arrow(checked: bool):
+            header.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+            panel.setVisible(checked)
+        header.toggled.connect(_update_arrow); _update_arrow(True)
+
+        for d in (PARAM_DEFS or []):
+            name = d.get("name","").strip()
+            ptype = (d.get("type","float") or "float").strip().lower()
+            tip = d.get("tooltip",""); unit = d.get("unit","")
+
+            def _f(x, default=None):
+                try: return float(x)
+                except Exception: return default
+            def _i(x, default=None):
+                try: return int(float(x))
+                except Exception: return default
+
+            label_txt = name + (f" ({unit})" if unit else "")
+            widget = None
+            if ptype in ("float","sfreq"):
+                from PyQt5.QtWidgets import QDoubleSpinBox
+                sb = QDoubleSpinBox(panel); sb.setDecimals(4)
+                mn = _f(d.get("min",""), 0.0); mx = _f(d.get("max",""), 1e9)
+                st = _f(d.get("step",""), 0.1) or 0.1
+                if isinstance(mn, float): sb.setMinimum(mn)
+                if isinstance(mx, float): sb.setMaximum(mx)
+                sb.setSingleStep(st); dv = _f(d.get("default",""), 0.0) or 0.0; sb.setValue(dv)
+                widget = sb
+            elif ptype == "int":
+                from PyQt5.QtWidgets import QSpinBox
+                sb = QSpinBox(panel)
+                mn = _i(d.get("min",""), 0); mx = _i(d.get("max",""), 10**9)
+                st = _i(d.get("step",""), 1) or 1
+                sb.setMinimum(mn); sb.setMaximum(mx); sb.setSingleStep(st)
+                dv = _i(d.get("default",""), 0) or 0; sb.setValue(dv)
+                widget = sb
+            elif ptype == "bool":
+                from PyQt5.QtWidgets import QCheckBox
+                cb = QCheckBox(panel)
+                dv = str(d.get("default","")).strip().lower() in ("1","true","yes","on")
+                cb.setChecked(dv); widget = cb
+            elif ptype == "enum":
+                from PyQt5.QtWidgets import QComboBox
+                cb = QComboBox(panel)
+                raw = d.get("choices","") or ""
+                choices = [c.strip() for c in raw.split(",") if c.strip()] or ["off","on"]
+                for c in choices: cb.addItem(c)
+                dv = str(d.get("default","")).strip()
+                if dv in choices: cb.setCurrentText(dv)
+                widget = cb
+            else:
+                from PyQt5.QtWidgets import QLineEdit
+                le = QLineEdit(panel); le.setText(str(d.get("default",""))); widget = le
+
+            if tip:
+                try: widget.setToolTip(tip)
+                except Exception: pass
+
+            self._param_widgets[name] = (ptype, widget, d)
+            form.addRow(label_txt, widget)
+
+            try:
+                if hasattr(widget, "valueChanged"):
+                    widget.valueChanged.connect(self._on_params_changed)
+                elif hasattr(widget, "stateChanged"):
+                    widget.stateChanged.connect(self._on_params_changed)
+                elif hasattr(widget, "currentTextChanged"):
+                    widget.currentTextChanged.connect(self._on_params_changed)
+                elif hasattr(widget, "editingFinished"):
+                    widget.editingFinished.connect(self._on_params_changed)
+            except Exception:
+                pass
+
+        self._param_widget_cached = root
+        self._param_panel = panel
+        self._param_header = header
+        return root
+
+    # ---------- Config persistante ----------
+    def export_config(self):
+        params = self._gather_params_safe()
+        return {"params": params}
+
+    def import_config(self, cfg: dict):
+        try:
+            params = (cfg or {}).get("params", {})
+            for k,(ptype, widget, d) in (self._param_widgets or {}).items():
+                if k not in params: continue
+                val = params.get(k)
+                try:
+                    if ptype in ("float","sfreq"):
+                        widget.setValue(float(val))
+                    elif ptype == "int":
+                        widget.setValue(int(val))
+                    elif ptype == "bool":
+                        widget.setChecked(bool(val))
+                    elif ptype == "enum":
+                        widget.setCurrentText(str(val))
+                    else:
+                        widget.setText(str(val))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    # ---------- Helpers params ----------
+    def _gather_params_safe(self):
+        out = {}
+        for name,(ptype, widget, d) in (self._param_widgets or {}).items():
+            try:
+                if ptype in ("float","sfreq"):
+                    out[name] = float(widget.value())
+                elif ptype == "int":
+                    out[name] = int(widget.value())
+                elif ptype == "bool":
+                    out[name] = bool(widget.isChecked())
+                elif ptype == "enum":
+                    out[name] = str(widget.currentText())
+                else:
+                    out[name] = str(widget.text())
+            except Exception:
+                pass
+        return out
+
+    # ---------- Commande ----------
+    def _build_command(self, in_path, out_path):
+        ext = os.path.splitext(self.executable)[1].lower()
+        if ext in (".exe",""):     # Windows exe / binaire POSIX
+            return [self.executable, "--in", in_path, "--out", out_path]
+        if ext == ".js":  return ["node", self.executable, "--in", in_path, "--out", out_path]
+        if ext == ".py":  return ["python", self.executable, "--in", in_path, "--out", out_path]
+        if ext == ".r":   return ["Rscript", self.executable, in_path, out_path]
+        if ext == ".jl":  return ["julia", self.executable, in_path, out_path]
+        if ext == ".sh":  return ["bash", self.executable, "--in", in_path, "--out", out_path]
+        if ext == ".m":   return ["octave", "--quiet", "--eval", "run('%s')" % self.executable]
+        return [self.executable, "--in", in_path, "--out", out_path]
+
+    # ---------- Relance auto quand un param change ----------
+    def _have_all_required_inputs(self):
+        try:
+            vals = getattr(self, "_values", {}) or {}
+            for name in (self.inputs or {}):
+                if str(name).startswith("opt_"):
+                    continue
+                if vals.get(name, None) is None:
+                    return False
+            return True
+        except Exception:
+            return False
+
+    def _recompute_from_cache(self):
+        try:
+            if not self._have_all_required_inputs():
+                return
+            vals = dict(getattr(self, "_values", {}) or {})
+            result = self.execute(in_data=vals, **vals)
+            if isinstance(result, dict):
+                for k, subj in (self.outputs or {}).items():
+                    if k in result:
+                        subj.on_next(result[k])
+        except Exception as e:
+            print(f"[LowCode Wrapper] recompute error: {e}")
+
+    def _on_params_changed(self, *args):
+        try:
+            if getattr(self, "_deb_timer", None) is not None:
+                self._deb_timer.start()
+            else:
+                self._recompute_from_cache()
+        except Exception:
+            self._recompute_from_cache()
+
+    # ---------- util inprocess (Python) ----------
+    def _load_inproc_func(self):
+        try:
+            if not str(self.executable).lower().endswith(".py"):
+                return None
+            mod_dir = os.path.dirname(self.executable)
+            mod_name = os.path.splitext(os.path.basename(self.executable))[0]
+            if mod_dir and (mod_dir not in sys.path):
+                sys.path.insert(0, mod_dir)
+            mod = importlib.import_module(mod_name)
+            mod = importlib.reload(mod)
+            fn = getattr(mod, "process", None)
+            return fn
+        except Exception:
+            return None
+
+    # ---------- Exécution ----------
+    def execute(self, **kwargs):
+        # 0) paramètres UI
+        params = self._gather_params_safe()
+        mode = self._resolve_exec_mode()
+
+        # 1) Construire payloads
+        payload = {}
+        payload_np = {}  # pour inprocess (numpy, pas de JSON)
+        missing = []
+        def _to_ndarray2d(value):
+            import numpy as _np
+            try:
+                from mne.io.base import BaseRaw as _BaseRaw
+                if isinstance(value, _BaseRaw):
+                    key = id(value)
+                    if getattr(self, '_mne_cache', None) is None: self._mne_cache = {}
+                    arr = self._mne_cache.get(key)
+                    if arr is None:
+                        arr = value.get_data().astype(_np.float32, copy=False)  # (C,N)
+                        self._mne_cache[key] = arr
+                    return arr
+            except Exception:
+                pass
+            arr = _np.asarray(value)
+            if arr.ndim != 2:
+                raise ValueError("ndarray_2d attendu: array 2D")
+            C, N = arr.shape[0], arr.shape[1]
+            if not (C > 0 and N > C*2):
+                arr = arr.T  # (N,C) → (C,N)
+            return arr.astype(_np.float32, copy=False)
+        __raw_arr_tmp = None
+        val = kwargs.get('raw', None)
+        if val is not None:
+            __raw_arr_tmp = _to_ndarray2d(val)
+        else:
+            missing.append('raw')
+        if 'sfreq' in kwargs and kwargs['sfreq'] is not None:
+            payload['sfreq'] = float(kwargs['sfreq']); payload_np['sfreq'] = float(kwargs['sfreq'])
+        else:
+            missing.append('sfreq')
+        if missing:
+            return {}
+
+        # ⚡ Prévisualisation + cache tolist() uniquement pour JSON
+        try:
+            import numpy as _np
+            if __raw_arr_tmp is not None:
+                fs = float(kwargs.get('sfreq', 0.0) or payload.get('sfreq', 0.0) or 0.0)
+                _p = params or {}
+                _quick = bool(str(_p.get('preview','true')).strip().lower() in ('1','true','yes','on'))
+                _win   = float(_p.get('preview_window_s', 10.0) or 10.0)
+                _dec   = int(_p.get('preview_decim', 1) or 1)
+                arr = __raw_arr_tmp
+                if _quick and fs > 0.0:
+                    Nwin = int(max(1, min(arr.shape[1], fs * _win)))
+                    arr = arr[:, -Nwin:]
+                    if _dec > 1:
+                        arr = arr[:, ::_dec]
+                        payload['sfreq'] = float(fs / _dec); payload_np['sfreq'] = float(fs / _dec)
+                # Mettre direct en NP pour inprocess
+                payload_np['raw'] = arr
+                # JSON: cache tolist()
+                _src_obj = kwargs.get('raw', None)
+                _src_id = id(_src_obj) if _src_obj is not None else None
+                if getattr(self, '_raw_list_cache', None) is None:
+                    self._raw_list_cache = {'src_id': None, 'lst': None, 'shape': None, 'fs': None}
+                use_cache = (self._raw_list_cache['src_id'] == _src_id and
+                             self._raw_list_cache.get('shape') == tuple(arr.shape) and
+                             abs((self._raw_list_cache.get('fs') or -1.0) - float(payload.get('sfreq',0.0) or 0.0)) < 1e-9)
+                if use_cache and self._raw_list_cache['lst'] is not None:
+                    payload['raw'] = self._raw_list_cache['lst']
+                else:
+                    _lst = arr.astype(_np.float32, copy=False).tolist()
+                    payload['raw'] = _lst
+                    self._raw_list_cache = {'src_id': _src_id, 'lst': _lst, 'shape': tuple(arr.shape), 'fs': float(payload.get('sfreq',0.0) or 0.0)}
+        except Exception:
+            pass
+
+        # 1.b) fusion params
+        try:
+            payload.update(params or {})
+            for k,v in (params or {}).items():
+                if k not in payload_np:
+                    payload_np[k] = v
+        except Exception:
+            pass
+
+        # 1.c) Nyquist
+        try:
+            fs = float(kwargs.get("sfreq", 0.0) or payload.get("sfreq", 0.0) or payload_np.get("sfreq", 0.0) or 0.0)
+            if fs > 0:
+                nyq = max(0.0, fs*0.5 - 1e-6)
+                if "low" in payload:
+                    payload["low"] = max(0.01, min(float(payload["low"]), nyq))
+                if "high" in payload:
+                    payload["high"] = max(0.01, min(float(payload["high"]), nyq))
+                if "low" in payload_np:
+                    payload_np["low"] = max(0.01, min(float(payload_np["low"]), nyq))
+                if "high" in payload_np:
+                    payload_np["high"] = max(0.01, min(float(payload_np["high"]), nyq))
+                if ("low" in payload) and ("high" in payload) and (payload["low"] >= payload["high"]):
+                    payload["low"] = max(0.01, payload["high"]*0.5)
+                if ("low" in payload_np) and ("high" in payload_np) and (payload_np["low"] >= payload_np["high"]):
+                    payload_np["low"] = max(0.01, payload_np["high"]*0.5)
+        except Exception:
+            pass
+
+        # 2) Exécution selon mode
+        result = None
+        if mode == "inprocess":
+            fn = self._load_inproc_func()
+            if fn is None:
+                # Pas de process() -> bascule subprocess
+                mode = "subprocess"
+            else:
+                try:
+                    try:
+                        result = fn(payload_np)      # def process(payload)
+                    except TypeError:
+                        result = fn(**payload_np)    # def process(**kwargs)
+                except Exception as e:
+                    raise RuntimeError(f"[LowCode InProcess] process() error: {e}")
+
+        if result is None and mode == "subprocess":
+            # stdio d'abord
+            try:
+                result = self._rpc_call(payload, timeout_s=3.0)
+            except Exception:
+                try:
+                    self._kill_worker()
+                    result = self._rpc_call(payload, timeout_s=3.0)
+                except Exception:
+                    result = None
+
+        if result is None:
+            # fallback fichiers
+            os.makedirs("temp_io", exist_ok=True)
+            in_path  = os.path.join("temp_io", "input_rawfilter_c.json")
+            out_path = os.path.join("temp_io", "output_rawfilter_c.json")
+            with open(in_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, separators=(",", ":"), ensure_ascii=False)
+            cmd = self._build_command(in_path, out_path)
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode != 0:
+                raise RuntimeError("[LowCode Wrapper] Subprocess error %d\nSTDERR:\n%s\nSTDOUT:\n%s" % (res.returncode, res.stderr, res.stdout))
+            if not os.path.exists(out_path):
+                raise RuntimeError("[LowCode Wrapper] Fichier sortie manquant: %s" % out_path)
+            with open(out_path, "r", encoding="utf-8") as f:
+                result = json.load(f)
+
+        # 3) Mapper sortie -> pins
+        out_dict = {}
+        import numpy as _np
+        if 'raw' in result and result['raw'] is not None:
+            _arr = result['raw']
+            if isinstance(_arr, list):
+                _C_N = _np.asarray(_arr, dtype=_np.float32)
+            else:
+                _C_N = _np.asarray(_arr, dtype=_np.float32)
+            out_dict['raw'] = _C_N.T
+            try:
+                import mne
+                _fs = float(kwargs.get('sfreq', 0.0) or payload.get('sfreq', 0.0) or 0.0) if True else 0.0
+                if _fs > 0:
+                    _C, _N = _C_N.shape[0], _C_N.shape[1]
+                    _ch_names = [f'ch{i}' for i in range(_C)]
+                    _info = mne.create_info(ch_names=_ch_names, sfreq=_fs, ch_types='eeg')
+                    out_dict['raw'] = mne.io.RawArray(_C_N, _info)
+            except Exception:
+                pass
+        return out_dict
+
+    def on_remove(self):
+        try:
+            self._kill_worker()
+        except Exception:
+            pass

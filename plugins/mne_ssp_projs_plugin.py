@@ -42,6 +42,13 @@ except Exception:
 
 
 class MNEComputeSSPProjs(BasePlugin):
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'MNE Compute SSP Projs — rapide (EOG / ECG)',
+  'usage': 'Wire upstream data and route downstream.'}
+
     name = "MNE Compute SSP Projs"
     language = "Python"
     category = "Transform Nodes"

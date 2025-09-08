@@ -1,0 +1,12 @@
+@startuml
+' Workflows overview (W1–W3)
+skinparam defaultFontName Helvetica
+title Workflows W1–W3 (summary)
+
+rectangle "W1 — Reader → LiveDisplay\nwindowed display tied to data arrival" as W1
+rectangle "W2 — Reader → Filter → LiveDisplay\nwin=5 s, overlap=50% (hop=2.5 s)\nBand-pass + Notch" as W2
+rectangle "W3 — Reader → Filter → LiveDisplay\nwin=5 s, overlap=80% (hop=1.0 s)\nSame filters; higher UI cadence" as W3
+
+W1 -[hidden]-> W2
+W2 -[hidden]-> W3
+@enduml

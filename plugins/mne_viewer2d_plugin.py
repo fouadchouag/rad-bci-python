@@ -111,6 +111,25 @@ def _band_edges():
 
 # ---------------- Plugin ---------------- #
 class MNEViewer2D(BasePlugin):
+    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
+  'outputs': {},
+  'parameters': [ { 'default': 50.0,
+                    'desc': 'Vertical scale',
+                    'name': 'scale_uv',
+                    'type': 'float',
+                    'unit': 'µV'},
+                  { 'default': 1.0,
+                    'desc': 'Scroll speed',
+                    'name': 'speed',
+                    'type': 'float'},
+                  { 'default': False,
+                    'desc': 'Show full screen',
+                    'name': 'fullscreen',
+                    'type': 'bool'}],
+  'summary': 'MNE Viewer 2D — Montage-Free Plots (markers-ready)',
+  'usage': 'Connect upstream data; adjust view parameters.'}
+
     name = "MNE Viewer 2D (montage-free)"
     language = "Python"
     category = "Output Nodes"

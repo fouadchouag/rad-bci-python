@@ -9,6 +9,24 @@ from mne.decoding import CSP
 from sklearn.preprocessing import LabelEncoder
 
 class CSPTrainerPlugin(BasePlugin):
+    help = help = { 'gotchas': ['Balance classes; keep held-out test set.'],
+  'inputs': {'features': 'array/dict', 'labels': 'array'},
+  'outputs': {'model': 'trained model'},
+  'parameters': [ { 'default': 'LR',
+                    'desc': 'Classifier (LR/SVM/RF/...)',
+                    'name': 'model',
+                    'type': 'str'},
+                  { 'default': 5,
+                    'desc': 'Cross-validation folds',
+                    'name': 'cv',
+                    'type': 'int'},
+                  { 'default': 'standard',
+                    'desc': 'Feature scaling',
+                    'name': 'scaler',
+                    'type': 'str'}],
+  'summary': 'Train a machine-learning model for BCI.',
+  'usage': 'Feed features and labels; connect model to runtime/apply node.'}
+
     name = "CSPTrainer"
     language = "Python"
     category = "ML / Features"

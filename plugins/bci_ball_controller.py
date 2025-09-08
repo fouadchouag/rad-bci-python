@@ -18,6 +18,8 @@ ACTIONS = ["Idle","Left","Right","Up","Down"]
 
 
 class _BallCanvas(QWidget):
+   
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(240, 160)
@@ -78,6 +80,15 @@ class BCI_BallController(BasePlugin):
       - (UI) — et config_out (dict):
         { K, map, speed, friction, prob_gain, use_prob }
     """
+
+    help = help = { 'gotchas': [],
+  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+  'outputs': {'segment': 'processed array'},
+  'parameters': [],
+  'summary': 'Contrôle une balle 2D à partir de pred_idx / proba.',
+  'usage': 'Wire upstream data and route downstream.'}
+    
+
     name = "BCI_BallController"
     language = "Python"
     category = "BCI/Feedback"
