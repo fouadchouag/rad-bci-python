@@ -167,7 +167,7 @@ class LSL_Markers_Inlet(BasePlugin):
         v.addLayout(r1)
 
         self._lbl = QLabel("LSL: " + ("OK" if LSL_OK else "missing")); v.addWidget(self._lbl)
-        root.addWidget(CollapsibleSection("LSL Markers Inlet", panel, collapsed=False))
+        root.addWidget(CollapsibleSection("LSL Markers Inlet", panel, collapsed=True))
 
         self._timer = QTimer(w)
         self._timer.timeout.connect(self._emit_tick)

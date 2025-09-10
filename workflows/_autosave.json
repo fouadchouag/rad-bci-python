@@ -1,0 +1,106 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "EEGRawFilterPlugin_f1eaff",
+      "type": "EEGRawFilterPlugin",
+      "position": [
+        446.0,
+        86.0
+      ],
+      "config": {
+        "enable_hp": true,
+        "hp": 0.5000000000000001,
+        "enable_lp": true,
+        "lp": 45.0,
+        "enable_notch": true,
+        "notch_freqs": [
+          50.0
+        ],
+        "method": "fir",
+        "phase": "zero",
+        "picks": "all",
+        "in_place": false,
+        "fir_taps": 531
+      }
+    },
+    {
+      "name": "EEGLiveDisplay_ef1e7e",
+      "type": "EEGLiveDisplay",
+      "position": [
+        804.0,
+        51.0
+      ],
+      "config": {
+        "loop": true,
+        "window_s": 5.0,
+        "step_s": 0.25,
+        "seg_len_auto": true,
+        "seg_len_manual": null,
+        "force_nch": 0,
+        "max_points": 3000,
+        "max_fps": 20
+      }
+    },
+    {
+      "name": "EEGUniversalReader_09fdd3",
+      "type": "EEGUniversalReader",
+      "position": [
+        59.0,
+        69.0
+      ],
+      "config": {
+        "units": "V",
+        "chunk_s": 0.5,
+        "overlap_s": 0.4,
+        "loop": false,
+        "resample_hz": 0,
+        "eeg_only": true,
+        "incl_eog": false,
+        "incl_emg": false,
+        "incl_stim": false,
+        "fast_open": true,
+        "turbo_gdf": true,
+        "emit_annotations": true,
+        "open_async": true,
+        "smart_preview": true,
+        "preview_s": 0.0,
+        "stream_decim": 1,
+        "bigfile_threshold_mb": 128.0,
+        "path": ""
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "EEGRawFilterPlugin_f1eaff",
+      "from_pin": "ch_names",
+      "to": "EEGLiveDisplay_ef1e7e",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "EEGRawFilterPlugin_f1eaff",
+      "from_pin": "info",
+      "to": "EEGLiveDisplay_ef1e7e",
+      "to_pin": "info"
+    },
+    {
+      "from": "EEGRawFilterPlugin_f1eaff",
+      "from_pin": "sfreq",
+      "to": "EEGLiveDisplay_ef1e7e",
+      "to_pin": "sfreq"
+    },
+    {
+      "from": "EEGUniversalReader_09fdd3",
+      "from_pin": "raw",
+      "to": "EEGRawFilterPlugin_f1eaff",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGRawFilterPlugin_f1eaff",
+      "from_pin": "raw",
+      "to": "EEGLiveDisplay_ef1e7e",
+      "to_pin": "raw"
+    }
+  ]
+}

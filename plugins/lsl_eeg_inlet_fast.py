@@ -203,7 +203,7 @@ class LSL_EEG_Inlet_Fast(BasePlugin):
         self._lbl = QLabel("LSL: " + ("OK" if LSL_OK else "missing") + " | idle")
         v.addWidget(self._lbl)
 
-        root.addWidget(CollapsibleSection("LSL EEG Fast", panel, collapsed=False))
+        root.addWidget(CollapsibleSection("LSL EEG Fast", panel, collapsed=True))
 
         # do one refresh
         self._on_refresh()

@@ -1,13 +1,13 @@
 from PyQt5.QtWidgets import (
-    QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem, QGraphicsProxyWidget, QWidget
+    QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem, QGraphicsProxyWidget, QWidget,
+    QGraphicsView
 )
 from PyQt5.QtGui import QBrush, QColor, QPen, QFontMetricsF, QFont, QPainterPath
 from PyQt5.QtCore import Qt, QPointF
 from .pin_item import PinItem
 
 # Échelle globale des badges (palette + nœuds)
-BADGE_SCALE = 0.85  # 85% du size d’origine ; mets 0.75 pour plus petit, 1.0 pour normal
-
+BADGE_SCALE = 0.85  # 85% du size d’origine
 
 # --- Badge langage : code court + couleur ---
 LANG_BADGE = {
@@ -29,8 +29,23 @@ class NodeItem(QGraphicsRectItem):
     ROW_H = 22
     PADDING_X = 12
     PADDING_Y = 8
-    PIN_RADIUS = 8            # ~ rayon visuel du pin
-    LABEL_GAP = 6             # espace pin <-> texte
+    PIN_RADIUS = 8
+    LABEL_GAP = 6
+
+    # --- mapping familles (cohérent avec ConnectionItem) ---
+    _PIN_FAMILIES = {
+        "raw": {"raw", "data", "eeg", "x"},  # + "data" ajouté
+        "segment": {"segment", "segments", "window", "trial", "epoch", "sample"},
+        "sfreq": {"sfreq", "fs", "sampling_rate", "sample_rate", "sf"},
+        "ch_names": {"ch_names", "channels", "chan_names", "labels", "names"},
+        "features": {"features", "feature", "embedding", "vec", "x_vec"},
+        "cov": {"cov", "covariance", "c"},
+        "model": {"model", "clf", "classifier", "estimator"},
+        "label": {"label", "labels", "y", "target", "class"},
+        "status": {"status"},
+        "feature_transform": {"feature_transform", "csp", "feat_transform"},
+        "ts_transform": {"ts_transform", "tspace", "tangent"},
+    }
 
     def __init__(self, plugin_class):
         super().__init__()
@@ -39,15 +54,18 @@ class NodeItem(QGraphicsRectItem):
         self.input_pins = []
         self.output_pins = []
         self._title_item = None
-        self._title_raw = ""      # <-- conserve le titre non-élidé
+        self._title_raw = ""
         self.proxy = None
 
-        # --- Langage du plugin (détection: language > lang > heuristiques) ---
+        self._dragging = False
+        self._old_viewport_mode = None
+
+        # --- Langage du plugin ---
         self.lang = self._detect_language(self.plugin)
 
-        # Dimensions du badge (pré-calcul pour réserver la place du titre)
+        # Dimensions du badge
         self._badge_font = QFont("Arial")
-        self._badge_font.setPointSizeF(9.0 * BADGE_SCALE)  # pointSize flottant
+        self._badge_font.setPointSizeF(9.0 * BADGE_SCALE)
         self._badge_font.setBold(True)
         self._recompute_badge_size()
 
@@ -71,6 +89,30 @@ class NodeItem(QGraphicsRectItem):
 
         print(f">>> Création du NodeItem pour : {plugin_class.__name__} (lang={self.lang})")
 
+    # --------------------- helpers famille/hint ---------------------
+    def _normalize(self, s: str) -> str:
+        return (s or "").strip().lower()
+
+    def _family_from_name(self, name: str) -> str:
+        n = self._normalize(name)
+        for fam, names in self._PIN_FAMILIES.items():
+            if n == fam or n in names:
+                return fam
+        return n
+
+    def _apply_family_hint(self, pin: PinItem):
+        """Pose pin.family_hint depuis le plugin (PIN_FAMILY_HINTS) ou via le nom."""
+        hints = getattr(self.plugin, "PIN_FAMILY_HINTS", {}) or {}
+        pin_name = getattr(pin, "name", "") or getattr(pin, "pin_name", "")
+        for k, fam in hints.items():
+            if self._normalize(str(k)) == self._normalize(pin_name):
+                pin.family_hint = self._normalize(str(fam))
+                pin.setToolTip(f"{'output' if pin.is_output else 'input'}: {pin_name} • famille: {pin.family_hint}")
+                return
+        # fallback par nom
+        pin.family_hint = self._family_from_name(pin_name)
+        pin.setToolTip(f"{'output' if pin.is_output else 'input'}: {pin_name} • famille: {pin.family_hint}")
+
     # --------------------- Titre ---------------------
     def _draw_label(self, name: str):
         self._title_raw = name
@@ -79,7 +121,6 @@ class NodeItem(QGraphicsRectItem):
         self._title_item.setFont(self._font_title)
 
     def _update_title_elision(self):
-        """Élidé le titre pour ne jamais chevaucher le badge (et garder une marge)."""
         if not self._title_item:
             return
         fm = QFontMetricsF(self._title_item.font())
@@ -95,7 +136,6 @@ class NodeItem(QGraphicsRectItem):
         text_w = fm.width(text) if hasattr(fm, "width") else fm.horizontalAdvance(text)
         text_h = fm.height()
         rect = self.rect()
-
         available_right = rect.right() - (self._badge_w + self._badge_margin + 4.0)
         x_center = rect.x() + (rect.width() - text_w) / 2.0
         x = max(rect.x() + self.PADDING_X, min(x_center, available_right - text_w))
@@ -104,7 +144,6 @@ class NodeItem(QGraphicsRectItem):
 
     # --------------- Pins + dimensionnement ----------
     def _draw_pins_and_size(self):
-        """Place les pins SOUS le titre et dimensionne le node pour éviter tout chevauchement."""
         # Nettoyage si refresh
         for p in self.input_pins + self.output_pins:
             try:
@@ -117,10 +156,8 @@ class NodeItem(QGraphicsRectItem):
         fm_title = QFontMetricsF(self._font_title)
         fm_io = QFontMetricsF(self._font_io)
 
-        # Largeur minimale imposée par le titre (non-élidé)
         title_w = fm_title.width(self._title_raw) + 2 * self.PADDING_X
 
-        # Largeur des libellés
         max_in_w = max((fm_io.width(str(n)) for n in getattr(self.plugin, "inputs", [])), default=0.0)
         max_out_w = max((fm_io.width(str(n)) for n in getattr(self.plugin, "outputs", [])), default=0.0)
 
@@ -129,11 +166,9 @@ class NodeItem(QGraphicsRectItem):
 
         content_w = max(160.0, title_w, left_col_w + right_col_w)
 
-        # Coordonnées X des pins
         left_pin_x = self.PADDING_X + self.PIN_RADIUS
         right_pin_x = content_w - (self.PADDING_X + self.PIN_RADIUS)
 
-        # Y de départ (juste sous le header)
         y_top = self.HEADER_H + self.PADDING_Y
         lines = max(len(getattr(self.plugin, "inputs", [])), len(getattr(self.plugin, "outputs", [])))
 
@@ -144,6 +179,7 @@ class NodeItem(QGraphicsRectItem):
             pin.setPos(left_pin_x, cy)
             pin.node = self
             pin.pin_name = name
+            self._apply_family_hint(pin)
             self.input_pins.append(pin)
 
             text = QGraphicsTextItem(str(name), self)
@@ -158,6 +194,7 @@ class NodeItem(QGraphicsRectItem):
             pin.setPos(right_pin_x, cy)
             pin.node = self
             pin.pin_name = name
+            self._apply_family_hint(pin)
             self.output_pins.append(pin)
 
             text_w = fm_io.width(str(name))
@@ -166,14 +203,12 @@ class NodeItem(QGraphicsRectItem):
             text.setFont(self._font_io)
             text.setPos(right_pin_x - self.PIN_RADIUS - self.LABEL_GAP - text_w, cy - fm_io.height() / 2.0)
 
-        # Hauteur de base (titre + pins)
         base_h = self.HEADER_H + self.PADDING_Y + lines * self.ROW_H + self.PADDING_Y
         self.setRect(0, 0, content_w, max(base_h, self.HEADER_H + 2 * self.PADDING_Y))
         return base_h
 
     # ----------------- Widget en bas ------------------
     def _add_custom_widget(self, base_h: float):
-        """Place un éventuel widget SOUS les pins (et redimensionne le node)."""
         if not hasattr(self.plugin, "build_widget"):
             self._update_title_elision()
             self._center_title()
@@ -185,12 +220,10 @@ class NodeItem(QGraphicsRectItem):
             self._center_title()
             return
 
-        # créer le proxy
         if self.proxy is None:
             self.proxy = QGraphicsProxyWidget(self)
         self.proxy.setWidget(w)
 
-        # largeur dispo et hauteur suggérée
         target_w = max(60, int(self.rect().width() - 2 * self.PADDING_X))
         hint = w.sizeHint()
         target_h = hint.height() if hint.isValid() else 80
@@ -199,17 +232,68 @@ class NodeItem(QGraphicsRectItem):
         except Exception:
             pass
 
-        # positionner sous les pins
         y = base_h + self.PADDING_Y
         self.proxy.setPos(self.PADDING_X, y)
 
-        # étendre le node pour inclure le widget
         new_h = y + target_h + self.PADDING_Y
         self.setRect(0, 0, self.rect().width(), new_h)
 
-        # élision + recentrage du titre après resize
         self._update_title_elision()
         self._center_title()
+
+    # ----------------- Rafraîchissement pendant déplacement -----------------
+    def _view(self):
+        sc = self.scene()
+        if sc:
+            try:
+                views = sc.views()
+                if views:
+                    return views[0]
+            except Exception:
+                pass
+        return None
+
+    def mousePressEvent(self, ev):
+        self._dragging = True
+        v = self._view()
+        if v is not None:
+            try:
+                self._old_viewport_mode = v.viewportUpdateMode()
+                v.setViewportUpdateMode(QGraphicsView.FullViewportUpdate)
+            except Exception:
+                pass
+        super().mousePressEvent(ev)
+
+    def mouseMoveEvent(self, ev):
+        super().mouseMoveEvent(ev)
+        sc = self.scene()
+        if sc is not None:
+            try:
+                sc.invalidate(sc.sceneRect())
+            except Exception:
+                pass
+        v = self._view()
+        if v is not None:
+            try:
+                v.viewport().repaint()
+            except Exception:
+                pass
+
+    def mouseReleaseEvent(self, ev):
+        super().mouseReleaseEvent(ev)
+        self._dragging = False
+        v = self._view()
+        if v is not None and self._old_viewport_mode is not None:
+            try:
+                v.setViewportUpdateMode(self._old_viewport_mode)
+            except Exception:
+                pass
+        sc = self.scene()
+        if sc is not None:
+            try:
+                sc.invalidate(sc.sceneRect())
+            except Exception:
+                pass
 
     # --------------- API existante --------------------
     def _auto_resize(self):
@@ -231,7 +315,6 @@ class NodeItem(QGraphicsRectItem):
     def paint(self, painter, option, widget=None):
         super().paint(painter, option, widget)
 
-        # --- Badge langage ---
         label, color = self._badge_label_color()
 
         painter.save()
@@ -268,7 +351,7 @@ class NodeItem(QGraphicsRectItem):
         pad_x, pad_y = 6.0 * BADGE_SCALE, 3.0 * BADGE_SCALE
         self._badge_w = tw + 2 * pad_x
         self._badge_h = fm.height() + 2 * pad_y
-        self._badge_margin = 6.0 * BADGE_SCALE  # marge au bord droit/haut
+        self._badge_margin = 6.0 * BADGE_SCALE
 
     def _badge_topright(self):
         rect = self.rect()
@@ -277,7 +360,6 @@ class NodeItem(QGraphicsRectItem):
         return x, y
 
     def _detect_language(self, plugin):
-        # 1) attribut explicite préféré : language, puis lang
         lang = (getattr(plugin, "language", None)
                 or getattr(plugin.__class__, "language", None)
                 or getattr(plugin, "lang", None)
@@ -285,7 +367,6 @@ class NodeItem(QGraphicsRectItem):
         if isinstance(lang, str) and lang.strip():
             return self._canon_language(lang)
 
-        # 2) heuristiques: nom de classe, module, chemins
         cname = plugin.__class__.__name__.lower()
         mod   = getattr(plugin.__class__, "__module__", "").lower()
         hint  = " ".join([cname, mod, str(getattr(plugin, "__file__", "")), str(getattr(plugin, "exe_path", ""))])

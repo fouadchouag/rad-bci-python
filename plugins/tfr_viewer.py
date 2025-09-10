@@ -3,24 +3,24 @@
 TFRViewer — robuste au changement de fichier / nbre de canaux
 - Affiche AverageTFR / EpochsTFR (moyenne si nécessaire)
 - Pins:  tfr, channel (str|int, optionnel)
-- UI:    Single channel / dB / Channel combo / Agrandir
+- UI:    Paramètres pliables (Single channel / dB / Channel combo / Agrandir)
 - Fixes:
   * nettoie correctement la figure (plus d'image résiduelle)
   * re-remplit la combo canaux à chaque nouveau TFR
   * fenêtre Agrandir synchronisée (canal/dB/single)
   * fallback canaux via tfr.info['ch_names'] (GDF/obj atypiques)
+  * section Paramètres fermée par défaut, sans espace gris résiduel
 """
 from typing import Optional, Sequence
 import numpy as np
 from rx.subject import BehaviorSubject
 from core.node_base import BasePlugin
-from core.collapsible import CollapsibleSection
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox,
-    QCheckBox, QDialog, QLabel
+    QCheckBox, QDialog, QLabel, QSizePolicy, QLayout, QFrame
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -32,9 +32,119 @@ except Exception:
     HAVE_MNE = False
 
 
-class _BigDlg(QDialog):
-    
+# ---------------------- CollapsibleSection robuste (anti "rectangle gris") ----------------------
+class CollapsibleSection(QWidget):
+    """
+    Fermée: contenu min/max=0 + invisible (aucun espace). Ouverte: hauteur naturelle.
+    Émet `collapsedChanged(bool)` et force le recalcul des layouts/parents.
+    """
+    collapsedChanged = pyqtSignal(bool)  # True si fermé
 
+    def __init__(self, title: str, parent=None):
+        super().__init__(parent)
+        self._base_title = title
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(4)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
+
+        self._btn = QPushButton()
+        self._btn.setCheckable(True)
+        self._btn.setChecked(False)  # on gère nous-mêmes l'état (démarrage fermé)
+        self._btn.setStyleSheet(
+            "QPushButton {"
+            " text-align: left; padding:6px 8px; font-weight:600;"
+            " border:1px solid #ccc; border-radius:6px; background:#f7f7f7;"
+            "}"
+        )
+        self._btn.toggled.connect(self._on_toggled)
+        root.addWidget(self._btn)
+
+        self._content = QWidget()
+        self._content.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self._content_layout = QVBoxLayout(self._content)
+        self._content_layout.setContentsMargins(10, 8, 10, 8)
+        self._content_layout.setSpacing(6)
+        self._content_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        root.addWidget(self._content)
+
+        self._line = QFrame()
+        self._line.setFrameShape(QFrame.HLine)
+        self._line.setStyleSheet("color:#ddd;")
+        root.addWidget(self._line)
+
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        self._apply_collapsed_state(True)  # fermé sans espace
+        self._update_btn_text()
+
+    # API
+    def content_layout(self):
+        return self._content_layout
+
+    def add_content_widget(self, w: QWidget):
+        self._content_layout.addWidget(w)
+
+    def set_collapsed(self, collapsed: bool):
+        self._btn.setChecked(not collapsed)  # checked => ouvert
+        self._apply_collapsed_state(collapsed)
+        self._update_btn_text()
+        self.collapsedChanged.emit(collapsed)
+        self._reflow()
+
+    # Slots
+    def _on_toggled(self, checked: bool):
+        collapsed = (not checked)
+        self._apply_collapsed_state(collapsed)
+        self._update_btn_text()
+        self.collapsedChanged.emit(collapsed)
+        self._reflow()
+
+    # Implémentation
+    def _apply_collapsed_state(self, collapsed: bool):
+        if collapsed:
+            self._content.setMaximumHeight(0)
+            self._content.setMinimumHeight(0)
+            self._content.setVisible(False)
+            self._line.setVisible(False)
+        else:
+            self._content.setVisible(True)
+            self._content.setMaximumHeight(16777215)
+            self._content.setMinimumHeight(0)
+            self._line.setVisible(True)
+
+    def _update_btn_text(self):
+        arrow = "▼ " if self._btn.isChecked() else "▶ "
+        base = self._base_title
+        if base.startswith(("▼ ", "▶ ")):
+            base = base[2:]
+        self._btn.setText(arrow + base)
+
+    def _reflow(self):
+        self._content.updateGeometry()
+        self.updateGeometry()
+        p = self.parentWidget()
+        if p is not None:
+            if p.layout():
+                p.layout().activate()
+            p.adjustSize()
+            p.updateGeometry()
+        QTimer.singleShot(0, self._delayed_adjust)
+
+    def _delayed_adjust(self):
+        w = self
+        while w is not None:
+            try:
+                if w.layout():
+                    w.layout().activate()
+                w.adjustSize()
+                w.updateGeometry()
+            except Exception:
+                pass
+            w = w.parentWidget()
+
+
+class _BigDlg(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("TFR – Agrandi")
@@ -48,26 +158,18 @@ class _BigDlg(QDialog):
 
 class TFRViewer(BasePlugin):
 
-    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
-  'outputs': {},
-  'parameters': [ { 'default': 50.0,
-                    'desc': 'Vertical scale',
-                    'name': 'scale_uv',
-                    'type': 'float',
-                    'unit': 'µV'},
-                  { 'default': 1.0,
-                    'desc': 'Scroll speed',
-                    'name': 'speed',
-                    'type': 'float'},
-                  { 'default': False,
-                    'desc': 'Show full screen',
-                    'name': 'fullscreen',
-                    'type': 'bool'}],
-  'summary': 'TFRViewer — robuste au changement de fichier / nbre de canaux',
-  'usage': 'Connect upstream data; adjust view parameters.'}
-    
-    
+    help = {
+        'gotchas': ['High refresh can drop FPS; consider decimation.'],
+        'inputs': {'tfr': 'mne.time_frequency.AverageTFR|EpochsTFR', 'channel': 'str|int (opt.)'},
+        'outputs': {},
+        'parameters': [
+            {'name': 'single_channel', 'type': 'bool', 'default': True, 'desc': 'Afficher un seul canal'},
+            {'name': 'db_scale', 'type': 'bool', 'default': False, 'desc': 'Échelle dB'},
+        ],
+        'summary': 'TFRViewer — robuste au changement de fichier / nbre de canaux',
+        'usage': 'Connect upstream TFR; ouvrez Paramètres pour choisir le canal / dB.'
+    }
+
     name = "TFRViewer"
     language = "Python"
     category = "Output Nodes"
@@ -104,14 +206,24 @@ class TFRViewer(BasePlugin):
         if self._widget is not None:
             return self._widget
 
-        panel = QWidget()
-        pv = QVBoxLayout(panel)
-        pv.setContentsMargins(6, 6, 6, 6)
-        pv.setSpacing(6)
+        w = QWidget()
+        root = QVBoxLayout(w)
+        root.setContentsMargins(6, 6, 6, 6)
+        root.setSpacing(6)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
 
+        # --- Figure (toujours visible)
         self._fig = Figure(figsize=(5, 3), tight_layout=True)
         self._canvas = FigureCanvas(self._fig)
-        pv.addWidget(self._canvas)
+        root.addWidget(self._canvas)
+
+        # --- Paramètres (pliables)
+        sec = CollapsibleSection("Paramètres")
+        sec.set_collapsed(True)
+        try:
+            sec.collapsedChanged.connect(lambda _: (w.adjustSize(), w.updateGeometry()))
+        except Exception:
+            pass
 
         row = QHBoxLayout()
         self._chk_single = QCheckBox("Single channel")
@@ -132,18 +244,22 @@ class TFRViewer(BasePlugin):
         btn.clicked.connect(self._open_big)
         row.addWidget(btn)
         row.addStretch(1)
-        pv.addLayout(row)
 
+        sec.content_layout().addLayout(row)
+        root.addWidget(sec)
+
+        # --- Info label (toujours visible)
         self._lbl = QLabel("")
         self._lbl.setStyleSheet("color:#bbb;font-style:italic;")
-        pv.addWidget(self._lbl)
+        root.addWidget(self._lbl)
 
-        wrap = QWidget()
-        vw = QVBoxLayout(wrap)
-        vw.setContentsMargins(0, 0, 0, 0)
-        vw.addWidget(CollapsibleSection("TFR Viewer", panel, collapsed=False))
-        self._widget = wrap
-        return wrap
+        # Contraintes pour supprimer tout résidu d’espace
+        w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        w.setMinimumSize(0, 0)
+        w.updateGeometry()
+
+        self._widget = w
+        return w
 
     # -------------- internals --------------
     def _toggle_single(self, b: bool):

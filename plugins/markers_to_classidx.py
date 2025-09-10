@@ -176,7 +176,7 @@ class MarkersToClassIdx(BasePlugin):
 
         self._lbl = QLabel("Idle"); v.addWidget(self._lbl)
 
-        root.addWidget(CollapsibleSection("Markers → ClassIdx", panel, collapsed=False))
+        root.addWidget(CollapsibleSection("Markers → ClassIdx", panel, collapsed=True))
         return w
 
     # ------------- runtime -------------

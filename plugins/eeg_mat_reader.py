@@ -2,41 +2,70 @@
 # -*- coding: utf-8 -*-
 """
 EEGMatReader — lecteur .mat (BBCI / BCI Competition / génériques)
-
-Sorties:
-  - segment  : np.ndarray float32 shape (n_ch, n_samples) — flux prêt pour Viewer2D
-  - ch_names : list[str] (émis au reset)
-  - sfreq    : float      (émis au reset)
-  - info     : dict {path, n_channels, sfreq, n_samples, style, units, reset, mode,
-                     segment_index?, segment_total?}
-
-Fonctionne avec:
-  - BBCI Toolbox style: cnt (continu), nfo.fs, nfo.clab, mrk (optionnel)
-  - BCI Comp (époques): X (trials×samples×channels) ou permuté
-
-Robustesse:
-  - Timer robuste + arrêt sûr à la destruction du widget
-  - Start/Stop solides, reset clair des sorties quand stop/déconnexion
-  - Heuristiques orientation (n_samples, n_channels) stabilisées
-  - Chargement SciPy et HDF5 (h5py) avec protections
-  - Émission continue du compteur de segments (segment_index / segment_total)
+• Panneau "Paramètres lecture" repliable (QToolButton) intégré → compatible avec NodeItem actuel.
+• Start/Stop robustes, stop auto à la destruction.
 """
+
 import os, json, re
 from typing import Any, Dict, List, Optional, Tuple
-
 import numpy as np
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFileDialog,
     QComboBox, QDoubleSpinBox, QCheckBox, QLayout, QSizePolicy, QStyle,
-    QDialog, QTextEdit, QTabWidget
+    QDialog, QTextEdit, QTabWidget, QToolButton
 )
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, Qt
 
 from rx.subject import BehaviorSubject
 from core.node_base import BasePlugin
-from core.ui_kit import UiKit
-from core.collapsible import CollapsibleSection
+
+# ---------- UiKit (optionnel) ----------
+try:
+    from core.ui_kit import UiKit  # style + boutons
+except Exception:
+    class UiKit:
+        @staticmethod
+        def apply_node_style(w: QWidget): pass
+        @staticmethod
+        def make_btn(text, role="primary", icon_sp=None):
+            b = QPushButton(text)
+            if icon_sp is not None:
+                try: b.setIcon(b.style().standardIcon(icon_sp))
+                except Exception: pass
+            return b
+
+# ---------- Collapsible local ----------
+class _CollapsibleSection(QWidget):
+    """Section repliable simple (pas de dépendance externe)."""
+    def __init__(self, title="Paramètres", content: QWidget = None, collapsed=True, parent=None):
+        super().__init__(parent)
+        self._btn = QToolButton(text=title, checkable=True, autoRaise=True)
+        self._btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self._btn.setArrowType(Qt.RightArrow)
+        self._btn.setChecked(not collapsed)
+
+        self._wrap = QWidget()
+        self._wrap.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        self._wrap_l = QVBoxLayout(self._wrap)
+        self._wrap_l.setContentsMargins(0, 0, 0, 0); self._wrap_l.setSpacing(6)
+        self._content = content or QWidget(); self._wrap_l.addWidget(self._content)
+
+        root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(6)
+        root.addWidget(self._btn); root.addWidget(self._wrap)
+
+        self._btn.toggled.connect(self._on_toggled)
+        self._on_toggled(self._btn.isChecked())
+
+    def _on_toggled(self, expanded: bool):
+        self._btn.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self._wrap.setVisible(expanded)
+        # remonte l’info de taille jusqu’au proxy du NodeItem pour éviter les artefacts
+        w = self
+        while w is not None:
+            if w.layout(): w.layout().invalidate()
+            w.adjustSize(); w.updateGeometry()
+            w = w.parentWidget()
 
 # -------- .mat loaders --------
 try:
@@ -49,7 +78,7 @@ try:
 except Exception:
     _h5py = None
 
-# ---------- JSON-safe ----------
+# ---------- JSON helpers ----------
 def _jsonify(obj):
     if obj is None or isinstance(obj, (bool, int, float, str)):
         return obj
@@ -81,10 +110,8 @@ def _safe_to_list(obj) -> List[str]:
             elif isinstance(x, str):
                 out.append(x)
             else:
-                try:
-                    out.append(str(x))
-                except Exception:
-                    pass
+                try: out.append(str(x))
+                except Exception: pass
         return out
     arr = np.asarray(obj)
     if arr.dtype.kind in ("U", "S", "O"):
@@ -92,10 +119,8 @@ def _safe_to_list(obj) -> List[str]:
             return [str(x if not isinstance(x, bytes) else x.decode("utf-8", "ignore")) for x in arr.ravel().tolist()]
         except Exception:
             pass
-    try:
-        return [str(obj)]
-    except Exception:
-        return []
+    try: return [str(obj)]
+    except Exception: return []
 
 def _try_load_scipy(path: str) -> Optional[Dict[str, Any]]:
     if _scipy_loadmat is None:
@@ -126,8 +151,7 @@ def _try_load_h5(path: str) -> Optional[Dict[str, Any]]:
         return None
 
 def _h5_read_nfo(h5_nfo) -> Tuple[Optional[float], List[str]]:
-    fs = None
-    clab = []
+    fs = None; clab = []
     if not (_h5py and isinstance(h5_nfo, _h5py.Group)):
         return fs, clab
     for key in ("fs", "Fs", "srate"):
@@ -168,12 +192,9 @@ def _extract_bbci_mrk(mrk_node) -> Dict[str, Any]:
             pos = getattr(mrk_node, "pos", None) if hasattr(mrk_node, "pos") else (mrk_node.get("pos", None) if isinstance(mrk_node, dict) else None)
             y   = getattr(mrk_node, "y", None)   if hasattr(mrk_node, "y")   else (mrk_node.get("y", None)   if isinstance(mrk_node, dict) else None)
             cn  = getattr(mrk_node, "className", None) if hasattr(mrk_node, "className") else (mrk_node.get("className", None) if isinstance(mrk_node, dict) else None)
-            if pos is not None:
-                out["pos"] = np.array(pos).astype(np.int64).ravel()
-            if y is not None:
-                out["y"] = np.array(y).squeeze()
-            if cn is not None:
-                out["class_name"] = _safe_to_list(cn)
+            if pos is not None: out["pos"] = np.array(pos).astype(np.int64).ravel()
+            if y   is not None: out["y"]   = np.array(y).squeeze()
+            if cn  is not None: out["class_name"] = _safe_to_list(cn)
         if out["pos"] is not None:
             out["n"] = int(out["pos"].size)
     except Exception:
@@ -183,31 +204,29 @@ def _extract_bbci_mrk(mrk_node) -> Dict[str, Any]:
 def _auto_channels(n: int) -> List[str]:
     return [f"Ch{i+1}" for i in range(int(max(0, n)))]
 
-
 class EEGMatReader(BasePlugin):
-    help = help = { 'gotchas': ['Large files: prefer windowed output.', 'Check montage and units.'],
-  'inputs': {},
-  'outputs': { 'ch_names': 'List[str]',
-               'events': 'array/list',
-               'raw': 'mne.Raw',
-               'segment': '2D float [ch x samples]',
-               'sfreq': 'float (Hz)'},
-  'parameters': [ { 'default': '',
-                    'desc': 'EDF/BDF/GDF/FIF/... file to load',
-                    'name': 'filepath',
-                    'type': 'path'},
-                  { 'default': None,
-                    'desc': 'Channels selection',
-                    'name': 'picks',
-                    'type': 'list|None'},
-                  { 'default': 1.0,
-                    'desc': 'Window length for streaming output',
-                    'name': 'segment_len',
-                    'type': 'float',
-                    'unit': 's'}],
-  'summary': 'EEGMatReader — lecteur .mat (BBCI / BCI Competition / génériques)',
-  'usage': 'Place at pipeline start; connect `raw` to MNE ops or `segment` to '
-           'streaming ops.'}
+    help = { 'gotchas': ['Large files: prefer windowed output.', 'Check montage and units.'],
+      'inputs': {},
+      'outputs': { 'ch_names': 'List[str]',
+                   'events': 'array/list',
+                   'raw': 'mne.Raw',
+                   'segment': '2D float [ch x samples]',
+                   'sfreq': 'float (Hz)'},
+      'parameters': [ { 'default': '',
+                        'desc': 'EDF/BDF/GDF/FIF/... file to load',
+                        'name': 'filepath',
+                        'type': 'path'},
+                      { 'default': None,
+                        'desc': 'Channels selection',
+                        'name': 'picks',
+                        'type': 'list|None'},
+                      { 'default': 1.0,
+                        'desc': 'Window length for streaming output',
+                        'name': 'segment_len',
+                        'type': 'float',
+                        'unit': 's'}],
+      'summary': 'EEGMatReader — lecteur .mat (BBCI / BCI Competition / génériques)',
+      'usage': 'Place at pipeline start; connect `raw` to MNE ops or `segment` to streaming ops.'}
 
     name = "EEGMatReader"
     category = "Input Nodes"
@@ -262,11 +281,27 @@ class EEGMatReader(BasePlugin):
         return {}
 
     def build_widget(self) -> QWidget:
-        w = QWidget(); UiKit.apply_node_style(w)
-        w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-        root = QVBoxLayout(w); root.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        from PyQt5.QtWidgets import (
+            QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
+            QDoubleSpinBox, QCheckBox, QSizePolicy, QLayout, QStyle, QFileDialog
+        )
+        from core.ui_kit import UiKit
+        from core.collapsible import CollapsibleSection
 
-        # --- Bandeau ---
+        w = QWidget(); UiKit.apply_node_style(w)
+        # le proxy de node utilise sizeHint → on fixe la hauteur et on la met à jour au toggle
+        w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        root = QVBoxLayout(w)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        root.setContentsMargins(6, 6, 6, 6)
+        root.setSpacing(8)
+
+        # ----- panneau interne (TOUT est dedans) -----
+        panel = QWidget()
+        v = QVBoxLayout(panel); v.setContentsMargins(8,8,8,8); v.setSpacing(8)
+
+        # Ligne 0: Open / Infos / statut
         r0 = QHBoxLayout()
         btn_open = UiKit.make_btn("Open .mat…", role="primary", icon_sp=QStyle.SP_DialogOpenButton)
         btn_open.clicked.connect(self._on_open)
@@ -276,16 +311,15 @@ class EEGMatReader(BasePlugin):
         btn_info.clicked.connect(self._show_file_info)
         r0.addWidget(btn_info)
 
-        self._lbl_status = QLabel("No file"); r0.addWidget(self._lbl_status, 1)
-        root.addLayout(r0)
+        self._lbl_status = QLabel("No file")
+        r0.addWidget(self._lbl_status, 1)
+        v.addLayout(r0)
 
-        # --- Panneau paramètres ---
-        panel = QWidget(); v = QVBoxLayout(panel); v.setContentsMargins(8,8,8,8); v.setSpacing(8)
-
+        # Ligne 1: Mode + options
         r1 = QHBoxLayout()
         r1.addWidget(QLabel("Mode:"))
         self._cmb_mode = QComboBox(); self._cmb_mode.addItems(["Trials","Continuous"])
-        self._cmb_mode.currentTextChanged.connect(lambda s: self._on_mode_changed(s))
+        self._cmb_mode.currentTextChanged.connect(self._on_mode_changed)
         r1.addWidget(self._cmb_mode)
         r1.addSpacing(12)
         self._chk_autoplay = QCheckBox("Autoplay"); self._chk_autoplay.setChecked(self._auto_play)
@@ -297,16 +331,23 @@ class EEGMatReader(BasePlugin):
         r1.addStretch(1)
         v.addLayout(r1)
 
+        # Ligne 2: chunk/overlap
         r2 = QHBoxLayout()
         r2.addWidget(QLabel("chunk (s):"))
-        self._sp_chunk = QDoubleSpinBox(); self._sp_chunk.setRange(0.05, 30.0); self._sp_chunk.setSingleStep(0.05); self._sp_chunk.setValue(self._chunk_s)
-        self._sp_chunk.valueChanged.connect(lambda x: setattr(self,"_chunk_s", float(x))); r2.addWidget(self._sp_chunk)
+        self._sp_chunk = QDoubleSpinBox(); self._sp_chunk.setRange(0.05, 30.0)
+        self._sp_chunk.setSingleStep(0.05); self._sp_chunk.setValue(self._chunk_s)
+        self._sp_chunk.valueChanged.connect(lambda x: setattr(self,"_chunk_s", float(x)))
+        r2.addWidget(self._sp_chunk)
+
         r2.addWidget(QLabel("overlap (s):"))
-        self._sp_ov = QDoubleSpinBox(); self._sp_ov.setRange(0.0, 29.9); self._sp_ov.setSingleStep(0.05); self._sp_ov.setValue(self._overlap_s)
-        self._sp_ov.valueChanged.connect(lambda x: setattr(self,"_overlap_s", float(x))); r2.addWidget(self._sp_ov)
+        self._sp_ov = QDoubleSpinBox(); self._sp_ov.setRange(0.0, 29.9)
+        self._sp_ov.setSingleStep(0.05); self._sp_ov.setValue(self._overlap_s)
+        self._sp_ov.valueChanged.connect(lambda x: setattr(self,"_overlap_s", float(x)))
+        r2.addWidget(self._sp_ov)
         r2.addStretch(1)
         v.addLayout(r2)
 
+        # Ligne 3: Start/Stop
         r3 = QHBoxLayout()
         btn_start = UiKit.make_btn("Start", role="success", icon_sp=QStyle.SP_MediaPlay)
         btn_stop  = UiKit.make_btn("Stop",  role="danger",  icon_sp=QStyle.SP_MediaStop)
@@ -315,11 +356,27 @@ class EEGMatReader(BasePlugin):
         r3.addWidget(btn_start); r3.addWidget(btn_stop); r3.addStretch(1)
         v.addLayout(r3)
 
-        root.addWidget(CollapsibleSection("Paramètres lecture", panel, collapsed=True))
+        # ----- section pliable (fermée par défaut) -----
+        coll = CollapsibleSection("Paramètres lecture", panel, collapsed=True)
+        root.addWidget(coll)
 
-        # Arrêt sûr
+        # Hauteur = taille “pliée” (barre d'en-tête de la section).
+        # Et on resynchronise la hauteur quand on plie/déplie pour éviter tout clipping.
+        def _sync_height(*_):
+            w.layout().activate()
+            w.setFixedHeight(root.sizeHint().height() + 2)
+            w.updateGeometry()
+        _sync_height()
+        try:
+            coll._btn.toggled.connect(_sync_height)   # bouton de l’en-tête du CollapsibleSection
+        except Exception:
+            pass
+
+        # Arrêt sûr du timer si le widget est détruit
         w.destroyed.connect(lambda *a: (getattr(self, "_timer", None) is not None) and self._timer.stop())
         return w
+
+
 
     # ---------- UI Callbacks ----------
     def _on_open(self):
@@ -343,8 +400,7 @@ class EEGMatReader(BasePlugin):
         self._idx = 0
 
         d = _try_load_scipy(path)
-        if d is None:
-            d = _try_load_h5(path)
+        if d is None: d = _try_load_h5(path)
         if d is None:
             return False, "Load error: scipy/h5py indisponible ou fichier illisible"
 
@@ -352,25 +408,17 @@ class EEGMatReader(BasePlugin):
         cnt = None; nfo = None
         if "cnt" in d:
             try:
-                if _h5py and isinstance(d["cnt"], _h5py.Dataset):
-                    cnt = np.array(d["cnt"][()])
-                else:
-                    cnt = np.array(d["cnt"])
+                if _h5py and isinstance(d["cnt"], _h5py.Dataset): cnt = np.array(d["cnt"][()])
+                else: cnt = np.array(d["cnt"])
             except Exception:
                 cnt = None
-            if "nfo" in d:
-                nfo = d["nfo"]
+            if "nfo" in d: nfo = d["nfo"]
 
         if cnt is not None:
             arr = np.array(cnt)
-            # attend (n_samples, n_channels)
-            if arr.ndim == 1:
-                arr = arr[:, None]
-            # heuristique orientation
+            if arr.ndim == 1: arr = arr[:, None]
             n0, n1 = arr.shape
-            if (n0 <= 512 and n1 >= n0) and (n1 > n0):
-                arr = arr.T
-            # méta
+            if (n0 <= 512 and n1 >= n0) and (n1 > n0): arr = arr.T
             sf = None; clab = []
             if nfo is not None:
                 if _h5py and isinstance(nfo, _h5py.Group):
@@ -432,10 +480,8 @@ class EEGMatReader(BasePlugin):
         # 2D -> continu
         if arr.ndim == 2:
             n0, n1 = arr.shape
-            if n0 >= n1:
-                self._cnt = arr.astype(np.float32, copy=False)
-            else:
-                self._cnt = arr.T.astype(np.float32, copy=False)
+            if n0 >= n1: self._cnt = arr.astype(np.float32, copy=False)
+            else:        self._cnt = arr.T.astype(np.float32, copy=False)
             sf = None
             for k in ("fs","Fs","srate"):
                 if k in d:
@@ -488,10 +534,8 @@ class EEGMatReader(BasePlugin):
                     try:
                         node = d[k]
                         if _h5py and isinstance(node, (_h5py.Dataset, _h5py.Group)):
-                            try:
-                                val = node[()] if isinstance(node, _h5py.Dataset) else node
-                            except Exception:
-                                val = None
+                            try: val = node[()] if isinstance(node, _h5py.Dataset) else node
+                            except Exception: val = None
                             ch_names = _safe_to_list(val)
                         else:
                             ch_names = _safe_to_list(node)
@@ -549,7 +593,6 @@ class EEGMatReader(BasePlugin):
             if hop <= 0:
                 hop = max(1, int(round(0.1 * seg_len)))  # éviter stall
             self._seg_len = seg_len; self._hop = hop
-            # total segments
             n = int(self._cnt.shape[0]) if self._cnt is not None else 0
             if n <= seg_len:
                 self._seg_total = 1 if n > 0 else 0
@@ -593,7 +636,6 @@ class EEGMatReader(BasePlugin):
         seg_idx = (self._idx // max(1, H)) + 1  # 1-based
         seg = self._cnt[self._idx:self._idx+L, :]
 
-        # Émettre data + info segment
         self.outputs["segment"].on_next(np.asarray(seg.T, dtype=np.float32, order="C"))
         try:
             self.outputs["info"].on_next({
@@ -638,7 +680,7 @@ class EEGMatReader(BasePlugin):
 
         info_dict, tabs_texts = self._collect_file_info()
 
-        dlg = QDialog(self.widget)
+        dlg = QDialog(getattr(self, "widget", None))
         dlg.setWindowTitle("Informations du fichier (.mat)")
         lay = QVBoxLayout(dlg)
         tabs = QTabWidget(dlg)

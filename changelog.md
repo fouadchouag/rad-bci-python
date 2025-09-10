@@ -3,23 +3,75 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.9.0] - 2025-09-08
 ### Added
-- 
-### Changed
-- 
+- In-app Help: Shift+F1 opens node page; “?” quick help badges.
+- Low-code help autofill (Summary/Usage → injecte `help` dict).
+- Nodes Catalog generator (from plugins’ help).
+
 ### Fixed
-- 
+- F1 search bar with Material theme in embedded viewer.
+- Version shown in title from core/version.py.
 
-## [1.6.0] - 2025-08-20
+### Changed
+- Low-code wrappers: improved Nyquist guard & preview options.
 
+
+[1.8.0] — 2025-09-01
+Added
+Metrics CLI: Δ% vs W1, seuils UX (100/200/500/1000 ms, 0.1/1/10 s, 60/30 fps),
+TTFP zoom (0–200 ms), multipanel (a…f), camera-ready + caption, --fontscale.
+Scripts de reproductibilité: parse_events_min.py, Annex_Repro_Methods.md, README_RBciAD_Metrics.md.
+Exports vectoriels: SVG/PDF pour les 6 graphes + multipage PDF.
+Changed
+Figures avec polices agrandies et repères UX superposés.
+Notes
+Données & artefacts dans benchmarks/ et figures/ (voir README).
+
+
+## [1.7.0] - 2025-08-25
 ### Added
--
-### Changed
--
-### Fixed
--
+Métriques manuelles via clavier : démarrer/arrêter avec F9 (toggle) ou F10 (stop).
+Plus de lancement auto : aucun fichier dans runs/ tant que les métriques ne sont pas déclenchées.
+UI clean : bouton “Start TTFP/bench” retiré de EEGLiveDisplay pour éviter la confusion.
+Hooks de métriques étendus dans tous les nœuds (Reader → Filter → Display) :
+RUN_META, CPU_MEM
+FILE_OPEN, FILE_READY, FILE_ERROR, FILE_CLOSED
+READ_START, READ_STOP, META_RESET, EVENTS
+PARAM_CHANGE
+START_TTFP, FIRST_FRAME, FRAME_RENDERED (+ dropped)
+FILTER_START, FILTER_DONE, FILTER_FAIL
+Analyse offline améliorée :
+utils/metrics_eval.py : TTFP, latences PARAM_CHANGE → FRAME, FPS, CPU/RSS (avg/max), compteurs d’événements, durées par filtre (p50/p95), erreurs, etc.
+utils/build_tables_from_metrics.py : corrige les dtypes, gère les NaN, ajoute FPS, Dropped (%), Throughput (kS/s), agrégats par groupe de filtre (dur_med_s, dur_p95_s, fail_pct).
+🧩 Changements notables
+EEGUniversalReader
 
+Ouverture asynchrone “smart preview” (pré-crop auto sur gros fichiers).
+Lazy/memmap + fallback preload ; “Turbo GDF” optionnel.
+Journalisation détaillée des paramètres d’ouverture (picks, decim, resample…).
+EEGSliceFilter
+
+Filtrage étatful (HP/LP/Notch) via scipy.signal en sos.
+Hooks FILTER_START/DONE/FAIL + capture des paramètres (hp/lp/order/notch).
+Émission de méta uniquement quand ça change (anti-spam).
+EEGLiveDisplay
+
+Suppression du bouton bench ; rendu fluide (throttling FPS, décimation).
+Ring-buffer segment ; logs FIRST_FRAME, FRAME_RENDERED (avec drop).
+Garde-fous UI (arrêt timer, popup cleanup) → moins d’erreurs Qt.
+🛠️ Bug fixes
+Exceptions Qt (QTimer/QLabel “wrapped C/C++ object … deleted”) atténuées par des gardes et un nettoyage ordonné.
+Robustesse des conversions dtype dans la génération des tables de métriques.
+⚠️ Breaking / comportement
+Les métriques ne démarrent plus automatiquement au lancement de l’app : il faut appuyer sur F9 (ou binder un menu).
+Si vous aviez des scripts qui s’attendaient à des logs au démarrage, adaptez-les (hotkey F9).
+⬆️ Upgrade notes
+Mettez à jour requirements si nécessaire : scipy, mne.
+Lancez l’app, démarrez les métriques avec F9, arrêtez avec F9 ou F10.
+Analyse :
+python utils/metrics_eval.py runs --outdir metrics_results
+python utils/build_tables_from_metrics.py metrics_results --outdir out
 
 ## [1.6.0] - 2025-08-19
 ### Added

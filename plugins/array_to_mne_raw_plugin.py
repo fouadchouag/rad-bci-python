@@ -1,22 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-Array → MNE Raw (Adapter) — fixed v2
+Array → MNE Raw (Adapter) — fixed v3 (collapsible)
 
-But: brancher facilement un LSL inlet (qui sort des arrays/chunks) au Viewer2D.
-Accepte listes de chunks, arrays ragged, 2D/3D; transpose si besoin; applique un
-montage optionnel pour que plot_sensors fonctionne.
-
-Fix v2:
-- Ne plus utiliser `or` sur des numpy arrays (évite "truth value of an array is ambiguous").
-- Conversion robuste de `sfreq` même si c'est un array/scalar numpy.
+- Idem v2 (coercions + robustesse sfreq)
+- UI "Paramètres" repliable/clicable (QToolButton) compatible avec NodeItem.
 """
 from typing import Optional
 import numpy as np
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
-    QCheckBox
+    QCheckBox, QToolButton, QSizePolicy
 )
+from PyQt5.QtCore import Qt
 from rx.subject import BehaviorSubject
 from core.node_base import BasePlugin
 
@@ -27,20 +23,77 @@ except Exception:
     HAVE_MNE = False
 
 
+# --- mini section repliable, autonome (aucune dépendance externe) ----------
+class _CollapsibleSection(QWidget):
+    def __init__(self, title="Paramètres", content: QWidget = None, collapsed=True, parent=None):
+        super().__init__(parent)
+        self._btn = QToolButton(text=title, checkable=True, autoRaise=True)
+        self._btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self._btn.setArrowType(Qt.RightArrow)
+        self._btn.setChecked(not collapsed)
+
+        self._wrap = QWidget()
+        self._wrap.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        self._wrap_l = QVBoxLayout(self._wrap)
+        self._wrap_l.setContentsMargins(0, 0, 0, 0)
+        self._wrap_l.setSpacing(6)
+
+        self._content = content or QWidget()
+        self._wrap_l.addWidget(self._content)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(6)
+        root.addWidget(self._btn)
+        root.addWidget(self._wrap)
+
+        self._btn.toggled.connect(self._on_toggled)
+        self._on_toggled(self._btn.isChecked())
+
+    def _on_toggled(self, expanded: bool):
+        self._btn.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self._wrap.setVisible(expanded)
+        w = self
+        while w is not None:
+            if w.layout():
+                w.layout().invalidate()
+            w.adjustSize()
+            w.updateGeometry()
+            w = w.parentWidget()
+
+
 class ArrayToMNERaw(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
-  'outputs': {'segment': 'processed array'},
-  'parameters': [],
-  'summary': 'Array → MNE Raw (Adapter) — fixed v2',
-  'usage': 'Wire upstream data and route downstream.'}
+    help = {
+        'gotchas': [],
+        'inputs': {
+            'data': '2D/3D array or list of chunks (EEG amplitudes)',
+            'sfreq': 'float sampling rate (Hz)',
+            'ch_names': 'list[str] channel names',
+        },
+        'outputs': {
+            'raw': 'mne.io.Raw',
+            'status': 'text status',
+        },
+        'parameters': [],
+        'summary': 'Array → MNE Raw (Adapter) — fixed v3',
+        'usage': 'Provide data/sfreq/ch_names; converts to MNE Raw.'
+    }
+
+    # 🔹 Familles explicites pour la validation des connexions
+    PIN_FAMILY_HINTS = {
+        "data": "segment_or_raw",  # ← accepte "segment" (mat 2D) OU "raw" en entrée
+        "sfreq": "sfreq",
+        "ch_names": "ch_names",
+        "raw": "raw",
+        "status": "status",
+    }
 
     name = "Array → MNE Raw"
     language = "Python"
     category = "Input Nodes"
 
     def setup(self):
-        # Inputs (reliez ici votre LSL inlet)
+        # Inputs
         self.inputs["data"] = BehaviorSubject(None)      # ndarray 2D/3D OU liste de chunks
         self.inputs["sfreq"] = BehaviorSubject(None)     # float (peut être numpy scalar)
         self.inputs["ch_names"] = BehaviorSubject(None)  # list[str]
@@ -56,37 +109,58 @@ class ArrayToMNERaw(BasePlugin):
         self._latest = (None, None, None)
 
     def build_widget(self) -> QWidget:
-        w = QWidget(); root = QVBoxLayout(w)
-        root.setContentsMargins(6,6,6,6); root.setSpacing(6)
+        w = QWidget()
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(6, 6, 6, 6)
+        outer.setSpacing(6)
 
         title = QLabel("Array → MNE Raw (Adapter)")
         title.setStyleSheet("font-weight:600;font-size:14px;")
-        root.addWidget(title)
+        outer.addWidget(title)
 
         if not HAVE_MNE:
             warn = QLabel("MNE n'est pas installé. `pip install mne`.")
-            warn.setStyleSheet("color:#b00"); warn.setWordWrap(True)
-            root.addWidget(warn)
+            warn.setStyleSheet("color:#b00")
+            warn.setWordWrap(True)
+            outer.addWidget(warn)
+
+        panel = QWidget()
+        pv = QVBoxLayout(panel)
+        pv.setContentsMargins(0, 0, 0, 0)
+        pv.setSpacing(6)
 
         row1 = QHBoxLayout()
         row1.addWidget(QLabel("Units"))
-        self._cmb_units = QComboBox(); self._cmb_units.addItems(["V","µV","mV","nV"]) ; self._cmb_units.setCurrentText(self._units)
+        self._cmb_units = QComboBox()
+        self._cmb_units.addItems(["V", "µV", "mV", "nV"])
+        self._cmb_units.setCurrentText(self._units)
         self._cmb_units.currentTextChanged.connect(self._on_units)
         row1.addWidget(self._cmb_units)
+
         row1.addWidget(QLabel("Montage"))
-        self._cmb_mont = QComboBox(); self._cmb_mont.addItems(["(none)","standard_1020","standard_1005","biosemi64","easycap-M1"]) ; self._cmb_mont.setCurrentText(self._montage)
+        self._cmb_mont = QComboBox()
+        self._cmb_mont.addItems(["(none)", "standard_1020", "standard_1005", "biosemi64", "easycap-M1"])
+        self._cmb_mont.setCurrentText(self._montage)
         self._cmb_mont.currentTextChanged.connect(self._on_montage)
         row1.addWidget(self._cmb_mont, 1)
-        self._chk_auto = QCheckBox("Auto"); self._chk_auto.setChecked(self._auto); self._chk_auto.toggled.connect(self._on_auto)
+
+        self._chk_auto = QCheckBox("Auto")
+        self._chk_auto.setChecked(self._auto)
+        self._chk_auto.toggled.connect(self._on_auto)
         row1.addWidget(self._chk_auto)
-        root.addLayout(row1)
+        pv.addLayout(row1)
 
-        row2 = QHBoxLayout(); self._btn = QPushButton("Convertir → Raw")
+        row2 = QHBoxLayout()
+        self._btn = QPushButton("Convertir → Raw")
         self._btn.clicked.connect(self._convert)
-        row2.addWidget(self._btn); root.addLayout(row2)
+        row2.addWidget(self._btn)
+        pv.addLayout(row2)
 
-        self._lbl = QLabel(""); self._lbl.setStyleSheet("color:#666")
-        root.addWidget(self._lbl)
+        self._lbl = QLabel("")
+        self._lbl.setStyleSheet("color:#666")
+        pv.addWidget(self._lbl)
+
+        outer.addWidget(_CollapsibleSection("Paramètres", content=panel, collapsed=True))
 
         self._widget = w
         return w
@@ -99,10 +173,14 @@ class ArrayToMNERaw(BasePlugin):
 
     def _on_units(self, u: str):
         self._units = u
-        if self._auto: self._convert()
+        if self._auto:
+            self._convert()
+
     def _on_montage(self, m: str):
         self._montage = m
-        if self._auto: self._convert()
+        if self._auto:
+            self._convert()
+
     def _on_auto(self, on: bool):
         self._auto = bool(on)
 
@@ -116,9 +194,13 @@ class ArrayToMNERaw(BasePlugin):
     def execute(self, *call_args, **call_kwargs):
         try:
             inps = call_kwargs or (call_args[0] if call_args and isinstance(call_args[0], dict) else self.inputs)
+
             def _v(x):
-                try: return x.value
-                except Exception: return x
+                try:
+                    return x.value
+                except Exception:
+                    return x
+
             def first_non_none(*keys):
                 for k in keys:
                     if k in inps:
@@ -126,9 +208,10 @@ class ArrayToMNERaw(BasePlugin):
                         if val is not None:
                             return val
                 return None
-            data = first_non_none("data","samples","chunk")
-            sfreq = first_non_none("sfreq","fs","sampling_rate")
-            ch_names = first_non_none("ch_names","labels","names")
+
+            data = first_non_none("data", "samples", "chunk")
+            sfreq = first_non_none("sfreq", "fs", "sampling_rate")
+            ch_names = first_non_none("ch_names", "labels", "names")
             self._latest = (data, sfreq, ch_names)
             if self._auto:
                 self._convert()
@@ -164,17 +247,22 @@ class ArrayToMNERaw(BasePlugin):
                 if all(a.ndim == 1 for a in items):
                     lens = [a.shape[0] for a in items]
                     if n_ch_hint is not None and len(items) == n_ch_hint:
-                        L = int(np.min(lens)); X = np.stack([a[:L] for a in items], axis=0)
+                        L = int(np.min(lens))
+                        X = np.stack([a[:L] for a in items], axis=0)
                     else:
-                        n_ch = min(lens); X = np.stack([a[:n_ch] for a in items], axis=0).T
+                        n_ch = min(lens)
+                        X = np.stack([a[:n_ch] for a in items], axis=0).T
                     return X.astype(float)
                 if all(a.ndim == 2 for a in items):
                     chunks = []
                     for a in items:
                         if n_ch_hint is not None:
-                            if a.shape[0] == n_ch_hint: chunks.append(a)
-                            elif a.shape[1] == n_ch_hint: chunks.append(a.T)
-                            else: chunks.append(a if a.shape[0] < a.shape[1] else a.T)
+                            if a.shape[0] == n_ch_hint:
+                                chunks.append(a)
+                            elif a.shape[1] == n_ch_hint:
+                                chunks.append(a.T)
+                            else:
+                                chunks.append(a if a.shape[0] < a.shape[1] else a.T)
                         else:
                             chunks.append(a if a.shape[0] < a.shape[1] else a.T)
                     L = int(np.min([c.shape[1] for c in chunks]))
@@ -196,18 +284,24 @@ class ArrayToMNERaw(BasePlugin):
             if nd == 1:
                 lens = [a.shape[0] for a in arrs]
                 if n_ch_hint is not None and len(arrs) == n_ch_hint:
-                    L = int(np.min(lens)); X = np.stack([a[:L] for a in arrs], axis=0)
+                    L = int(np.min(lens))
+                    X = np.stack([a[:L] for a in arrs], axis=0)
                 else:
-                    n_ch = int(np.min(lens)); X = np.stack([a[:n_ch] for a in arrs], axis=0).T
+                    n_ch = int(np.min(lens))
+                    X = np.stack([a[:n_ch] for a in arrs], axis=0).T
                 return X.astype(float)
             else:
                 chunks = []
                 for a in arrs:
-                    if a.ndim == 1: a = a[None, :]
+                    if a.ndim == 1:
+                        a = a[None, :]
                     if n_ch_hint is not None:
-                        if a.shape[0] == n_ch_hint: chunks.append(a)
-                        elif a.shape[1] == n_ch_hint: chunks.append(a.T)
-                        else: chunks.append(a if a.shape[0] < a.shape[1] else a.T)
+                        if a.shape[0] == n_ch_hint:
+                            chunks.append(a)
+                        elif a.shape[1] == n_ch_hint:
+                            chunks.append(a.T)
+                        else:
+                            chunks.append(a if a.shape[0] < a.shape[1] else a.T)
                     else:
                         chunks.append(a if a.shape[0] < a.shape[1] else a.T)
                 L = int(np.min([c.shape[1] for c in chunks]))
@@ -218,29 +312,35 @@ class ArrayToMNERaw(BasePlugin):
 
     def _convert(self):
         if not HAVE_MNE:
-            self._set_status("MNE non dispo"); return
+            self._set_status("MNE non dispo")
+            return
         data, sfreq, ch_names = self._latest
         try:
             if data is None or sfreq is None or ch_names is None:
-                self._set_status("Entrées incomplètes (data/sfreq/ch_names)"); return
+                self._set_status("Entrées incomplètes (data/sfreq/ch_names)")
+                return
 
             n_ch_hint = int(len(ch_names)) if ch_names is not None else None
             X = self._coerce_2d(data, n_ch_hint)
             if n_ch_hint is not None:
-                if X.shape[0] == n_ch_hint: pass
-                elif X.shape[1] == n_ch_hint: X = X.T
-                else: X = X if X.shape[0] <= X.shape[1] else X.T
+                if X.shape[0] == n_ch_hint:
+                    pass
+                elif X.shape[1] == n_ch_hint:
+                    X = X.T
+                else:
+                    X = X if X.shape[0] <= X.shape[1] else X.T
             else:
                 X = X if X.shape[0] <= X.shape[1] else X.T
 
-            # harmoniser ch_names
             ch_names = list(map(str, ch_names))
             if len(ch_names) != X.shape[0]:
-                if len(ch_names) > X.shape[0]: ch_names = ch_names[:X.shape[0]]
-                else: ch_names += [f"Ch{i+1}" for i in range(len(ch_names), X.shape[0])]
+                if len(ch_names) > X.shape[0]:
+                    ch_names = ch_names[:X.shape[0]]
+                else:
+                    ch_names += [f"Ch{i+1}" for i in range(len(ch_names), X.shape[0])]
 
             # unités → Volts
-            scale = {"V":1.0, "µV":1e-6, "mV":1e-3, "nV":1e-9}.get(self._units, 1e-6)
+            scale = {"V": 1.0, "µV": 1e-6, "mV": 1e-3, "nV": 1e-9}.get(self._units, 1e-6)
             X = X.astype(float) * scale
             X[~np.isfinite(X)] = 0.0
 
@@ -265,6 +365,9 @@ class ArrayToMNERaw(BasePlugin):
 
             self.outputs["raw"].on_next(raw)
             dur = raw.n_times / raw.info['sfreq']
-            self._set_status(f"Raw prêt: {len(raw.ch_names)}ch @ {raw.info['sfreq']:.2f}Hz, {dur:.2f}s, montage={mont_name}, shape={X.shape}")
+            self._set_status(
+                f"Raw prêt: {len(raw.ch_names)}ch @ {raw.info['sfreq']:.2f}Hz, {dur:.2f}s, "
+                f"montage={mont_name}, shape={X.shape}"
+            )
         except Exception as e:
             self._set_status(f"Erreur conversion: {e}")

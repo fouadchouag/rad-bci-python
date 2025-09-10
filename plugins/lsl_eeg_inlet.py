@@ -123,7 +123,7 @@ class LSL_EEG_Inlet(BasePlugin):
 
         self._lbl = QLabel("LSL: " + ("OK" if LSL_OK else "missing")); v.addWidget(self._lbl)
 
-        root.addWidget(CollapsibleSection("LSL EEG Inlet", panel, collapsed=False))
+        root.addWidget(CollapsibleSection("LSL EEG Inlet", panel, collapsed=True))
 
         # timer emission
         self._timer = QTimer(w)

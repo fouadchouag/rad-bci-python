@@ -2,11 +2,11 @@
   "version": 2,
   "nodes": [
     {
-      "name": "EEGLiveDisplay_bbbf24",
+      "name": "EEGLiveDisplay_c74ce6",
       "type": "EEGLiveDisplay",
       "position": [
-        664.0,
-        25.0
+        865.0,
+        39.0
       ],
       "config": {
         "loop": true,
@@ -20,7 +20,7 @@
       }
     },
     {
-      "name": "EEGUniversalReader_e7773d",
+      "name": "EEGUniversalReader_d56b0c",
       "type": "EEGUniversalReader",
       "position": [
         39.0,
@@ -44,34 +44,28 @@
         "preview_s": 0.0,
         "stream_decim": 1,
         "bigfile_threshold_mb": 128.0,
-        "path": "D:\\rad-bci-python_test\\eeg_recording\\testfile2.edf"
+        "path": ""
       }
     }
   ],
   "connections": [
     {
-      "from": "EEGUniversalReader_e7773d",
-      "from_pin": "raw",
-      "to": "EEGLiveDisplay_bbbf24",
-      "to_pin": "raw"
-    },
-    {
-      "from": "EEGUniversalReader_e7773d",
-      "from_pin": "ch_names",
-      "to": "EEGLiveDisplay_bbbf24",
-      "to_pin": "ch_names"
-    },
-    {
-      "from": "EEGUniversalReader_e7773d",
+      "from": "EEGUniversalReader_d56b0c",
       "from_pin": "sfreq",
-      "to": "EEGLiveDisplay_bbbf24",
+      "to": "EEGLiveDisplay_c74ce6",
       "to_pin": "sfreq"
     },
     {
-      "from": "EEGUniversalReader_e7773d",
-      "from_pin": "info",
-      "to": "EEGLiveDisplay_bbbf24",
-      "to_pin": "info"
+      "from": "EEGUniversalReader_d56b0c",
+      "from_pin": "ch_names",
+      "to": "EEGLiveDisplay_c74ce6",
+      "to_pin": "ch_names"
+    },
+    {
+      "from": "EEGUniversalReader_d56b0c",
+      "from_pin": "raw",
+      "to": "EEGLiveDisplay_c74ce6",
+      "to_pin": "raw"
     }
   ]
 }

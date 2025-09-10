@@ -14,14 +14,18 @@ Trace:
     * (t, label)  ou (t, label, dur)
     * {"t":..., "label":..., "dur":..., "mode": "rel|sample"}
     * liste des éléments ci-dessus
+
+→ Paramètres pliables (fermés par défaut) sans “zone grise” au repli.
 """
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Sequence
 import numpy as np
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
-    QCheckBox, QSpinBox, QDoubleSpinBox, QSizePolicy, QDialog, QVBoxLayout as QVBL
+    QCheckBox, QSpinBox, QDoubleSpinBox, QSizePolicy, QDialog,
+    QVBoxLayout as QVBL, QLayout, QFrame
 )
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from rx.subject import BehaviorSubject
 from core.node_base import BasePlugin
 
@@ -58,7 +62,109 @@ except Exception:
     HAVE_SCIPY = False
 
 
-# ------------- Utils DSP (numpy fallbacks) ------------- #
+# ---------------- CollapsibleSection (anti “rectangle gris”) ----------------
+class CollapsibleSection(QWidget):
+    """
+    Fermée: contenu min/max=0 + invisible (aucun espace). Ouverte: hauteur naturelle.
+    Émet `collapsedChanged(bool)` et force le recalcul des layouts/parents.
+    """
+    collapsedChanged = pyqtSignal(bool)
+
+    def __init__(self, title: str, parent: QWidget = None):
+        super().__init__(parent)
+        self._title = title
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(4)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
+
+        self._btn = QPushButton()
+        self._btn.setCheckable(True)
+        self._btn.setChecked(False)  # démarrage fermé
+        self._btn.setStyleSheet(
+            "QPushButton {"
+            " text-align: left; padding:6px 8px; font-weight:600;"
+            " border:1px solid #ccc; border-radius:6px; background:#f7f7f7;"
+            "}"
+        )
+        self._btn.toggled.connect(self._on_toggled)
+        root.addWidget(self._btn)
+
+        self._content = QWidget()
+        self._content.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self._content_layout = QVBoxLayout(self._content)
+        self._content_layout.setContentsMargins(10, 8, 10, 8)
+        self._content_layout.setSpacing(6)
+        self._content_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        root.addWidget(self._content)
+
+        self._line = QFrame()
+        self._line.setFrameShape(QFrame.HLine)
+        self._line.setStyleSheet("color:#ddd;")
+        root.addWidget(self._line)
+
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        self.set_collapsed(True)  # fermé sans espace au démarrage
+
+    def content_layout(self):
+        return self._content_layout
+
+    def add_content_widget(self, w: QWidget):
+        self._content_layout.addWidget(w)
+
+    def set_collapsed(self, collapsed: bool):
+        self._btn.setChecked(not collapsed)  # checked => ouvert
+        self._apply(collapsed)
+        self._update_title()
+        self.collapsedChanged.emit(collapsed)
+        self._reflow()
+
+    def _on_toggled(self, checked: bool):
+        collapsed = (not checked)
+        self._apply(collapsed)
+        self._update_title()
+        self.collapsedChanged.emit(collapsed)
+        self._reflow()
+
+    def _apply(self, collapsed: bool):
+        if collapsed:
+            self._content.setMaximumHeight(0)
+            self._content.setMinimumHeight(0)
+            self._content.setVisible(False)
+            self._line.setVisible(False)
+        else:
+            self._content.setVisible(True)
+            self._content.setMaximumHeight(16777215)
+            self._content.setMinimumHeight(0)
+            self._line.setVisible(True)
+
+    def _update_title(self):
+        arrow = "▼ " if self._btn.isChecked() else "▶ "
+        t = self._title[2:] if self._title[:2] in ("▼ ", "▶ ") else self._title
+        self._btn.setText(arrow + t)
+
+    def _reflow(self):
+        self._content.updateGeometry(); self.updateGeometry()
+        p = self.parentWidget()
+        if p and p.layout():
+            p.layout().activate()
+            p.adjustSize()
+            p.updateGeometry()
+        QTimer.singleShot(0, self._bubble_adjust)
+
+    def _bubble_adjust(self):
+        w = self
+        while w is not None:
+            try:
+                if w.layout(): w.layout().activate()
+                w.adjustSize(); w.updateGeometry()
+            except Exception:
+                pass
+            w = w.parentWidget()
+
+
+# ------------- Utils DSP (numpy fallbacks) -------------
 def _welch_numpy(x: np.ndarray, fs: float, nperseg: int = 1024, noverlap: int = 512):
     x = np.asarray(x, dtype=float)
     if not np.isfinite(fs) or fs <= 0: fs = 1.0
@@ -109,26 +215,20 @@ def _band_edges():
     return [("delta", 1., 4.), ("theta", 4., 8.), ("alpha", 8., 13.), ("beta", 13., 30.)]
 
 
-# ---------------- Plugin ---------------- #
+# ---------------- Plugin ----------------
 class MNEViewer2D(BasePlugin):
-    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
-  'outputs': {},
-  'parameters': [ { 'default': 50.0,
-                    'desc': 'Vertical scale',
-                    'name': 'scale_uv',
-                    'type': 'float',
-                    'unit': 'µV'},
-                  { 'default': 1.0,
-                    'desc': 'Scroll speed',
-                    'name': 'speed',
-                    'type': 'float'},
-                  { 'default': False,
-                    'desc': 'Show full screen',
-                    'name': 'fullscreen',
-                    'type': 'bool'}],
-  'summary': 'MNE Viewer 2D — Montage-Free Plots (markers-ready)',
-  'usage': 'Connect upstream data; adjust view parameters.'}
+    help = {
+        'gotchas': ['High refresh can drop FPS; consider decimation.'],
+        'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
+        'outputs': {},
+        'parameters': [
+            {'name': 'scale_uv', 'type': 'float', 'default': 50.0, 'unit': 'µV', 'desc': 'Vertical scale'},
+            {'name': 'speed', 'type': 'float', 'default': 1.0, 'desc': 'Scroll speed'},
+            {'name': 'fullscreen', 'type': 'bool', 'default': False, 'desc': 'Show full screen'},
+        ],
+        'summary': 'MNE Viewer 2D — Montage-Free Plots (markers-ready)',
+        'usage': 'Connect upstream data; adjust view parameters.'
+    }
 
     name = "MNE Viewer 2D (montage-free)"
     language = "Python"
@@ -199,16 +299,27 @@ class MNEViewer2D(BasePlugin):
         except Exception:
             pass
 
-    # -------------- UI -------------- #
+    # -------------- UI --------------
     def build_widget(self) -> QWidget:
-        w = QWidget(); root = QVBoxLayout(w)
-        root.setContentsMargins(8,8,8,8); root.setSpacing(8)
+        w = QWidget()
+        root = QVBoxLayout(w)
+        root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(8)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
 
         self._lbl_title = QLabel("MNE Viewer 2D — montage-free")
         self._lbl_title.setStyleSheet("font-weight:600;font-size:14px;")
         root.addWidget(self._lbl_title)
 
-        # Ligne de contrôles
+        # ---------- Paramètres (pliables, fermés par défaut) ----------
+        sec = CollapsibleSection("Paramètres")
+        sec.set_collapsed(True)
+        try:
+            sec.collapsedChanged.connect(lambda _: (w.adjustSize(), w.updateGeometry()))
+        except Exception:
+            pass
+
+        # Ligne de contrôles (choix canaux, Fmax, etc.)
         row1 = QHBoxLayout()
         row1.addWidget(QLabel("Canal:"))
         self._cmb_chan = QComboBox(); self._cmb_chan.currentIndexChanged.connect(self._on_select_chan)
@@ -231,9 +342,7 @@ class MNEViewer2D(BasePlugin):
         self._spin_fmax.setValue(self._fmax)
         self._spin_fmax.valueChanged.connect(lambda v: setattr(self, "_fmax", float(v)))
         row1.addWidget(self._spin_fmax)
-
         row1.addStretch(1)
-        root.addLayout(row1)
 
         # Ligne de boutons d'action
         row2 = QHBoxLayout()
@@ -246,7 +355,6 @@ class MNEViewer2D(BasePlugin):
         self._btn_coh = b("Cohérence A-B"); self._btn_coh.clicked.connect(lambda: self._plot_wrapper('coh')); row2.addWidget(self._btn_coh)
         self._btn_big = b("Agrandir"); self._btn_big.clicked.connect(self._open_large_view); row2.addWidget(self._btn_big)
         row2.addStretch(1)
-        root.addLayout(row2)
 
         # Options Welch
         row3 = QHBoxLayout()
@@ -259,8 +367,6 @@ class MNEViewer2D(BasePlugin):
         self._chk_logpsd = QCheckBox("Log10 PSD"); self._chk_logpsd.setChecked(True)
         row3.addWidget(self._chk_logpsd)
         row3.addStretch(1)
-        root.addLayout(row3)
-
         self._nper.valueChanged.connect(self._on_nper_changed)
         self._on_nper_changed(self._nper.value())
 
@@ -281,18 +387,30 @@ class MNEViewer2D(BasePlugin):
         self._chk_marks.toggled.connect(lambda s: setattr(self, "_show_markers", bool(s)))
         row4.addWidget(self._chk_marks)
         row4.addStretch(1)
-        root.addLayout(row4)
 
-        # Zone graphique + toolbar
+        # Injecter les 4 lignes dans la section pliable
+        sec.content_layout().addLayout(row1)
+        sec.content_layout().addLayout(row2)
+        sec.content_layout().addLayout(row3)
+        sec.content_layout().addLayout(row4)
+
+        # ---------- Figure + Toolbar (toujours visibles) ----------
+        root.addWidget(sec)
         root.addWidget(self._canvas, 1)
         self._toolbar = NavToolbar(self._canvas, w)
         root.addWidget(self._toolbar)
 
         self._lbl_status = QLabel(""); self._lbl_status.setStyleSheet("color:#666")
         root.addWidget(self._lbl_status)
+
+        # Contraintes pour supprimer tout résidu d’espace
+        w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        w.setMinimumSize(0, 0)
+        w.updateGeometry()
+
         return w
 
-    # -------------- Reactive -------------- #
+    # -------------- Reactive --------------
     def execute(self, *args, **kwargs):
         try:
             inps = kwargs or (args[0] if args and isinstance(args[0], dict) else self.inputs)
@@ -347,7 +465,7 @@ class MNEViewer2D(BasePlugin):
         except Exception as e:
             self._set_status(f"Erreur execute: {e}")
 
-    # -------------- Data access -------------- #
+    # -------------- Data access --------------
     def _get_data(self) -> Tuple[np.ndarray, float, List[str]]:
         if self._raw is not None and HAVE_MNE:
             try:
@@ -365,7 +483,7 @@ class MNEViewer2D(BasePlugin):
             return data, fs, names
         return np.zeros((1, 1), float), 0.0, ["Ch1"]
 
-    # -------------- Helpers -------------- #
+    # -------------- Helpers --------------
     def _reset_display_blank(self, msg: str = ""):
         fig = self._fig
         self._purge_extras(fig)
@@ -376,7 +494,7 @@ class MNEViewer2D(BasePlugin):
         fig.canvas.draw_idle()
 
     def _purge_extras(self, fig):
-        for a in self._extra_axes:
+        for a in getattr(self, "_extra_axes", []):
             try: fig.delaxes(a)
             except Exception: pass
         self._extra_axes = []
@@ -412,7 +530,9 @@ class MNEViewer2D(BasePlugin):
 
     def _on_nper_changed(self, v: int):
         v = int(v)
-        if v < 2: v = 2; self._nper.setValue(v)
+        if v < 2:
+            v = 2
+            self._nper.setValue(v)
         self._nover.setMaximum(max(0, v-1))
         if int(self._nover.value()) >= v:
             self._nover.setValue(max(0, v//2))
@@ -430,7 +550,7 @@ class MNEViewer2D(BasePlugin):
         dur = (T / fs) if fs > 0 else T
         return f"Canaux: {n} | sfreq: {fs:.2f} Hz | durée: {dur:.1f} {'s' if fs>0 else 'samples'}"
 
-    # --------- Markers parsing & drawing --------- #
+    # --------- Markers parsing & drawing ---------
     def _normalize_markers(self, markers, fs: float, T_sec: float):
         """Retourne une liste [(onset_s, label, dur_s)] bornée à [0, T_sec]."""
         out = []
@@ -464,7 +584,6 @@ class MNEViewer2D(BasePlugin):
         elif isinstance(markers, (tuple, list)) and len(markers) >= 2:
             _add(markers[0], markers[1], markers[2] if len(markers) > 2 else 0.0,
                  markers[3] if len(markers) > 3 else "rel")
-        # sinon: format inconnu → ignore
         return out
 
     def _draw_markers(self, ax, fs: float, T_samples: int):
@@ -485,7 +604,7 @@ class MNEViewer2D(BasePlugin):
             except Exception:
                 pass
 
-    # -------------- Plot routing -------------- #
+    # -------------- Plot routing --------------
     def _plot_wrapper(self, kind: str):
         self._current_plot = kind
         fig = self._fig; ax = self._ax
@@ -517,13 +636,6 @@ class MNEViewer2D(BasePlugin):
         canvas = FigureCanvas(fig); v.addWidget(canvas)
         toolbar = NavToolbar(canvas, dlg); v.addWidget(toolbar)
 
-        extra_axes = []
-        def add_cbar(im, label: str):
-            cax = fig.add_axes([0.86, 0.12, 0.03, 0.78])
-            cb = fig.colorbar(im, cax=cax); cb.set_label(label)
-            extra_axes.append(cax)
-            return cb
-
         try:
             for a in list(fig.axes):
                 if a is not ax: fig.delaxes(a)
@@ -532,7 +644,6 @@ class MNEViewer2D(BasePlugin):
             elif self._current_plot == 'psd':
                 self._draw_psd(ax)
             elif self._current_plot == 'spec':
-                # on réutilise le même dessin; markers seront ajoutés dedans
                 self._draw_spectrogram(ax)
             elif self._current_plot == 'bp':
                 self._draw_bandpower(ax)
@@ -545,7 +656,7 @@ class MNEViewer2D(BasePlugin):
         except Exception as e:
             self._set_status(f"Erreur agrandissement: {e}")
 
-    # -------------- Draw functions -------------- #
+    # -------------- Draw functions --------------
     def _draw_signal(self, ax):
         data, fs, names = self._get_data()
         n, T = data.shape
@@ -566,11 +677,10 @@ class MNEViewer2D(BasePlugin):
                 ax.set_xlim(start, end)
             else:
                 ax.set_xlim(t[0], t[-1])
-            # Marqueurs relatifs à la fenêtre 0..T/fs
             self._draw_markers(ax, fs, T)
         else:
             ax.plot(x.T); ax.set_xlabel("Samples")
-            self._draw_markers(ax, 1.0, T)  # fallback
+            self._draw_markers(ax, 1.0, T)
         ax.set_yticks(offs[:, 0])
         ax.set_yticklabels([names[i] for i in idxs])
         ax.set_title("Signal empilé")
@@ -645,7 +755,6 @@ class MNEViewer2D(BasePlugin):
         ax.set_ylabel("Freq (Hz)" if fs > 0 else "Bin"); ax.set_xlabel("Temps (s)" if fs > 0 else "Fenêtre")
         ax.set_title(f"Spectrogramme — {names[ch]}")
         self._add_colorbar(fig, ax, im, "dB")
-        # Marqueurs (temps relatifs 0..len(x)/fs)
         self._draw_markers(ax, fs if fs > 0 else 1.0, len(x))
 
     def _draw_bandpower(self, ax):
@@ -727,7 +836,7 @@ class MNEViewer2D(BasePlugin):
         ax.set_ylabel("Cohérence")
         ax.set_title(f"Cohérence {names[a]} – {names[b]}")
 
-    # -------------- Slots -------------- #
+    # -------------- Slots --------------
     def _on_select_chan(self, i: int):
         self._current_chan = int(i)
         if self._current_plot == 'spec':

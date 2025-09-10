@@ -124,6 +124,24 @@ class _EEGReadWorker(QObject):
         if emit_annotations is not None: self.emit_annotations = bool(emit_annotations)
         if stream_decim is not None: self.stream_decim = max(1, int(stream_decim))
 
+    
+    def _normalize_segment(self, data):
+        """Retourne ndarray float32 2D (n_ch, n_samples), contigu."""
+        arr = np.asarray(data)
+        if arr.ndim == 1:
+            arr = arr[np.newaxis, :]
+        # ⚠️ Ne PAS transposer ici : MNE renvoie déjà (n_ch, n_times).
+        # Si un format exotique renvoie (n_times, n_ch), on préfère
+        # traiter cela côté consumer (LiveDisplay) pour éviter les surprises.
+        # Donc on maintient (n_ch, n_samples).
+        if arr.dtype != np.float32:
+            arr = arr.astype(np.float32, copy=False)
+        # assure contiguïté (utile pour downstream)
+        if not arr.flags['C_CONTIGUOUS']:
+            arr = np.ascontiguousarray(arr)
+        return arr
+
+
     def stop(self): self._running = False
 
     def run(self):

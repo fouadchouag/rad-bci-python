@@ -1,6 +1,8 @@
+# plugins/mne_ssp_projs_plugin.py
 # -*- coding: utf-8 -*-
 """
 MNE Compute SSP Projs — rapide (EOG / ECG)
+→ Avec section Paramètres pliable (fermée par défaut, sans zone grise résiduelle)
 
 Ajoute des projecteurs SSP au Raw pour suppression d'artéfacts et visualisation
 avec mne.viz.plot_projs_topomap (dans ton MNE Viewer 2D).
@@ -11,25 +13,23 @@ Entrée
 Options UI
   - n_eog, l_freq_eog, h_freq_eog, ch_name_eog (facultatif)
   - n_ecg, l_freq_ecg, h_freq_ecg, ch_name_ecg (facultatif)
-  - Boutons: "Compute EOG", "Compute ECG", "Clear projs"
+  - EOG virtuel A-B, ECG virtuel (depuis canal ou moyenne EEG)
+  - Boutons: "Compute EOG", "Compute ECG", "Créer EOGv", "Créer ECGv"
 
 Sorties
   - raw (même objet, mais avec raw.info['projs'] complété)
   - status (texte)
 
 Notes
-  - Les projecteurs ne sont PAS appliqués au signal (pas de raw.apply_proj()),
-    ils sont juste ajoutés à raw.info['projs'] pour pouvoir les visualiser et
-    les activer plus tard si souhaité.
-  - ch_name_* peut être un nom de canal EOG dédié ("EOG", "HEOG", "VEOG", etc.)
-    OU un canal EEG frontal (ex: "Fp1", "Fpz") si vous n'avez pas d'EOG/ECG dédiés.
+  - Les projecteurs ne sont PAS appliqués au signal (pas de raw.apply_proj()).
 """
 from typing import Optional
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
-    QDoubleSpinBox, QSpinBox
+    QDoubleSpinBox, QSpinBox, QSizePolicy, QLayout, QFrame
 )
+from PyQt5.QtCore import QTimer
 from rx.subject import BehaviorSubject
 from core.node_base import BasePlugin
 
@@ -41,13 +41,109 @@ except Exception:
     HAVE_MNE = False
 
 
+# ---------------------- Section pliable (anti “cadre gris”) ----------------------
+class CollapsibleSection(QWidget):
+    """
+    Fermée: contenu invisible + hauteur max=0 (aucun espace).
+    Ouverte: hauteur naturelle. Reflow en cascade pour éviter toute zone grise.
+    """
+    def __init__(self, title: str, parent: QWidget = None):
+        super().__init__(parent)
+        self._title = title
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(4)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
+
+        self._btn = QPushButton()
+        self._btn.setCheckable(True)
+        self._btn.setChecked(False)  # démarrage fermé
+        self._btn.setStyleSheet(
+            "QPushButton {"
+            " text-align: left; padding:6px 8px; font-weight:600;"
+            " border:1px solid #ccc; border-radius:6px; background:#f7f7f7;"
+            "}"
+        )
+        self._btn.toggled.connect(self._on_toggled)
+        root.addWidget(self._btn)
+
+        self._content = QWidget()
+        self._content.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self._lay = QVBoxLayout(self._content)
+        self._lay.setContentsMargins(10, 8, 10, 8)
+        self._lay.setSpacing(6)
+        self._lay.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        root.addWidget(self._content)
+
+        self._line = QFrame()
+        self._line.setFrameShape(QFrame.HLine)
+        self._line.setStyleSheet("color:#ddd;")
+        root.addWidget(self._line)
+
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        self.set_collapsed(True)  # fermé par défaut
+
+    def content_layout(self):
+        return self._lay
+
+    def set_collapsed(self, collapsed: bool):
+        self._btn.setChecked(not collapsed)
+        self._apply(collapsed)
+        self._update_title()
+        self._reflow()
+
+    def _on_toggled(self, checked: bool):
+        self._apply(collapsed=not checked)
+        self._update_title()
+        self._reflow()
+
+    def _apply(self, collapsed: bool):
+        if collapsed:
+            self._content.setMaximumHeight(0)
+            self._content.setMinimumHeight(0)
+            self._content.setVisible(False)
+            self._line.setVisible(False)
+        else:
+            self._content.setVisible(True)
+            self._content.setMaximumHeight(16777215)
+            self._content.setMinimumHeight(0)
+            self._line.setVisible(True)
+
+    def _update_title(self):
+        arrow = "▼ " if self._btn.isChecked() else "▶ "
+        base = self._title[2:] if self._title[:2] in ("▼ ", "▶ ") else self._title
+        self._btn.setText(arrow + base)
+
+    def _reflow(self):
+        self._content.updateGeometry(); self.updateGeometry()
+        p = self.parentWidget()
+        if p and p.layout():
+            p.layout().activate()
+            p.adjustSize()
+            p.updateGeometry()
+        QTimer.singleShot(0, self._bubble_adjust)
+
+    def _bubble_adjust(self):
+        w = self
+        while w is not None:
+            try:
+                if w.layout(): w.layout().activate()
+                w.adjustSize(); w.updateGeometry()
+            except Exception:
+                pass
+            w = w.parentWidget()
+
+
 class MNEComputeSSPProjs(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
-  'outputs': {'segment': 'processed array'},
-  'parameters': [],
-  'summary': 'MNE Compute SSP Projs — rapide (EOG / ECG)',
-  'usage': 'Wire upstream data and route downstream.'}
+    help = {
+        'gotchas': [],
+        'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
+        'outputs': {'segment': 'processed array'},
+        'parameters': [],
+        'summary': 'MNE Compute SSP Projs — rapide (EOG / ECG)',
+        'usage': 'Wire upstream data and route downstream.'
+    }
 
     name = "MNE Compute SSP Projs"
     language = "Python"
@@ -70,8 +166,14 @@ class MNEComputeSSPProjs(BasePlugin):
         self._ch_ecg = ""
 
     def build_widget(self) -> QWidget:
-        w = QWidget(); root = QVBoxLayout(w)
-        root.setContentsMargins(6,6,6,6); root.setSpacing(6)
+        if self._widget is not None:
+            return self._widget
+
+        w = QWidget()
+        root = QVBoxLayout(w)
+        root.setContentsMargins(6, 6, 6, 6)
+        root.setSpacing(6)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
 
         title = QLabel("SSP Projs (EOG/ECG) — rapide")
         title.setStyleSheet("font-weight:600;font-size:14px;")
@@ -82,19 +184,21 @@ class MNEComputeSSPProjs(BasePlugin):
             warn.setStyleSheet("color:#b00")
             root.addWidget(warn)
 
+        # ---------- Section pliable: Paramètres (fermée par défaut) ----------
+        sec = CollapsibleSection("Paramètres")
+        sec.set_collapsed(True)
+
         # --- EOG compute ---
-        row1 = QHBoxLayout(); row1.addWidget(QLabel("EOG: n="))
+        row1 = QHBoxLayout()
+        row1.addWidget(QLabel("EOG: n="))
         self._sp_neog = QSpinBox(); self._sp_neog.setRange(0, 10); self._sp_neog.setValue(self._n_eog); row1.addWidget(self._sp_neog)
         row1.addWidget(QLabel("l_freq"))
         self._sp_leog = QDoubleSpinBox(); self._sp_leog.setRange(0.0, 50.0); self._sp_leog.setDecimals(1); self._sp_leog.setValue(self._l_eog); row1.addWidget(self._sp_leog)
         row1.addWidget(QLabel("h_freq"))
         self._sp_heog = QDoubleSpinBox(); self._sp_heog.setRange(0.0, 200.0); self._sp_heog.setDecimals(1); self._sp_heog.setValue(self._h_eog); row1.addWidget(self._sp_heog)
         row1.addWidget(QLabel("ch_name (opt)"))
-        self._ed_ceog = QLineEdit(self._ch_eog); self._ed_ceog.setPlaceholderText("EOG / Fp1 / Fpz …") ; row1.addWidget(self._ed_ceog, 1)
-        self._btn_eog = QPushButton("Compute EOG")
-        self._btn_eog.clicked.connect(self._on_eog)
-        row1.addWidget(self._btn_eog)
-        root.addLayout(row1)
+        self._ed_ceog = QLineEdit(self._ch_eog); self._ed_ceog.setPlaceholderText("EOG / Fp1 / Fpz …"); row1.addWidget(self._ed_ceog, 1)
+        self._btn_eog = QPushButton("Compute EOG"); self._btn_eog.clicked.connect(self._on_eog); row1.addWidget(self._btn_eog)
 
         # --- EOG virtuel ---
         row1b = QHBoxLayout()
@@ -102,36 +206,51 @@ class MNEComputeSSPProjs(BasePlugin):
         self._ed_eogA = QLineEdit(); self._ed_eogA.setPlaceholderText("Fp1 (ex)")
         self._ed_eogB = QLineEdit(); self._ed_eogB.setPlaceholderText("Fp2/Fpz (ex)")
         row1b.addWidget(self._ed_eogA); row1b.addWidget(self._ed_eogB)
-        self._btn_eogv = QPushButton("Créer EOGv")
-        self._btn_eogv.clicked.connect(self._make_virtual_eog)
-        row1b.addWidget(self._btn_eogv)
-        root.addLayout(row1b)
+        self._btn_eogv = QPushButton("Créer EOGv"); self._btn_eogv.clicked.connect(self._make_virtual_eog); row1b.addWidget(self._btn_eogv)
 
         # --- ECG compute ---
-        row2 = QHBoxLayout(); row2.addWidget(QLabel("ECG: n="))
+        row2 = QHBoxLayout()
+        row2.addWidget(QLabel("ECG: n="))
         self._sp_necg = QSpinBox(); self._sp_necg.setRange(0, 10); self._sp_necg.setValue(self._n_ecg); row2.addWidget(self._sp_necg)
         row2.addWidget(QLabel("l_freq"))
         self._sp_lecg = QDoubleSpinBox(); self._sp_lecg.setRange(0.0, 50.0); self._sp_lecg.setDecimals(1); self._sp_lecg.setValue(self._l_ecg); row2.addWidget(self._sp_lecg)
         row2.addWidget(QLabel("h_freq"))
         self._sp_hecg = QDoubleSpinBox(); self._sp_hecg.setRange(0.0, 200.0); self._sp_hecg.setDecimals(1); self._sp_hecg.setValue(self._h_ecg); row2.addWidget(self._sp_hecg)
         row2.addWidget(QLabel("ch_name (opt)"))
-        self._ed_cecg = QLineEdit(self._ch_ecg); self._ed_cecg.setPlaceholderText("ECG / ECG001 / …") ; row2.addWidget(self._ed_cecg, 1)
-        self._btn_ecg = QPushButton("Compute ECG")
-        self._btn_ecg.clicked.connect(self._on_ecg)
-        row2.addWidget(self._btn_ecg)
-        root.addLayout(row2)
+        self._ed_cecg = QLineEdit(self._ch_ecg); self._ed_cecg.setPlaceholderText("ECG / ECG001 / …"); row2.addWidget(self._ed_cecg, 1)
+        self._btn_ecg = QPushButton("Compute ECG"); self._btn_ecg.clicked.connect(self._on_ecg); row2.addWidget(self._btn_ecg)
 
         # --- ECG virtuel ---
         row2b = QHBoxLayout()
-        row2b.addWidget(QLabel("ECG virtuel depuis canal (ou laissez vide=avg EEG)"))
+        row2b.addWidget(QLabel("ECG virtuel depuis canal (ou vide = moyenne EEG)"))
         self._ed_ecgFrom = QLineEdit(); self._ed_ecgFrom.setPlaceholderText("ECG source (ex: Cz), ou vide → moyenne EEG")
         row2b.addWidget(self._ed_ecgFrom, 1)
-        self._btn_ecgv = QPushButton("Créer ECGv")
-        self._btn_ecgv.clicked.connect(self._make_virtual_ecg)
-        row2b.addWidget(self._btn_ecgv)
-        root.addLayout(row2b)
+        self._btn_ecgv = QPushButton("Créer ECGv"); self._btn_ecgv.clicked.connect(self._make_virtual_ecg); row2b.addWidget(self._btn_ecgv)
 
-        self._lbl = QLabel(""); root.addWidget(self._lbl)
+        # Emballer les lignes dans des widgets (meilleur sizing)
+        def pack(*layouts):
+            box = QWidget()
+            lay = QVBoxLayout(box)
+            lay.setContentsMargins(0, 0, 0, 0)
+            lay.setSpacing(6)
+            for L in layouts:
+                lay.addLayout(L)
+            return box
+
+        sec.content_layout().addWidget(pack(row1, row1b, row2, row2b))
+
+        # Status (toujours visible)
+        self._lbl = QLabel("")
+        self._lbl.setStyleSheet("color:#666")
+
+        root.addWidget(sec)
+        root.addWidget(self._lbl)
+
+        # Contraintes anti “cadre gris”
+        w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        w.setMinimumSize(0, 0)
+        w.updateGeometry()
+
         self._widget = w
         return w
 
@@ -191,7 +310,6 @@ class MNEComputeSSPProjs(BasePlugin):
                 self._set_status("Renseignez A et B (ex: Fp1 et Fp2/Fpz)"); return
             if A not in self._raw.ch_names or B not in self._raw.ch_names:
                 self._set_status("Canaux inconnus. Vérifiez les noms."); return
-            # Si déjà présent, ne pas dupliquer
             new_name = 'EOGv'
             if new_name in self._raw.ch_names:
                 self._set_status("EOGv existe déjà — utilisation telle quelle.")
@@ -235,7 +353,6 @@ class MNEComputeSSPProjs(BasePlugin):
             if src and src in self._raw.ch_names:
                 data = self._raw.copy().pick([src]).get_data()
             else:
-                # moyenne EEG comme proxy
                 data = self._raw.copy().pick('eeg').get_data().mean(axis=0, keepdims=True)
             info = mne.create_info(['ECGv'], self._raw.info['sfreq'], ['ecg'])
             raw_ecg = mne.io.RawArray(data, info)

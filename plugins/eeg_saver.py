@@ -2,24 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 EEGSaver — sauvegarde EEG (Raw MNE ou segment numpy) en plusieurs formats.
-
-Entrées:
-  - raw      : mne.io.Raw (optionnel)
-  - segment  : np.ndarray (n_ch, n_samples)
-  - ch_names : list[str]
-  - sfreq    : float
-  - markers  : événements (optionnel)
-               Formats acceptés:
-                 * (t, label)  ou (t, label, dur)
-                 * {"t":..., "label":..., "dur":..., "mode": "rel|abs|sample"}
-                 * liste des éléments ci-dessus
-               t en secondes relatives ("rel"), secondes absolues ("abs")
-               ou en indices d'échantillons ("sample"). Si "abs" est utilisé,
-               le temps zéro est pris au Start Rec.
-
-Sorties:
-  - status     : str
-  - saved_path : str (dernier chemin écrit)
+→ Section “Paramètres” pliable, fermée par défaut, sans espace gris au repli.
 """
 
 from typing import Optional, List, Tuple
@@ -28,13 +11,122 @@ import numpy as np
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFileDialog,
-    QComboBox, QCheckBox, QLineEdit, QDoubleSpinBox, QSizePolicy
+    QComboBox, QCheckBox, QLineEdit, QDoubleSpinBox, QSizePolicy, QFrame, QLayout
 )
-
+from PyQt5.QtCore import QTimer, pyqtSignal
 from rx.subject import BehaviorSubject
 from core.node_base import BasePlugin
 
-# MNE (optionnel mais recommandé)
+# ---------------------- CollapsibleSection robuste (anti "rectangle gris") ----------------------
+class CollapsibleSection(QWidget):
+    """
+    Fermée: contenu min/max=0 + invisible (aucun espace). Ouverte: hauteur naturelle.
+    Émet `collapsedChanged(bool)` et force le recalcul des layouts/parent.
+    """
+    collapsedChanged = pyqtSignal(bool)  # True si fermé
+
+    def __init__(self, title: str, parent=None):
+        super().__init__(parent)
+        self._base_title = title
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(4)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
+
+        self._btn = QPushButton()
+        self._btn.setCheckable(True)
+        self._btn.setChecked(False)  # unchecked => fermé au démarrage (on gère nous-mêmes l’état)
+        self._btn.setStyleSheet(
+            "QPushButton {"
+            " text-align: left; padding:6px 8px; font-weight:600;"
+            " border:1px solid #ccc; border-radius:6px; background:#f7f7f7;"
+            "}"
+        )
+        self._btn.toggled.connect(self._on_toggled)
+        root.addWidget(self._btn)
+
+        self._content = QWidget()
+        self._content.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self._content_layout = QVBoxLayout(self._content)
+        self._content_layout.setContentsMargins(10, 8, 10, 8)
+        self._content_layout.setSpacing(6)
+        self._content_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        root.addWidget(self._content)
+
+        self._line = QFrame()
+        self._line.setFrameShape(QFrame.HLine)
+        self._line.setStyleSheet("color:#ddd;")
+        root.addWidget(self._line)
+
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        self._apply_collapsed_state(True)  # fermé sans espace
+        self._update_btn_text()
+
+    def add_content_widget(self, w: QWidget):
+        self._content_layout.addWidget(w)
+
+    def content_layout(self):
+        return self._content_layout
+
+    def set_collapsed(self, collapsed: bool):
+        self._btn.setChecked(not collapsed)  # checked => ouvert
+        self._apply_collapsed_state(collapsed)
+        self._update_btn_text()
+        self.collapsedChanged.emit(collapsed)
+        self._reflow()
+
+    def _on_toggled(self, checked: bool):
+        collapsed = (not checked)
+        self._apply_collapsed_state(collapsed)
+        self._update_btn_text()
+        self.collapsedChanged.emit(collapsed)
+        self._reflow()
+
+    def _apply_collapsed_state(self, collapsed: bool):
+        if collapsed:
+            self._content.setMaximumHeight(0)
+            self._content.setMinimumHeight(0)
+            self._content.setVisible(False)
+            self._line.setVisible(False)
+        else:
+            self._content.setVisible(True)
+            self._content.setMaximumHeight(16777215)
+            self._content.setMinimumHeight(0)
+            self._line.setVisible(True)
+
+    def _update_btn_text(self):
+        arrow = "▼ " if self._btn.isChecked() else "▶ "
+        base = self._base_title
+        if base.startswith(("▼ ", "▶ ")):
+            base = base[2:]
+        self._btn.setText(arrow + base)
+
+    def _reflow(self):
+        self._content.updateGeometry()
+        self.updateGeometry()
+        p = self.parentWidget()
+        if p is not None:
+            if p.layout():
+                p.layout().activate()
+            p.adjustSize()
+            p.updateGeometry()
+        QTimer.singleShot(0, self._delayed_adjust)
+
+    def _delayed_adjust(self):
+        w = self
+        while w is not None:
+            try:
+                if w.layout():
+                    w.layout().activate()
+                w.adjustSize()
+                w.updateGeometry()
+            except Exception:
+                pass
+            w = w.parentWidget()
+
+# ---------------------- EEGSaver ----------------------
+# MNE (optionnel)
 try:
     import mne
     HAVE_MNE = True
@@ -59,27 +151,23 @@ if HAVE_MNE:
 
 
 class EEGSaver(BasePlugin):
-    help = help = { 'gotchas': ['Ensure write permissions and disk space.'],
-  'inputs': { 'epochs': 'mne.Epochs (opt.)',
-              'features': 'array/dict (opt.)',
-              'raw': 'mne.Raw (opt.)',
-              'segment': '2D float [ch x samples] (opt.)'},
-  'outputs': {},
-  'parameters': [ { 'default': './out',
-                    'desc': 'Target folder',
-                    'name': 'out_path',
-                    'type': 'path'},
-                  { 'default': 'csv',
-                    'desc': 'File format',
-                    'name': 'format',
-                    'type': 'str'},
-                  { 'default': True,
-                    'desc': 'Append to existing files',
-                    'name': 'append',
-                    'type': 'bool'}],
-  'summary': 'EEGSaver — sauvegarde EEG (Raw MNE ou segment numpy) en plusieurs '
-             'formats.',
-  'usage': 'Wire any stream you need to archive; set path/format.'}
+    help = {
+        'gotchas': ['Ensure write permissions and disk space.'],
+        'inputs': {
+            'epochs': 'mne.Epochs (opt.)',
+            'features': 'array/dict (opt.)',
+            'raw': 'mne.Raw (opt.)',
+            'segment': '2D float [ch x samples] (opt.)'
+        },
+        'outputs': {},
+        'parameters': [
+            {'name': 'out_path', 'type': 'path', 'default': './out', 'desc': 'Target folder'},
+            {'name': 'format', 'type': 'str', 'default': 'csv', 'desc': 'File format'},
+            {'name': 'append', 'type': 'bool', 'default': True, 'desc': 'Append to existing files'}
+        ],
+        'summary': 'EEGSaver — sauvegarde EEG (Raw MNE ou segment numpy) en plusieurs formats.',
+        'usage': 'Wire any stream you need to archive; set path/format.'
+    }
 
     name = "EEGSaver"
     category = "Output Nodes"
@@ -91,7 +179,7 @@ class EEGSaver(BasePlugin):
         self.inputs["segment"] = BehaviorSubject(None)
         self.inputs["ch_names"] = BehaviorSubject(None)
         self.inputs["sfreq"] = BehaviorSubject(None)
-        self.inputs["markers"] = BehaviorSubject(None)  # <-- NOUVEAU
+        self.inputs["markers"] = BehaviorSubject(None)
 
         # Sorties
         self.outputs["status"] = BehaviorSubject("")
@@ -107,12 +195,11 @@ class EEGSaver(BasePlugin):
         self._recording = False
         self._buf: List[np.ndarray] = []
         self._buf_samples = 0
-        self._max_sec = 300.0   # limite mémoire (s)
+        self._max_sec = 300.0
 
         # Marqueurs
-        self._mark_buf: List[Tuple[float, str, float, str]] = []  # (t,val, dur, mode)
+        self._mark_buf: List[Tuple[float, str, float, str]] = []  # (t, val, dur, mode)
         self._rec_t0: Optional[float] = None
-        self._marker_mode = "auto"
 
         # UI état
         self._fmt = "FIF"
@@ -138,11 +225,24 @@ class EEGSaver(BasePlugin):
         root = QVBoxLayout(w)
         root.setContentsMargins(8, 8, 8, 8)
         root.setSpacing(8)
+        root.setSizeConstraint(QLayout.SetMinAndMaxSize)
 
-        self._lbl_head = QLabel("EEGSaver — prêt"); root.addWidget(self._lbl_head)
+        self._lbl_head = QLabel("EEGSaver — prêt")
+        root.addWidget(self._lbl_head)
 
-        # Format + options
-        r1 = QHBoxLayout()
+        # -------- Zone Paramètres pliable (fermée par défaut) --------
+        sec = CollapsibleSection("Paramètres")
+        sec.set_collapsed(True)
+        # Recalcule la taille du node quand on ouvre/ferme
+        try:
+            sec.collapsedChanged.connect(lambda _: (w.adjustSize(), w.updateGeometry()))
+        except Exception:
+            pass
+
+        # Ligne Format + options
+        row_fmt = QWidget()
+        r1 = QHBoxLayout(row_fmt); r1.setContentsMargins(0, 0, 0, 0); r1.setSpacing(6)
+
         r1.addWidget(QLabel("Format:"))
         self._cmb_fmt = QComboBox()
         self._cmb_fmt.addItems(["FIF", "BrainVision", "EDF", "BDF", "CSV", "NPZ", "MAT"])
@@ -150,49 +250,75 @@ class EEGSaver(BasePlugin):
         r1.addWidget(self._cmb_fmt)
 
         r1.addWidget(QLabel("Ch. type:"))
-        self._cmb_type = QComboBox(); self._cmb_type.addItems(["eeg","eog","ecg","emg","misc"])
+        self._cmb_type = QComboBox()
+        self._cmb_type.addItems(["eeg", "eog", "ecg", "emg", "misc"])
         self._cmb_type.currentTextChanged.connect(lambda s: setattr(self, "_ch_type", s))
         r1.addWidget(self._cmb_type)
 
-        self._chk_uV = QCheckBox("Input = µV"); self._chk_uV.toggled.connect(lambda b: setattr(self, "_units_uV", bool(b)))
+        self._chk_uV = QCheckBox("Input = µV")
+        self._chk_uV.toggled.connect(lambda b: setattr(self, "_units_uV", bool(b)))
         r1.addWidget(self._chk_uV)
 
-        self._chk_time = QCheckBox("CSV: colonne temps"); self._chk_time.setChecked(True)
+        self._chk_time = QCheckBox("CSV: colonne temps")
+        self._chk_time.setChecked(True)
         self._chk_time.toggled.connect(lambda b: setattr(self, "_with_time", bool(b)))
         r1.addWidget(self._chk_time)
 
-        self._sp_max = QDoubleSpinBox(); self._sp_max.setRange(5.0, 3600.0); self._sp_max.setDecimals(0)
-        self._sp_max.setValue(self._max_sec); self._sp_max.setSuffix(" s buffer")
+        self._sp_max = QDoubleSpinBox()
+        self._sp_max.setRange(5.0, 3600.0)
+        self._sp_max.setDecimals(0)
+        self._sp_max.setValue(self._max_sec)
+        self._sp_max.setSuffix(" s buffer")
         self._sp_max.valueChanged.connect(lambda v: setattr(self, "_max_sec", float(v)))
         r1.addWidget(self._sp_max)
-
-        root.addLayout(r1)
+        r1.addStretch(1)
 
         # Cible
-        r2 = QHBoxLayout()
-        self._le_path = QLineEdit(); self._le_path.setPlaceholderText("Chemin de sauvegarde…")
+        row_path = QWidget()
+        r2 = QHBoxLayout(row_path); r2.setContentsMargins(0, 0, 0, 0); r2.setSpacing(6)
+        self._le_path = QLineEdit()
+        self._le_path.setPlaceholderText("Chemin de sauvegarde…")
         r2.addWidget(self._le_path, 1)
         btn_browse = QPushButton("Parcourir…")
         btn_browse.clicked.connect(self._choose_target)
         r2.addWidget(btn_browse)
-        self._chk_inc = QCheckBox("Auto-incr."); self._chk_inc.setChecked(True)
+        self._chk_inc = QCheckBox("Auto-incr.")
+        self._chk_inc.setChecked(True)
         self._chk_inc.toggled.connect(lambda b: setattr(self, "_auto_inc", bool(b)))
         r2.addWidget(self._chk_inc)
-        root.addLayout(r2)
 
         # Boutons actions
-        r3 = QHBoxLayout()
-        btn_save = QPushButton("Save now…"); btn_save.clicked.connect(self._save_snapshot)
+        row_btns = QWidget()
+        r3 = QHBoxLayout(row_btns); r3.setContentsMargins(0, 0, 0, 0); r3.setSpacing(6)
+        btn_save = QPushButton("Save now…")
+        btn_save.clicked.connect(self._save_snapshot)
         r3.addWidget(btn_save)
-        self._btn_rec = QPushButton("Start Rec"); self._btn_rec.clicked.connect(self._toggle_rec)
+        self._btn_rec = QPushButton("Start Rec")
+        self._btn_rec.clicked.connect(self._toggle_rec)
         r3.addWidget(self._btn_rec)
-        btn_clear = QPushButton("Clear buffer"); btn_clear.clicked.connect(self._clear_buffer)
+        btn_clear = QPushButton("Clear buffer")
+        btn_clear.clicked.connect(self._clear_buffer)
         r3.addWidget(btn_clear)
         r3.addStretch(1)
-        root.addLayout(r3)
 
-        # Résumé
-        self._lbl_info = QLabel("Aucune donnée"); root.addWidget(self._lbl_info)
+        # Injecter dans la section pliable
+        sec.add_content_widget(row_fmt)
+        sec.add_content_widget(row_path)
+        sec.add_content_widget(row_btns)
+
+        # Résumé & Status (toujours visibles)
+        self._lbl_info = QLabel("Aucune donnée")
+        self._lbl_status = QLabel("")
+        self._lbl_status.setStyleSheet("color:#666")
+
+        root.addWidget(sec)
+        root.addWidget(self._lbl_info)
+        root.addWidget(self._lbl_status)
+
+        # Contraintes pour supprimer tout résidu d’espace
+        w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        w.setMinimumSize(0, 0)
+        w.updateGeometry()
 
         return w
 
@@ -247,7 +373,6 @@ class EEGSaver(BasePlugin):
 
     # ---------- Markers ----------
     def _on_markers(self, val):
-        """Ajoute au buffer des marqueurs (utilisé aussi bien en snapshot qu'en REC)."""
         if val is None:
             return
 
@@ -263,7 +388,6 @@ class EEGSaver(BasePlugin):
                     _push(it.get("t", it.get("time", 0.0)), it.get("label", "MARK"),
                           it.get("dur", 0.0), it.get("mode"))
                 else:
-                    # (t, label) ou (t, label, dur[, mode?])
                     t = it[0]; lab = it[1]
                     dur = it[2] if len(it) > 2 else 0.0
                     mode = it[3] if len(it) > 3 else "auto"
@@ -271,18 +395,15 @@ class EEGSaver(BasePlugin):
         elif isinstance(val, (tuple, list)) and len(val) >= 2:
             _push(val[0], val[1], val[2] if len(val) > 2 else 0.0, val[3] if len(val) > 3 else "auto")
         else:
-            # format inconnu → ignore silencieusement
             return
 
         self._update_info_label()
 
     def _normalized_markers_for_save(self, fs: float):
-        """Retourne (onsets_s, durations_s, labels) à partir de _mark_buf."""
         onsets, durations, labels = [], [], []
         for t, lab, dur, mode in list(self._mark_buf):
             m = mode or "auto"
             if m == "auto":
-                # Heuristique
                 if self._rec_t0 and t > 1e3:
                     m = "abs"
                 elif fs > 0 and t > 10 * fs:
@@ -291,12 +412,11 @@ class EEGSaver(BasePlugin):
                     m = "rel"
             if m == "abs":
                 if self._rec_t0 is None:
-                    # pas de référence -> on ignore
                     continue
                 onset = float(t - self._rec_t0)
             elif m == "sample":
                 onset = float(t) / (fs if fs > 0 else 1.0)
-            else:  # 'rel'
+            else:
                 onset = float(t)
             if onset < 0:
                 continue
@@ -358,7 +478,6 @@ class EEGSaver(BasePlugin):
             return
         self._buf.append(np.asarray(seg, dtype=np.float32))
         self._buf_samples += seg.shape[1]
-        # garde-fou durée
         if fs > 0 and self._max_sec > 0:
             max_samp = int(self._max_sec * fs)
             if self._buf_samples > max_samp:
@@ -409,7 +528,6 @@ class EEGSaver(BasePlugin):
         return mne.io.RawArray(data, info)
 
     def _write_annotations_into_raw(self, raw):
-        """Insère les marqueurs (s’ils existent) en Annotations MNE."""
         if not self._mark_buf:
             return
         fs = float(raw.info.get("sfreq", 0.0) or 0.0)
@@ -437,15 +555,13 @@ class EEGSaver(BasePlugin):
 
     def _toggle_rec(self):
         if not self._recording:
-            # Start
             self._recording = True
             self._buf = []; self._buf_samples = 0
-            self._mark_buf = []        # on démarre une nouvelle timeline de marqueurs
-            self._rec_t0 = time.time() # référence pour les marqueurs "abs"
+            self._mark_buf = []
+            self._rec_t0 = time.time()
             self._btn_rec.setText("Stop & Save")
             self._set_status("REC démarré — accumulation des segments…")
         else:
-            # Stop + Save
             X = self._concat_buffer()
             if X is None or X.size == 0:
                 self._set_status("REC stoppé — rien à sauver")
@@ -475,7 +591,6 @@ class EEGSaver(BasePlugin):
         fmt = self._fmt
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
 
-        # CSV / NPZ / MAT
         if fmt == "CSV":
             try:
                 if fs > 0 and self._with_time:
@@ -486,7 +601,6 @@ class EEGSaver(BasePlugin):
                     data = X
                     header = ",".join(names)
                 np.savetxt(path, data.T, delimiter=",", header=header, comments="")
-                # sidecar de marqueurs
                 on, du, lab = self._normalized_markers_for_save(fs)
                 if on:
                     side = os.path.splitext(path)[0] + ".markers.csv"
@@ -523,7 +637,6 @@ class EEGSaver(BasePlugin):
             except Exception as e:
                 return False, f"MAT échec: {e}"
 
-        # Formats MNE
         if not HAVE_MNE:
             return False, "MNE indisponible — utilise CSV/NPZ/MAT"
 
@@ -534,7 +647,6 @@ class EEGSaver(BasePlugin):
         if raw is None:
             return False, "Impossible de créer un Raw MNE"
 
-        # Ajouter les Annotations (marqueurs)
         try:
             self._write_annotations_into_raw(raw)
         except Exception:
@@ -565,5 +677,6 @@ class EEGSaver(BasePlugin):
         self.outputs["status"].on_next(msg)
         try:
             self._lbl_head.setText(f"EEGSaver — {msg}")
+            self._lbl_status.setText(msg)
         except Exception:
             pass
