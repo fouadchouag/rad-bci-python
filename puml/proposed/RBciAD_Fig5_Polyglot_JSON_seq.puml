@@ -1,0 +1,41 @@
+
+@startuml
+title Figure 5 — Polyglot JSON I/O contract (out-of-process)
+
+' --- Minimal, compact style for sequence diagrams ---
+skinparam backgroundColor #FFFFFF
+skinparam dpi 150
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam Participant {
+  BackgroundColor #F7F7F7
+  BorderColor #333333
+}
+skinparam ArrowColor #222222
+skinparam NoteBackgroundColor #FAFAFA
+skinparam NoteBorderColor #BBBBBB
+skinparam SequenceMessageAlign center
+scale 0.9
+
+
+participant "Reactive Engine" as Rx
+participant "Polyglot Wrapper" as Wrap
+participant "External Exec (C++/Rust/JS/R)" as Ext
+
+Rx -> Wrap: call(node=ArtifactRemoval)
+note over Wrap
+write input_<name>_<id>.json
+end note
+Wrap -> Ext: run process with args
+Ext -> Ext: compute
+note over Ext
+read input.json
+write output.json
+end note
+Ext --> Wrap: exit code (0=ok)
+note over Wrap
+read output_<name>_<id>.json
+end note
+Wrap --> Rx: outputs / errors
+
+@enduml

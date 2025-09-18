@@ -1,0 +1,11 @@
+
+@startuml
+title Figure 9 — System components (compact SALT)
+salt
+{{
+  T
+  + GUI | Engine | Plugins | Polyglot | I/O
+  ..
+  + Node Editor | Reactive Engine | EEGReader, EEGFilter, Visualizer | Wrapper + External Exec | Sources (EDF/BDF/GDF/LSL), Sinks (Plots/Web/CSV)
+}}
+@enduml

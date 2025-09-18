@@ -1,0 +1,27 @@
+@startuml
+title Figure 8 - EEG I/O and visualization (extra compact)
+skinparam backgroundColor #FFFFFF
+skinparam dpi 110
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ArrowColor #222222
+skinparam ArrowThickness 1
+skinparam RoundCorner 8
+top to bottom direction
+scale 0.65
+
+rectangle "Files\n(EDF/BDF/GDF/FIF/BV)" as FILES
+rectangle "LSL stream" as LSL
+rectangle "EEGUniversalReader\n(MNE)" as UREAD
+rectangle "LSL-Reader" as LSLR
+rectangle "Unified EEG stream\n[data, sr_hz, ch_names, ts_src]" as STREAM
+rectangle "EEGLiveDisplay" as LIVE
+rectangle "EEGSaver\n(EDF/BDF/GDF/FIF/CSV)" as SAVER
+
+FILES --> UREAD
+LSL   --> LSLR
+UREAD --> STREAM
+LSLR  --> STREAM
+STREAM --> LIVE
+STREAM --> SAVER
+@enduml

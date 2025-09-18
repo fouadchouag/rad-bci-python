@@ -1,0 +1,17 @@
+
+@startuml
+title Figure 2 — Node editor and two-category palette (SALT)
+salt
+{{
+  T
+  +  Node Editor (no-/low-code)
+  +  - drag to connect nodes
+  +  - in-node parameters
+  +  - save/load workflow
+  ..
+  +  Palette
+  +  [ Base ] | [ Custom ]
+  +   EEGReader, EEGFilter | MyBandpass, MyArtifactRemover
+  +   Visualizer           | MyPredictor
+}}
+@enduml

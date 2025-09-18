@@ -12,7 +12,6 @@ note over S #e8f0fe
 end note
 deactivate S
 
-... hop_s = win_s × (1 − overlap) ...
 
 == Window #2 ==
 activate S

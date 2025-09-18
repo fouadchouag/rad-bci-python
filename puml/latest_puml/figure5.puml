@@ -1,0 +1,49 @@
+
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam dpi 150
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ArrowColor #222222
+skinparam SequenceMessageAlign center
+scale 0.9
+
+actor User
+participant "Node Editor" as Editor
+participant "Reactive Engine\n(RxPy + Qt loop)" as Rx
+participant "Node A\n(e.g., EEGFilter)" as A
+participant "Node B\n(e.g., FeatureExtractor)" as B
+participant "Visual Sink\n(EEGLiveDisplay)" as Sink
+
+User -> Editor: Edit parameter
+Editor -> Rx: onChange(pin, value)
+Rx -> A: set_input(...)\nBehaviorSubject next(value)
+A -> A: execute()
+A --> Rx: emit(outA)
+
+alt dependent input changed
+  Rx -> B: set_input(outA)
+  B -> B: execute()
+  B --> Rx: emit(outB)
+else unchanged inputs
+  Rx -> B: skip recompute\n(last-value cache)
+end
+
+Rx -> Sink: set_input(out*)\n(throttle)
+Sink -> Sink: redraw()
+
+note right of Rx
+Deterministic propagation
+along graph edges
+end note
+
+note right of Sink
+Gentle throttling keeps
+UI smooth during rapid edits
+end note
+
+note bottom
+Streams: MNE Raw/Epochs or batch;
+All pins are BehaviorSubjects
+end note
+@enduml

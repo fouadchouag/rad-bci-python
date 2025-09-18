@@ -1,0 +1,32 @@
+
+@startuml
+title Figure 6 — Low-code node creation and instant registration
+
+' --- Minimal, compact style for sequence diagrams ---
+skinparam backgroundColor #FFFFFF
+skinparam dpi 150
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam Participant {
+  BackgroundColor #F7F7F7
+  BorderColor #333333
+}
+skinparam ArrowColor #222222
+skinparam NoteBackgroundColor #FAFAFA
+skinparam NoteBorderColor #BBBBBB
+skinparam SequenceMessageAlign center
+scale 0.9
+
+
+actor Developer
+participant "Low-Code Creator" as LCC
+participant "File System" as FS
+participant "Registry/Loader" as REG
+participant "Node Editor" as Editor
+
+Developer -> LCC: Generate skeleton (Python / Polyglot)
+LCC -> FS: write node file(s)
+LCC -> REG: refresh discovery
+REG -> Editor: add to palette (Custom)
+
+@enduml

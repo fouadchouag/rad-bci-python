@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use RBciAD, please cite this software."
+title: "RBciAD: A Real-Time Polyglot No-/Low-Code Framework for Rapid EEG BCI Prototyping"
+version: "1.10.0"
+type: software
+authors:
+  - family-names: Chouag
+    given-names: Fouad
+  - family-names: Khababa
+    given-names: Abdallah
+doi: 10.5281/zenodo.17095851
+repository-code: "https://github.com/fouadchouag/rad-bci-python"
+url: "https://github.com/fouadchouag/rad-bci-python"
+license: MIT
+date-released: 2025-01-01
+keywords: [EEG, BCI, reactive, no-code, polyglot, MNE]
+preferred-citation:
+  type: software
+  title: "RBciAD"
+  authors:
+    - family-names: Chouag
+      given-names: Fouad
+    - family-names: Khababa
+      given-names: Abdallah
+  version: "1.10.0"
+  doi: 10.5281/zenodo.17095851
+  url: "https://github.com/fouadchouag/rad-bci-python"

@@ -312,7 +312,7 @@ class MainWindow(QMainWindow):
         btn_zoom_100.clicked.connect(self.view.zoom_reset)
         btn_zoom_fit.clicked.connect(self.view.fit_to_scene)
         btn_export.clicked.connect(lambda: self._export_scene_any(
-            selected_only=False, margin_px=16, dpi=200, transparent_png=False
+            selected_only=False, margin_px=16, dpi=300, transparent_png=False
         ))
 
         toolbar_widget = QWidget()
@@ -370,7 +370,7 @@ class MainWindow(QMainWindow):
         acts.append(QAction("Fit to Scene", self, shortcut=QKeySequence("Ctrl+F"), triggered=self.view.fit_to_scene))
         acts.append(QAction("Export Workflow", self, shortcut=QKeySequence("Ctrl+E"),
                             triggered=lambda: self._export_scene_any(
-                                selected_only=False, margin_px=16, dpi=200, transparent_png=False
+                                selected_only=False, margin_px=16, dpi=300, transparent_png=False
                             )))
         for a in acts:
             self.addAction(a)
@@ -946,7 +946,7 @@ class MainWindow(QMainWindow):
         self._update_workflow_label()
 
     # (legacy) Export PNG seul — conservé pour compat.
-    def _export_scene_png(self, *, selected_only=False, margin_px=16, dpi=200, transparent=False):
+    def _export_scene_png(self, *, selected_only=False, margin_px=16, dpi=300, transparent=False):
         try:
             scene = self.scene
             if scene is None:
@@ -1150,7 +1150,7 @@ class MainWindow(QMainWindow):
     # ——————————————————————————————————————————————————————————————
     # Export multi-format (PNG/SVG/PDF) recadré sur les items
     # ——————————————————————————————————————————————————————————————
-    def _export_scene_any(self, *, selected_only=False, margin_px=16, dpi=200, transparent_png=False):
+    def _export_scene_any(self, *, selected_only=False, margin_px=16, dpi=300, transparent_png=False):
         """
         Export PNG / SVG / PDF recadré sur les items.
         SVG/PDF : rendu vectoriel fidèle + traits pas trop fins (désactive temporairement les 'cosmetic' pens).

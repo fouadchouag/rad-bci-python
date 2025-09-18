@@ -1,0 +1,51 @@
+
+@startuml
+title Figure 6 - Polyglot plugin (compact, vertical)
+skinparam backgroundColor #FFFFFF
+skinparam dpi 150
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ArrowColor #222222
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam NoteBackgroundColor #FAFAFA
+skinparam NoteBorderColor #BBBBBB
+skinparam ArrowThickness 1.2
+skinparam Component {
+  RoundCorner 12
+}
+top to bottom direction
+scale 0.9
+
+package "RBciAD Host (Python)" {
+  [Reactive Engine] as Rx
+  [Plugin API\n(Python nodes)] as PyAPI
+  [Polyglot Wrapper] as Wrap
+  folder "temp_io/" as TMP
+}
+
+node "External process\n(C++ / Rust / Node.js / R / .exe)" as EXT
+
+' --- Main calls / data flow (vertical) ---
+Rx ..> PyAPI : in-process\nexecute
+PyAPI --> Wrap : call external node
+
+Wrap --> TMP : write\ninput_<name>_<id>.json
+Wrap --> EXT : spawn process\n(args include paths)
+EXT --> TMP : write\noutput_<name>_<id>.json
+TMP --> Wrap : read output
+Wrap --> PyAPI : outputs / errors
+PyAPI --> Rx : return
+
+note right of Wrap
+- Command from file extension
+- Timeout & exit code (isolation)
+- Easy debugging
+end note
+
+note right of TMP
+Per-instance filenames avoid collisions.
+Large tensors: pass path to binary/memmap
+instead of serializing JSON payloads.
+end note
+@enduml

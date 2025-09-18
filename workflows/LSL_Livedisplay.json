@@ -1,91 +1,87 @@
 {
+  "version": 2,
   "nodes": [
     {
-      "name": "EEGLiveDisplay_278140",
-      "type": "EEGLiveDisplay",
-      "position": [
-        1171.0,
-        359.0
-      ]
-    },
-    {
-      "name": "EEGFilterPlugin_28a1b3",
+      "name": "EEGFilterPlugin_f4720c",
       "type": "EEGFilterPlugin",
       "position": [
-        310.0,
-        450.0
-      ]
+        376.0,
+        92.0
+      ],
+      "config": {
+        "enable_hp": true,
+        "hp": 1.0,
+        "enable_lp": true,
+        "lp": 4.0,
+        "enable_notch": false,
+        "notch_freqs": [
+          50.0,
+          100.0
+        ],
+        "notch_q": 30.0,
+        "method": "fir",
+        "fir_taps": 401,
+        "iir_order": 4,
+        "bypass": false
+      }
     },
     {
-      "name": "EEGLiveDisplay_fb43e0",
+      "name": "EEGLiveDisplay_f88109",
       "type": "EEGLiveDisplay",
       "position": [
-        749.0,
-        13.0
-      ]
+        752.0,
+        86.0
+      ],
+      "config": {
+        "loop": true,
+        "window_s": 10.0,
+        "step_s": 0.2,
+        "seg_len_auto": true,
+        "seg_len_manual": null,
+        "force_nch": 0,
+        "max_points": 3000,
+        "max_fps": 20
+      }
     },
     {
-      "name": "LSLInletPlugin_184c68",
-      "type": "LSLInletPlugin",
+      "name": "AcquisitionManager_836da7",
+      "type": "AcquisitionManager",
       "position": [
-        71.0,
-        41.0
-      ]
+        36.0,
+        70.0
+      ],
+      "config": {}
     }
   ],
   "connections": [
     {
-      "from": "EEGFilterPlugin_28a1b3",
-      "from_pin": "ch_names",
-      "to": "EEGLiveDisplay_278140",
-      "to_pin": "ch_names"
-    },
-    {
-      "from": "EEGFilterPlugin_28a1b3",
+      "from": "EEGFilterPlugin_f4720c",
       "from_pin": "sfreq",
-      "to": "EEGLiveDisplay_278140",
+      "to": "EEGLiveDisplay_f88109",
       "to_pin": "sfreq"
     },
     {
-      "from": "EEGFilterPlugin_28a1b3",
+      "from": "EEGFilterPlugin_f4720c",
       "from_pin": "segment",
-      "to": "EEGLiveDisplay_278140",
+      "to": "EEGLiveDisplay_f88109",
       "to_pin": "segment"
     },
     {
-      "from": "LSLInletPlugin_184c68",
+      "from": "EEGFilterPlugin_f4720c",
       "from_pin": "ch_names",
-      "to": "EEGFilterPlugin_28a1b3",
+      "to": "EEGLiveDisplay_f88109",
       "to_pin": "ch_names"
     },
     {
-      "from": "LSLInletPlugin_184c68",
-      "from_pin": "sfreq",
-      "to": "EEGFilterPlugin_28a1b3",
-      "to_pin": "sfreq"
-    },
-    {
-      "from": "LSLInletPlugin_184c68",
+      "from": "AcquisitionManager_836da7",
       "from_pin": "segment",
-      "to": "EEGFilterPlugin_28a1b3",
+      "to": "EEGFilterPlugin_f4720c",
       "to_pin": "segment"
     },
     {
-      "from": "LSLInletPlugin_184c68",
-      "from_pin": "segment",
-      "to": "EEGLiveDisplay_fb43e0",
-      "to_pin": "segment"
-    },
-    {
-      "from": "LSLInletPlugin_184c68",
-      "from_pin": "ch_names",
-      "to": "EEGLiveDisplay_fb43e0",
-      "to_pin": "ch_names"
-    },
-    {
-      "from": "LSLInletPlugin_184c68",
+      "from": "AcquisitionManager_836da7",
       "from_pin": "sfreq",
-      "to": "EEGLiveDisplay_fb43e0",
+      "to": "EEGFilterPlugin_f4720c",
       "to_pin": "sfreq"
     }
   ]

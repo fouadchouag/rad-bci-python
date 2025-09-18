@@ -1,0 +1,32 @@
+
+@startuml
+title Figure 2 — Reactive propagation with RxPy (edit -> redraw)
+
+skinparam backgroundColor #FFFFFF
+skinparam dpi 150
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ArrowColor #222222
+skinparam NoteBackgroundColor #FAFAFA
+skinparam NoteBorderColor #BBBBBB
+scale 0.9
+
+actor User
+participant "Node Editor" as Editor
+participant "Reactive Engine (RxPy)" as Rx
+participant "EEGFilter" as Filter
+participant "EEGLiveDisplay" as Display
+
+User -> Editor: Adjust cutoff (e.g., LP=40 Hz)
+Editor -> Rx: onChange(pin=filter.cutoff, value=40)
+Rx -> Filter: set_input(cutoff=40)\n(trigger execute)
+Filter -> Rx: emit(output=segments_filtered)
+Rx -> Display: set_input(segments=...)\n(trigger redraw)
+note over Rx
+PARAM_CHANGE_ts recorded
+end note
+Display -> Display: redraw()
+note over Display
+FIRST_FRAME_ts after change
+end note
+@enduml

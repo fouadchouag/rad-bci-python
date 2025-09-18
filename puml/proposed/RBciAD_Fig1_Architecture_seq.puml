@@ -1,0 +1,35 @@
+
+@startuml
+title Figure 1 — RBciAD high-level architecture (sequence fallback)
+
+' --- Minimal, compact style for sequence diagrams ---
+skinparam backgroundColor #FFFFFF
+skinparam dpi 150
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam Participant {
+  BackgroundColor #F7F7F7
+  BorderColor #333333
+}
+skinparam ArrowColor #222222
+skinparam NoteBackgroundColor #FAFAFA
+skinparam NoteBorderColor #BBBBBB
+skinparam SequenceMessageAlign center
+scale 0.9
+
+
+participant GUI
+participant Engine
+participant "Python Plugins" as Plugins
+participant "Polyglot Wrapper" as Poly
+participant "I/O (Sources/Sinks)" as IO
+
+GUI -> Engine: Edit graph / params
+Engine -> Plugins: Discover & run nodes
+Engine -> Poly: Invoke external step
+Poly -> Poly: JSON I/O (input.json / output.json)
+IO -> Plugins: EDF/BDF/GDF/LSL data
+Plugins -> IO: Plots/Web/CSV (sinks)
+Engine -> IO: Metrics (CPU/RSS, FPS, logs)
+
+@enduml

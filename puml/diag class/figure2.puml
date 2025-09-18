@@ -1,0 +1,55 @@
+
+@startuml
+title RBciAD — Core class diagram
+skinparam backgroundColor #FFFFFF
+skinparam dpi 150
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ArrowColor #222222
+left to right direction
+
+class Node {
+  +id: int
+  +name: str
+}
+
+class ReactiveEngine {
+  +setInput(pin, value): void
+  +execute(node: Node): void
+  +emit(value): void
+}
+
+class EEGUniversalReader {
+  +sr_hz: float
+  +ch_names: list
+  +loadEDF(path): void
+}
+
+class EEGFilter {
+  +bandpass(low, high): void
+  +notch(freq): void
+}
+
+class EEGLiveDisplay {
+  +redraw(): void
+  +setWindow(s): void
+}
+
+class PolyglotWrapper {
+  +run(cmd, args): int
+  +writeInput(file): void
+  +readOutput(file): any
+}
+
+class ExternalExec <<external>>
+
+Node <|-- EEGUniversalReader
+Node <|-- EEGFilter
+Node <|-- EEGLiveDisplay
+
+ReactiveEngine o--> Node : manages
+EEGFilter --> EEGUniversalReader : consumes
+EEGLiveDisplay --> EEGFilter : consumes
+ReactiveEngine ..> PolyglotWrapper : calls
+PolyglotWrapper ..> ExternalExec : spawns
+@enduml

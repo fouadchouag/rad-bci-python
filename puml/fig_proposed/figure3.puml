@@ -1,0 +1,35 @@
+
+@startuml
+title Figure 3 — Windowing, overlap, hop
+
+skinparam backgroundColor #FFFFFF
+skinparam dpi 150
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ArrowColor #222222
+skinparam NoteBackgroundColor #FAFAFA
+skinparam NoteBorderColor #BBBBBB
+scale 0.9
+
+participant "Acquisition Manager" as AM
+
+== Window 1 ==
+activate AM
+note over AM
+Window duration = win_s (seconds)
+end note
+deactivate AM
+
+... hop_s = win_s * (1 - overlap) ...
+
+== Window 2 ==
+activate AM
+note over AM
+Window duration = win_s (seconds)
+end note
+deactivate AM
+
+note over AM
+Example: win_s = 5 s, overlap = 0.8 -> hop_s = 1.0 s
+end note
+@enduml

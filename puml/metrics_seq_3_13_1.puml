@@ -1,8 +1,6 @@
 @startuml
 ' Reactive propagation and metrics timing
 skinparam defaultFontName Helvetica
-title Propagation & Timing — TTFP and Edit-to-Redraw Latency
-
 actor User
 participant "UI (LiveDisplay controls)" as UI
 participant "Rx Engine" as RX

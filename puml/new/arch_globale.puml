@@ -17,6 +17,7 @@ package "Plugins (Python)" {
   [EEGUniversalReader] <<component>>
   [EEGFilter] <<component>>
   [EEGLiveDisplay] <<component>>
+  [Sinks] <<component>>
 }
 
 package "Polyglot" {

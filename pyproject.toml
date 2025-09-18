@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rbciad"
-version = "0.1.0"
+version = "1.10.0"
 description = "RBciAD — Reactive BCI Builder"
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [{ name = "RBciAD Team" }]
+authors = [{ name = "Fouad CHOUAG" }]
 
 # --- Dépendances de base (runtime minimal pour 95% des utilisateurs) ---
 dependencies = [
@@ -20,12 +20,26 @@ dependencies = [
   "rx>=3",
   "mne",
   "pyyaml",
-  "psutil"
+  "psutil",
+  "scikit-learn",
+  "mne-lsl",
+  "numpy",
+  "pylsl",
+  "scipy",
+  "h5py",
+  "pyyaml",
+  "pandas",
+  "pyvista",
+  "pyvistaqt",
+  "vtk",
+  "mkdocs-material",
+  "brainflow"
 ]
 
 # --- Commande terminal ---
 [project.scripts]
 rbciad = "rbciad_app.__main__:main"  # lanceur fourni dans rbciad_app/
+
 
 [tool.setuptools]
 packages = { find = { where = ["."] } }

@@ -68,8 +68,6 @@ source .venv/bin/activate
 
 **2) Install dependencies**
 
-If you have a requirements.txt:
-
 pip install -r requirements.txt
 
 Or install directly:
@@ -80,43 +78,10 @@ mne and pyriemann are optional but strongly recommended for EEG/BCI workflows.
 
 **3) Install the project (developer mode recommended)**
 
-If your repo is package-ready (has pyproject.toml / setup.cfg) and exposes the **Rbciad** script:
-
 pip install -e .
 
 This registers the **Rbciad** CLI in your environment (in .venv/bin on Linux/macOS or .venv\Scripts on Windows).
 
-If you don’t have an entry point yet, here’s a minimal **pyproject.toml** example:
-
-[project]
-
-name = "rbciad"
-
-version = "0.1.0"
-
-description = "Reactive BCI Builder"
-
-readme = "README.md"
-
-requires-python = ">=3.9"
-
-dependencies = ["PyQt5", "rx", "numpy", "scipy", "mne", "pyriemann", "joblib", "matplotlib"]
-
-[project.scripts]
-
-Rbciad = "rbciad.main:run"  # calls run() in rbciad/main.py
-
-And in rbciad/main.py:
-
-def run():
-
-    # import and launch your QApplication / MainWindow here
-
-    from gui.app import start_gui
-
-    start_gui()
-
-Adapt paths/names to your repo layout (if you launch from main.py, target that).
 
 **Launch the App**
 

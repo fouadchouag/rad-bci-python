@@ -1,0 +1,42 @@
+
+@startuml
+title Figure 8 - EEG I/O and visualization (compact)
+skinparam backgroundColor #FFFFFF
+skinparam dpi 130
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ArrowColor #222222
+skinparam componentStyle rectangle
+skinparam ArrowThickness 1.1
+skinparam Rectangle {
+  RoundCorner 12
+}
+left to right direction
+scale 0.75
+
+' -------- Row 1: sources -> readers -> unified stream --------
+rectangle "EDF / BDF \n/ GDF / FIF / BV..." as FILES
+rectangle "LSL stream" as LSL
+
+rectangle "EEGUniversalReader\n(MNE-based, multi-format)" as UREAD
+rectangle "LSL-Reader\n(live acquisition)" as LSLR
+
+FILES --> UREAD : load file(s)
+LSL --> LSLR : subscribe()
+
+rectangle "Unified EEG stream\n(data[n_s,n_ch],\n sr_hz, ch_names, ts_src)" as STREAM
+UREAD --> STREAM
+LSLR --> STREAM
+
+' -------- Row 2: sinks / visualization / saving --------
+rectangle "EEGLiveDisplay\n(rolling window,\nstacked channels,\nper-channel scaling)" as LIVE
+rectangle "EEGSaver\n(EDF/BDF/\nGDF/FIF/CSV)" as SAVER
+
+STREAM --> LIVE : windowed/continuous
+STREAM --> SAVER : save()
+
+note right of LIVE
+Render cadence decoupled  from\nupstream sampling; gentle throttling
+end note
+
+@enduml

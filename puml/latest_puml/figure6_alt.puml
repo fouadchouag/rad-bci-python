@@ -1,0 +1,35 @@
+
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam dpi 150
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ArrowColor #222222
+skinparam RectangleBorderColor #333333
+skinparam ArrowThickness 1.2
+top to bottom direction
+scale 0.85
+
+rectangle "RBciAD Host (Python)" {
+  rectangle "Reactive Engine" as Rx
+  rectangle "Plugin API\n(Python nodes)" as PyAPI
+  rectangle "Polyglot Wrapper" as Wrap
+  rectangle "temp_io/" as TMP
+}
+
+rectangle "External process\n(C++/Rust/Node.js/R)" as EXT
+
+Rx ..> PyAPI : in-process\nexecute
+PyAPI --> Wrap : call external
+Wrap --> TMP : write\ninput_<...>.json
+Wrap --> EXT : spawn\nprocess
+EXT --> TMP : write\noutput_<...>.json
+TMP --> Wrap : read\noutput
+Wrap --> PyAPI : outputs / errors
+PyAPI --> Rx : return
+
+note right of TMP
+Use file paths for large arrays
+(binary/memmap) when needed.
+end note
+@enduml

@@ -3,6 +3,30 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# Changelog
+
+## [1.10.0] - 2025-09-10
+### Added
+- validation lien par famille/ runtime
+- zoom in / zoom out
+- Export **PNG / PDF / SVG** recadré automatiquement sur la **zone occupée par les nœuds**.
+- Raccourci **Ctrl+E** pour l’export multi-format.
+- Option **fond transparent** pour PNG (param interne).
+
+### Changed
+- Bouton toolbar renommé en **“Export PNG/PDF/SVG”**.
+- SVG/PDF: rendu vectoriel propre, désactivation temporaire des **pens cosmétiques** pour garder une épaisseur lisible.
+
+### Fixed
+- PDF qui ajoutait des marges → **marges à 0** (`QPdfWriter.setPageMargins`).
+- Erreur `name: _temp_vector_tweaks is not defined` supprimée.
+- Recadrage PNG : disparition des grands espaces blancs autour du workflow.
+
+### Notes
+- Compatibilité runtime des connexions conservée ; logs plus clairs.
+- `EEGUniversalReader` : métriques étendues + streaming robuste.
+
+
 ## [1.9.0] - 2025-09-08
 ### Added
 - In-app Help: Shift+F1 opens node page; “?” quick help badges.

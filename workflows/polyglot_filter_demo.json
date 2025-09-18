@@ -1,0 +1,91 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "name": "EEGLiveDisplay_5d186a",
+      "type": "EEGLiveDisplay",
+      "position": [
+        850.7820210449929,
+        75.84479317851951
+      ],
+      "config": {
+        "loop": true,
+        "window_s": 10.0,
+        "step_s": 0.2,
+        "seg_len_auto": true,
+        "seg_len_manual": null,
+        "force_nch": 8,
+        "max_points": 3000,
+        "max_fps": 20
+      }
+    },
+    {
+      "name": "RawfilterCPlugin_92fbc8",
+      "type": "RawfilterCPlugin",
+      "position": [
+        406.9978229317852,
+        99.11030478955004
+      ],
+      "config": {
+        "params": {
+          "low": 8.0,
+          "high": 13.0,
+          "notch": "off",
+          "q": 0.707,
+          "order": 2,
+          "preview": false,
+          "preview_window_s": 10.0,
+          "preview_decim": 1
+        }
+      }
+    },
+    {
+      "name": "EEGUniversalReader_72ec73",
+      "type": "EEGUniversalReader",
+      "position": [
+        70.40892597968073,
+        101.71952104499276
+      ],
+      "config": {
+        "units": "V",
+        "chunk_s": 1.0,
+        "overlap_s": 0.0,
+        "loop": false,
+        "resample_hz": 0,
+        "eeg_only": true,
+        "incl_eog": false,
+        "incl_emg": false,
+        "incl_stim": false,
+        "fast_open": true,
+        "turbo_gdf": true,
+        "emit_annotations": true,
+        "open_async": true,
+        "smart_preview": true,
+        "preview_s": 0.0,
+        "stream_decim": 1,
+        "bigfile_threshold_mb": 128.0,
+        "path": "D:\\rad-bci-python_test\\eeg_recording\\BCI2005_I.gdf"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "EEGUniversalReader_72ec73",
+      "from_pin": "raw",
+      "to": "RawfilterCPlugin_92fbc8",
+      "to_pin": "raw"
+    },
+    {
+      "from": "RawfilterCPlugin_92fbc8",
+      "from_pin": "raw",
+      "to": "EEGLiveDisplay_5d186a",
+      "to_pin": "raw"
+    },
+    {
+      "from": "EEGUniversalReader_72ec73",
+      "from_pin": "sfreq",
+      "to": "RawfilterCPlugin_92fbc8",
+      "to_pin": "sfreq"
+    }
+  ]
+}

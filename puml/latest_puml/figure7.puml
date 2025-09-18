@@ -1,0 +1,43 @@
+
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam dpi 150
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ArrowColor #222222
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam NoteBackgroundColor #FAFAFA
+skinparam NoteBorderColor #BBBBBB
+skinparam ArrowThickness 1.2
+skinparam Rectangle {
+  RoundCorner 12
+}
+top to bottom direction
+scale 0.9
+
+rectangle "Developer" as DEV
+
+package "RBciAD Host (Python)" {
+  rectangle "Low-Code Creator" as LCC
+  rectangle "Registry / Loader\n(dynamic discovery)" as REG
+  rectangle "Node Editor\nPalette: [Base] | [Custom]" as PAL
+  folder "custom_plugins/" as CPL
+  folder "plugins/" as PLG
+}
+
+' --- Flow (vertical) ---
+DEV --> LCC : specify name, I/O,\nlanguage (Python / Polyglot)
+LCC --> CPL : write skeleton(s)
+LCC --> REG : refresh discovery
+REG --> PAL : register nodes\nunder [Custom]
+
+note right of CPL
+Python skeleton:\n- subclass BaseNode\n- predeclare I/O\n\nPolyglot skeleton:\n- input.json / output.json\n- wrapper integration
+end note
+
+note right of REG
+No restart needed.\nPalette refreshes on demand.
+JSON contract is consistent\nacross languages.
+end note
+@enduml
