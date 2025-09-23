@@ -216,7 +216,7 @@ class BandpowerFeaturesPlugin(BasePlugin):
 
     name = "BandpowerFeatures"
     language = "Python"
-    category = "ML / Features"
+    category = "Processing Nodes"
 
     def setup(self):
         # Inputs

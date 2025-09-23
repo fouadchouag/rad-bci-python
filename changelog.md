@@ -22,9 +22,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Erreur `name: _temp_vector_tweaks is not defined` supprimée.
 - Recadrage PNG : disparition des grands espaces blancs autour du workflow.
 
+<<<<<<< HEAD
 ### Notes
 - Compatibilité runtime des connexions conservée ; logs plus clairs.
 - `EEGUniversalReader` : métriques étendues + streaming robuste.
+=======
+## [1.6.0] - 2025-08-20
+>>>>>>> 6abb661dc733b61835fb8ab4cbcc124b2fd9923b
 
 
 ## [1.9.0] - 2025-09-08
@@ -41,6 +45,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Low-code wrappers: improved Nyquist guard & preview options.
 
 
+<<<<<<< HEAD
 [1.8.0] — 2025-09-01
 Added
 Metrics CLI: Δ% vs W1, seuils UX (100/200/500/1000 ms, 0.1/1/10 s, 60/30 fps),
@@ -97,6 +102,8 @@ Analyse :
 python utils/metrics_eval.py runs --outdir metrics_results
 python utils/build_tables_from_metrics.py metrics_results --outdir out
 
+=======
+>>>>>>> 6abb661dc733b61835fb8ab4cbcc124b2fd9923b
 ## [1.6.0] - 2025-08-19
 ### Added
 - **Logger Dock** intégré à la fenêtre principale (affichable/masquable) avec capture des logs Python et bascule « Afficher les logs » dans la barre d’outils.

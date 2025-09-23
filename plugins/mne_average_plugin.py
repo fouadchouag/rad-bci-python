@@ -28,7 +28,7 @@ class MNEAveragePlugin(BasePlugin):
 
     name = "MNEAverage"
     language = "Python"
-    category = "Segmentation/ERP"
+    category = "Preprocessing"
     supports_collapse = True
     start_hidden = True
 

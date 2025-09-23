@@ -1,0 +1,29 @@
+{
+  "categories": [
+    "Analysis",
+    "BCI/Control",
+    "BCI/Feedback",
+    "BCI/ML",
+    "BCI/Preproc",
+    "BCI/Segmentation",
+    "BCI/Utils",
+    "Custom",
+    "Features",
+    "Input Nodes",
+    "ML",
+    "ML / Classifier",
+    "ML / Features",
+    "ML / Riemann",
+    "Output Nodes",
+    "Preprocessing",
+    "Processing",
+    "Processing Nodes",
+    "Segmentation",
+    "Segmentation / Baseline",
+    "Segmentation/ERP",
+    "Time-Frequency",
+    "Transform Nodes",
+    "Visualization",
+    "Web Nodes"
+  ]
+}

@@ -68,7 +68,7 @@ class BCI_Trainer(BasePlugin):
     """
     name = "BCI_Trainer"
     language = "Python"
-    category = "BCI/ML"
+    category = "ML"
 
     # ------------------------------------------------------------------ #
     # Lifecycle / IO                                                     #

@@ -43,7 +43,7 @@ class BCIEpochNode(BasePlugin):
 
     name = "BCI_Epoch"
     language = "Python"
-    category = "BCI/Segmentation"
+    category = "Segmentation"
 
     # ---------------- lifecycle ----------------
     def setup(self):

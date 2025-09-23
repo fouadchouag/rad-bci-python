@@ -141,7 +141,7 @@ class RiemannTSTrainerPlugin(BasePlugin):
 
     name = "RiemannTSTrainer"
     language = "Python"
-    category = "ML / Riemann"
+    category = "ML"
 
     def setup(self):
         self.inputs["cov"] = BehaviorSubject(None)

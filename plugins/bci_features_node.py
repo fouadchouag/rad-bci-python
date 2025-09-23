@@ -138,7 +138,7 @@ class BCI_Features(BasePlugin):
 
     name = "BCI_Features"
     language = "Python"
-    category = "BCI/ML"
+    category = "ML"
 
     def setup(self):
         # data

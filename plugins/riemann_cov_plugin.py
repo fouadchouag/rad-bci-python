@@ -149,7 +149,7 @@ class RiemannCovPlugin(BasePlugin):
 
     name = "RiemannCov"
     language = "Python"
-    category = "ML / Riemann"
+    category = "ML"
 
     def setup(self):
         self.inputs["segment"] = BehaviorSubject(None)

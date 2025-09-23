@@ -124,7 +124,7 @@ class CSPTrainerPlugin(BasePlugin):
 
     name = "CSPTrainer"
     language = "Python"
-    category = "ML / Features"
+    category = "ML"
 
     def setup(self):
         # Entrées (segment + label pour entraîner CSP sur trials)

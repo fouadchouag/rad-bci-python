@@ -60,7 +60,7 @@ class BCI_CommandRouter(BasePlugin):
     """
     name = "BCI_CommandRouter"
     language = "Python"
-    category = "BCI/Control"
+    category = "BCI/Utils"
 
     def setup(self):
         self.inputs["pred_idx"]   = BehaviorSubject(None)

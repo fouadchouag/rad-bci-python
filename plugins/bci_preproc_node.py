@@ -99,7 +99,7 @@ class BCIPreprocNode(BasePlugin):
     """
     name = "BCI_Preproc"
     language = "Python"
-    category = "BCI/Preproc"
+    category = "Preprocessing"
 
     # ---------- lifecycle ----------
     def setup(self):

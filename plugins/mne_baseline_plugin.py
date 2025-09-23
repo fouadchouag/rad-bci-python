@@ -39,7 +39,7 @@ class MNEBaselinePlugin(BasePlugin):
 
     name = "MNEBaseline"
     language = "Python"
-    category = "Segmentation / Baseline"
+    category = "Segmentation"
     supports_collapse = True
 
     def setup(self):

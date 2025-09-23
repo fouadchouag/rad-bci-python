@@ -17,7 +17,7 @@ class ClassifierRuntimePlugin(BasePlugin):
 
     name = "ClassifierRuntime"
     language = "Python"
-    category = "ML / Classifier"
+    category = "ML"
 
     def setup(self):
         self.inputs["model"] = BehaviorSubject(None)     # sklearn classifier (fit)

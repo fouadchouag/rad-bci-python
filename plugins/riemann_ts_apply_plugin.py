@@ -26,7 +26,7 @@ class RiemannTSApplyPlugin(BasePlugin):
 
     name = "RiemannTSApply"
     language = "Python"
-    category = "ML / Riemann"
+    category = "ML"
 
     def setup(self):
         self.inputs["ts_transform"] = BehaviorSubject(None)

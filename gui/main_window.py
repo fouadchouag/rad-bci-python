@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
     QGraphicsPathItem, QFileDialog, QAction, QMessageBox,
     QDialog, QListWidget, QDialogButtonBox, QSplitter
 )
-from PyQt5.QtCore import Qt, QPointF, QRectF, QTimer, QSizeF, QSize, QMarginsF
+from PyQt5.QtCore import Qt, QPointF, QRectF, QTimer, QSizeF, QSize, QMarginsF, QThread, QObject, pyqtSignal
 from PyQt5.QtGui import QColor, QPainter, QKeySequence, QTransform, QMouseEvent, QImage, QPdfWriter
 import sip
 
@@ -87,8 +87,7 @@ class ZoomableGraphicsView(QGraphicsView):
         self._apply_scale(1.0 / self._zoom_step)
 
     def zoom_reset(self):
-        self.setTransform(Qtransform())  # remet à 100%
-        self.setTransform(QTransform())
+        self.setTransform(QTransform())  # remet à 100%
 
     def fit_to_scene(self, margin: float = 40.0):
         sc = self.scene()
@@ -165,6 +164,17 @@ class ZoomableGraphicsView(QGraphicsView):
         super().keyReleaseEvent(event)
 
 
+# ---------- worker Qt pour découvrir les plugins en arrière-plan ----------
+class _PluginLoader(QObject):
+    finished = pyqtSignal(dict)
+    def run(self):
+        try:
+            res = discover_plugins() or {}
+        except Exception:
+            res = {}
+        self.finished.emit(res)
+
+
 class MainWindow(QMainWindow):
     # -------------------------- Synonymes de pins --------------------------
     PIN_SYNONYMS = {
@@ -221,9 +231,10 @@ class MainWindow(QMainWindow):
         self._z_counter = 0
         self.scene.selectionChanged.connect(self._on_scene_selection_changed)
 
-        # Plugins
-        self.plugins_by_category = discover_plugins()
+        # ⚠️ Plugins: NE PAS bloquer ici. On initialise vide et on chargera en arrière-plan.
+        self.plugins_by_category = {}
         self.plugin_classes_by_name = {}
+        self.all_plugins = []
 
         # Logs UI
         self.log_dock = None
@@ -240,17 +251,9 @@ class MainWindow(QMainWindow):
         self.category_widgets = {}
         self.current_workflow_path = None
 
-        # Palette
-        self._populate_palette()
-
-        # Liste à plat des plugins
-        self.all_plugins = []
-        for plugin_list in self.plugins_by_category.values():
-            self.all_plugins.extend(plugin_list)
-
-        self.logger.info("📦 Plugins chargés dans all_plugins :")
-        for cls in self.all_plugins:
-            self.logger.info(f"   - {cls.__name__}")
+        # 🎯 Afficher immédiatement "Plugin loading…" puis lancer la découverte en arrière-plan
+        self._show_plugin_loading_message()
+        self._start_plugin_discovery_async()
 
         # Hotkeys métriques
         try:
@@ -325,6 +328,12 @@ class MainWindow(QMainWindow):
         self.palette_layout = QVBoxLayout(self.palette_frame)
         self.palette_frame.setLayout(self.palette_layout)
 
+        # Label de chargement (immédiat)
+        self._loading_label = QLabel("Plugin loading…")
+        self._loading_label.setStyleSheet("color: #666; margin: 8px;")
+        self.palette_layout.addWidget(self._loading_label)
+        self.palette_layout.addStretch(1)
+
         palette_scroll = QScrollArea()
         palette_scroll.setWidgetResizable(True)
         palette_scroll.setWidget(self.palette_frame)
@@ -382,6 +391,41 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         return super().closeEvent(ev)
+
+    # ---------- async plugin loading ----------
+    def _show_plugin_loading_message(self):
+        # déjà ajouté dans _init_ui, mais au cas où
+        if not hasattr(self, "_loading_label") or self._loading_label is None:
+            self._loading_label = QLabel("Plugin loading…")
+            self._loading_label.setStyleSheet("color: #666; margin: 8px;")
+            self.palette_layout.insertWidget(0, self._loading_label)
+
+    def _start_plugin_discovery_async(self):
+        self._plugin_thread = QThread(self)
+        self._plugin_worker = _PluginLoader()
+        self._plugin_worker.moveToThread(self._plugin_thread)
+        self._plugin_thread.started.connect(self._plugin_worker.run)
+        self._plugin_worker.finished.connect(self._on_plugins_loaded)
+        self._plugin_worker.finished.connect(self._plugin_thread.quit)
+        self._plugin_worker.finished.connect(self._plugin_worker.deleteLater)
+        self._plugin_thread.finished.connect(self._plugin_thread.deleteLater)
+        self._plugin_thread.start()
+
+    def _on_plugins_loaded(self, plugins_by_category: dict):
+        self.plugins_by_category = plugins_by_category or {}
+        self.plugin_classes_by_name = {}
+
+        # Liste à plat des plugins
+        self.all_plugins = []
+        for plugin_list in self.plugins_by_category.values():
+            self.all_plugins.extend(plugin_list)
+
+        self.logger.info("📦 Plugins chargés dans all_plugins :")
+        for cls in self.all_plugins:
+            self.logger.info(f"   - {cls.__name__}")
+
+        # Construire la palette (et retirer le label de chargement)
+        self._populate_palette()
 
     # ---------- Helpers langage (palette) ----------
     def _canon_language(self, s: str) -> str:
@@ -460,7 +504,10 @@ class MainWindow(QMainWindow):
         return row
 
     def _populate_palette(self):
-        self.plugins_by_category = discover_plugins()
+        # ⚠️ NE pas redécouvrir si déjà fournis par le worker
+        if not self.plugins_by_category:
+            self.plugins_by_category = discover_plugins()
+
         self.plugin_classes_by_name = {}
         self._normalize_plugin_languages()
 
@@ -468,13 +515,14 @@ class MainWindow(QMainWindow):
         for cat, plugins in self.plugins_by_category.items():
             self.logger.info(f"  📁 {cat} : {[cls.__name__ for cls in plugins]}")
 
-        # Nettoyer la palette
+        # Nettoyer la palette (retire aussi le label "Plugin loading…")
         for i in reversed(range(self.palette_layout.count())):
             widget = self.palette_layout.itemAt(i).widget()
             if widget:
                 widget.setParent(None)
 
         # Reconstruire la palette + registre
+        self.category_widgets = {}
         for category, plugin_list in self.plugins_by_category.items():
             cat_label = QLabel(f"📁 {category}")
             cat_label.setStyleSheet("font-weight: bold; margin-top: 10px; color: #222;")

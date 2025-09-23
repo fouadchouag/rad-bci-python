@@ -67,7 +67,7 @@ class EEGChannelRMSPlugin(BasePlugin):
 
     name = "EEGChannelRMS"
     language = "Python"
-    category = "Processing"
+    category = "Processing Nodes"
 
     def setup(self):
         self.inputs["raw"] = BehaviorSubject(None)

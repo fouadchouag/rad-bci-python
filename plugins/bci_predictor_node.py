@@ -62,7 +62,7 @@ class BCI_Predictor(BasePlugin):
     """
     name = "BCI_Predictor"
     language = "Python"
-    category = "BCI/ML"
+    category = "ML"
 
     # ---------------- setup ----------------
     def setup(self):
