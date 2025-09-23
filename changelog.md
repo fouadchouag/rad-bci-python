@@ -5,6 +5,34 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 # Changelog
 
+
+## [1.10.1] - 2025-09-23
+
+### Performance
+- Show main window immediately; move plugin discovery to a background worker with a lightweight “Plugin loading…” indicator.
+
+### UX / UI
+- Improved zoom behavior and limits; smoother pan (Space or middle mouse).
+- Added/standardized shortcuts: Ctrl++, Ctrl+=, Ctrl+-, Ctrl+0 (reset), Ctrl+F (Fit to Scene).
+- Toolbar buttons: + / − / 100% / Fit for quick access.
+- Fit to Scene to frame the current workflow.
+
+### Export
+- Export cropped to items (PNG/SVG/PDF) with proper non-cosmetic pens in vector modes to avoid ultra-thin strokes.
+- PDF page sizing now matches the content bounds (no unexpected margins).
+
+### Logging
+- Suppress Python’s `import time:` profiling spam (when present) without hiding normal logs.
+
+### Stability / Dev
+- More robust selection/z-order raise for nodes.
+- Lenient JSON loading for workflows (tolerates comments/trailing commas/NaN/Infinity).
+- Periodic autosave retained.
+
+### Breaking Changes
+- None.
+
+
 ## [1.10.0] - 2025-09-10
 ### Added
 - validation lien par famille/ runtime
