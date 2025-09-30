@@ -276,44 +276,25 @@ This assumes **Array → MNE Raw** receives data (2D ch × n), sfreq (float), an
 
 **Repository Structure**
 
-
 rad-bci-python/
-│
-├─ gui/
-│  │
-│  ├─ main_window.py          # MainWindow + ZoomableGraphicsView
-│  │
-│  ├─ node_item.py            # Node (pins, language badge, widget proxy)
-│  │
-│  ├─ connection_item.py      # Validated connections + runtime checks
-│  │
-│  ├─ workflow_templates.py   # (optional)
-│  │
-│  └─ ...
-│
-├─ core/
-│  │
-│  ├─ node_base.py
-│  │
-│  ├─ plugin_registry.py
-│  │
-│  └─ ...
-│
-├─ plugins/                   # plugins or nodes
-│  │
-│  ├─ array_to_mne_raw.py
-│  │
-│  └─ ...
-│
-├─ workflows/
-│  │
-│  └─ xxxxxx.json               # example flow
-│
-├─ main.py                    # fallback launcher if no entry point
-│
-├─ pyproject.toml             # (recommended) exposes [project.scripts] Rbciad
-│
-└─ README.md
+├── gui/
+│   ├── main_window.py          # MainWindow + ZoomableGraphicsView
+│   ├── node_item.py            # Node (pins, language badge, widget proxy)
+│   ├── connection_item.py      # Validated connections + runtime checks
+│   ├── workflow_templates.py   # (optional)
+│   └── ...
+├── core/
+│   ├── node_base.py
+│   ├── plugin_registry.py
+│   └── ...
+├── plugins/                   # plugins or nodes
+│   ├── array_to_mne_raw.py
+│   └── ...
+├── workflows/
+│   └── xxxxxx.json               # example flow
+├── main.py                    # fallback launcher if no entry point
+├── pyproject.toml             # (recommended) exposes [project.scripts] Rbciad
+└── README.md
 
 **Troubleshooting**
 
