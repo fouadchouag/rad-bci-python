@@ -276,6 +276,7 @@ This assumes **Array → MNE Raw** receives data (2D ch × n), sfreq (float), an
 
 **Repository Structure**
 
+
 rad-bci-python/
 │
 ├─ gui/
