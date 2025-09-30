@@ -85,7 +85,7 @@ This registers the **Rbciad** CLI in your environment (in .venv/bin on Linux/mac
 
 **Launch the App**
 
-After installing the package (either pip install -e . or pip install .):
+After installing the package (either pip install -e . or pip install .), just type :
 
 Rbciad
 
@@ -96,10 +96,6 @@ If the command is not found:
 - Ensure the venv’s Scripts (Windows) or bin (Linux/macOS) directory is on your PATH.
 
 **Alternatives (if you don’t use the CLI entry point)**
-
-- As a module (if the package name is rbciad):
-
-- python -m rbciad
 
 - Directly from the repo root (fallback):
 
@@ -169,7 +165,7 @@ Examples: segment → segment ✅, raw → raw ✅, segment → raw ❌
 
 If needed, a plugin can explicitly hint families:
 
-# inside your plugin class
+# inside  plugin class
 
 PIN_FAMILY_HINTS = {
 
@@ -188,85 +184,45 @@ PIN_FAMILY_HINTS = {
 **Sample Workflow JSON**
 
 {
-
   "version": 2,
-
   "nodes": [
-
     {
-
       "name": "Array → MNE Raw",
-
       "type": "ArrayToMNERaw",
-
       "position": [200, 200],
-
       "config": {
-
         "units": "µV",
-
         "montage": "standard_1020",
-
         "auto": true
-
       }
-
     },
-
     {
-
       "name": "MNE Set Montage",
-
       "type": "MNERawSetMontage",
-
       "position": [520, 200],
-
       "config": {
-
         "montage": "standard_1020",
-
         "auto": true
-
       }
-
     },
-
     {
-
       "name": "MNE Compute SSP Projs",
-
       "type": "MNEComputeSSPProjs",
-
       "position": [840, 200],
-
       "config": {
-
         "n_eog": 2,
-
         "l_eog": 1.0,
-
         "h_eog": 10.0,
-
         "n_ecg": 2,
-
         "l_ecg": 8.0,
-
         "h_ecg": 20.0
-
       }
-
     }
-
   ],
-
   "connections": [
-
     { "from": "Array → MNE Raw", "from_pin": "raw", "to": "MNE Set Montage", "to_pin": "raw" },
-
     { "from": "MNE Set Montage", "from_pin": "raw", "to": "MNE Compute SSP Projs", "to_pin": "raw" }
-
   ]
-
 }
 
 This assumes **Array → MNE Raw** receives data (2D ch × n), sfreq (float), and ch_names (list of str).
@@ -274,55 +230,31 @@ This assumes **Array → MNE Raw** receives data (2D ch × n), sfreq (float), an
 **Developing Plugins**
 
 - Inherit from BasePlugin
-
 - Expose **inputs** / **outputs** as Rx streams (e.g., BehaviorSubject)
-
 - Implement execute() or subscribe your logic as needed
-
 - Provide a build_widget() to render a custom UI (embedded in the node via QGraphicsProxyWidget)
-
 - Provide optional **family hints** via PIN_FAMILY_HINTS (see above) to improve tooltips/UX
 
 **Repository Structure**
 
-*(example layout — adjust to your repo)*
-
-rbciad/
-
+rad-bci-python/
 ├─ gui/
-
 │  ├─ main_window.py          # MainWindow + ZoomableGraphicsView
-
 │  ├─ node_item.py            # Node (pins, language badge, widget proxy)
-
 │  ├─ connection_item.py      # Validated connections + runtime checks
-
 │  ├─ workflow_templates.py   # (optional)
-
 │  └─ ...
-
 ├─ core/
-
 │  ├─ node_base.py
-
 │  ├─ plugin_registry.py
-
 │  └─ ...
-
-├─ plugins/                   # your plugins
-
+├─ plugins/                   #  plugins or nodes
 │  ├─ array_to_mne_raw.py
-
 │  └─ ...
-
 ├─ workflows/
-
-│  └─ demo.json               # example flow
-
+│  └─ xxxxxx.json               # example flow
 ├─ main.py                    # fallback launcher if no entry point
-
 ├─ pyproject.toml             # (recommended) exposes [project.scripts] Rbciad
-
 └─ README.md
 
 **Troubleshooting**
@@ -330,9 +262,7 @@ rbciad/
 - **Rbciad**** not found**
 
   - Activate your venv (.venv\Scripts\activate or source .venv/bin/activate)
-
   - Ensure you ran pip install -e .
-
   - On Windows, verify .venv\Scripts is on PATH
 
 - **Connection refused**
@@ -342,7 +272,6 @@ rbciad/
 - **Array → MNE Raw issues**
 
   - Required inputs: data (coercible to 2D ch × n), sfreq (float), ch_names (list of str).
-
   - mne must be installed (pip install mne).
 
 - **Visual artifacts (Windows)**
@@ -358,26 +287,22 @@ Not yet; current design is horizontal. A vertical layout is a candidate for a fu
 Yes — they’re plain JSON files. Use **Save** / **Load** from the toolbar.
 
 **How do I add a new plugin?**
+just use low-code GUI from "add new node" in toolbar or
 Subclass BasePlugin, declare Rx inputs/outputs, implement your logic and UI, and ensure it’s discoverable by discover_plugins().
 
 **License**
 
-MIT (or the license of your choice).
+MIT.
 
 **Credits**
 
 - MNE-Python
-
 - pyRiemann
-
 - PyQt5
-
 - And the broader open-source community ❤️
 
 **Quick start:**
 
 - pip install -e .
-
 - Launch with **Rbciad**
-
 - Build your pipelines, save as .json, and enjoy!
