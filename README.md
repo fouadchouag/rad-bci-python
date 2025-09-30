@@ -185,44 +185,83 @@ PIN_FAMILY_HINTS = {
 
 {
   "version": 2,
+  
   "nodes": [
+
     {
+
       "name": "Array → MNE Raw",
+
       "type": "ArrayToMNERaw",
+
       "position": [200, 200],
+
       "config": {
+
         "units": "µV",
+
         "montage": "standard_1020",
+
         "auto": true
+
       }
+
     },
+
     {
+
       "name": "MNE Set Montage",
+
       "type": "MNERawSetMontage",
+
       "position": [520, 200],
+
       "config": {
+
         "montage": "standard_1020",
+
         "auto": true
+
       }
+
     },
+
     {
+
       "name": "MNE Compute SSP Projs",
+
       "type": "MNEComputeSSPProjs",
+
       "position": [840, 200],
+
       "config": {
+
         "n_eog": 2,
+
         "l_eog": 1.0,
+
         "h_eog": 10.0,
+
         "n_ecg": 2,
+
         "l_ecg": 8.0,
+
         "h_ecg": 20.0
+
       }
+
     }
+
   ],
+
   "connections": [
+
     { "from": "Array → MNE Raw", "from_pin": "raw", "to": "MNE Set Montage", "to_pin": "raw" },
+
     { "from": "MNE Set Montage", "from_pin": "raw", "to": "MNE Compute SSP Projs", "to_pin": "raw" }
+
   ]
+
 }
 
 This assumes **Array → MNE Raw** receives data (2D ch × n), sfreq (float), and ch_names (list of str).
@@ -238,23 +277,41 @@ This assumes **Array → MNE Raw** receives data (2D ch × n), sfreq (float), an
 **Repository Structure**
 
 rad-bci-python/
+│
 ├─ gui/
+│  │
 │  ├─ main_window.py          # MainWindow + ZoomableGraphicsView
+│  │
 │  ├─ node_item.py            # Node (pins, language badge, widget proxy)
+│  │
 │  ├─ connection_item.py      # Validated connections + runtime checks
+│  │
 │  ├─ workflow_templates.py   # (optional)
+│  │
 │  └─ ...
+│
 ├─ core/
+│  │
 │  ├─ node_base.py
+│  │
 │  ├─ plugin_registry.py
+│  │
 │  └─ ...
+│
 ├─ plugins/                   #  plugins or nodes
+│  │
 │  ├─ array_to_mne_raw.py
+│  │
 │  └─ ...
+│
 ├─ workflows/
+│  │
 │  └─ xxxxxx.json               # example flow
+│
 ├─ main.py                    # fallback launcher if no entry point
+│
 ├─ pyproject.toml             # (recommended) exposes [project.scripts] Rbciad
+│
 └─ README.md
 
 **Troubleshooting**
