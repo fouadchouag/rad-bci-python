@@ -287,13 +287,13 @@ rad-bci-python/
 │   ├── node_base.py
 │   ├── plugin_registry.py
 │   └── ...
-├── plugins/                   # plugins or nodes
-│   ├── array_to_mne_raw.py
+├── plugins/                    # plugins or nodes
+│   ├── EEGLiveDisplay_plugins.py
 │   └── ...
 ├── workflows/
-│   └── xxxxxx.json               # example flow
+│   └── xxxxxx.json            # example flow
 ├── main.py                    # fallback launcher if no entry point
-├── pyproject.toml             # (recommended) exposes [project.scripts] Rbciad
+├── pyproject.toml             # exposes [project.scripts] Rbciad
 └── README.md
 
 **Troubleshooting**
@@ -345,3 +345,7 @@ MIT.
 - pip install -e .
 - Launch with **Rbciad**
 - Build your pipelines, save as .json, and enjoy!
+
+🧑‍🔬 Author
+Fouad Chouag – PhD Project (University of Setif, Algeria)
+GitHub: @fouadchouag
