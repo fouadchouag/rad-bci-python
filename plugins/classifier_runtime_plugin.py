@@ -5,15 +5,21 @@ from rx.subject import BehaviorSubject
 from core.node_base import BasePlugin
 
 class ClassifierRuntimePlugin(BasePlugin):
-    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
-  'inputs': {'features': 'array/dict', 'model': 'trained model'},
-  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
-  'parameters': [ { 'default': 0.5,
-                    'desc': 'Decision threshold (if applicable)',
-                    'name': 'threshold',
-                    'type': 'float'}],
-  'summary': 'Apply a trained model or compute predictions/probabilities.',
-  'usage': 'Connect features and a compatible model.'}
+    help = help = { 'gotchas': [
+                 'Model-version mismatch can reduce accuracy.',
+                 'Features must be a 1D array of length n_feat; it is reshaped to (1, -1) internally.',
+                 'proba output is None if the classifier does not support predict_proba.',
+                 'If predict() raises an error, no outputs are emitted (silent failure).'],
+  'inputs': {'model': 'sklearn classifier (must be fitted, with predict method)',
+             'features': 'array-like (n_feat,) — single feature vector'},
+  'outputs': {'pred_label': 'str/int — predicted class label (from clf.classes_ if available)',
+              'pred_idx': 'int — integer index of predicted class',
+              'proba': 'dict[str->float] — class probabilities (or None if unavailable)'},
+  'parameters': [],
+  'summary': 'Applies a fitted sklearn classifier to a single feature vector, '
+             'producing pred_idx, pred_label, and optionally a probability dict.',
+  'usage': 'Connect a fitted model and a feature vector (1D). Outputs are emitted '
+           'each time both inputs are available.'}
 
     name = "ClassifierRuntime"
     language = "Python"

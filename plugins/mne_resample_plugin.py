@@ -29,12 +29,26 @@ Number = Union[int, float]
 
 
 class MNEResamplePlugin(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
-  'outputs': {'segment': 'processed array'},
-  'parameters': [],
-  'summary': 'MNEResamplePlugin (final)',
-  'usage': 'Wire upstream data and route downstream.'}
+    help = help = {
+        'summary': 'Resample an MNE Raw or Epochs object to a target sampling frequency.',
+        'usage': 'Connect a Raw or Epochs object. Set the target sfreq in the properties panel or via the sfreq input.',
+        'inputs': {
+            'raw': 'mne.io.Raw or mne.Epochs — input data to resample',
+            'sfreq': 'float — target sampling frequency in Hz (default 256.0)',
+        },
+        'outputs': {
+            'raw': 'mne.io.Raw or mne.Epochs — resampled copy',
+        },
+        'parameters': [
+            {'name': 'sfreq', 'type': 'float', 'default': 256.0, 'desc': 'Target sampling frequency in Hz (1–4096)'},
+        ],
+        'gotchas': [
+            'If the current sfreq already matches the target, the original object is returned unchanged (no copy).',
+            'Force-loads data before resampling if the Raw object is not preloaded.',
+            'Resampling changes the time axis — downstream nodes must handle the new sfreq.',
+            'Caching skips re-computation when the same object and target sfreq arrive again.',
+        ],
+    }
 
     name = "MNEResample"
     language = "Python"

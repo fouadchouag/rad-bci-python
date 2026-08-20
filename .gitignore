@@ -2,9 +2,11 @@
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyd
 
 # Environment
 venv/
+.venv/
 .env/
 
 # OS files
@@ -13,6 +15,7 @@ Thumbs.db
 
 # IDE
 .vscode/
+.idea/
 *.log
 
 # PyInstaller
@@ -20,66 +23,42 @@ dist/
 build/
 *.spec
 
-# article
-article/
-
-# backup
-backup/
-
-# demo web feedback
-servers/web_feedback/node_modules/
-
-# out
-out/
-
-# temp_io
-temp_io/
-
-# eeg_recording
-eeg_recording/
-
-
-@'
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# Egg info
 *.egg-info/
 .build/
-dist/
-build/
-
-# Environnements
-.venv/
-venv/
-
-# IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
 
 # Projet RAD-BCI
 temp_io/
 logs/
 outputs/
+out/
 .cache/
 .mne/
 .mne-cache/
-*.log
 
-# Données / modèles lourds (gardés hors git normal)
+# Données / modèles lourds
 data/
 datasets/
 models/
 checkpoints/
-
-# Artefacts Qt / PyInstaller éventuels
-*.spec
+eeg_recording/
 
 # Fichiers temporaires
 *.tmp
-'@ | Set-Content .gitignore -Encoding utf8
+
+# Polyglot build artifacts (Rust, C)
+polyglot_node_src/**/target/
+polyglot_node_src/**/*.o
+polyglot_node_src/**/*.exe
+polyglot_node_src/**/*.pdb
+polyglot_node_src/**/*.dll
+polyglot_node_src/**/*.lib
+polyglot_node_src/**/*.exp
+polyglot_node_src/**/*.dev
+polyglot_node_src/**/*.layout
+
+# MkDocs build (reconstructed from source)
+RBciAD_docs/site/
+
+# Backup files
+*.bak

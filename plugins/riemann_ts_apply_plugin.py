@@ -18,17 +18,19 @@ class RiemannTSApplyPlugin(BasePlugin):
         'summary': 'Apply a trained Tangent Space transform to project covariance matrices into 1D feature vectors.',
         'usage': 'Connect a trained ts_transform (from RiemannTSTrainer) and a covariance matrix. Outputs a 1D feature vector.',
         'inputs': {
-            'ts_transform': 'trained pyRiemann TangentSpace object',
-            'cov': '2D float [ch x ch] — SPD covariance matrix',
+            'ts_transform': 'trained pyRiemann TangentSpace object — must be fitted via RiemannTSTrainer',
+            'cov': '2D float [ch x ch] — SPD covariance matrix matching the dimensionality used during TS training',
         },
         'outputs': {
-            'features': '1D float array — tangent-space feature vector',
+            'features': '1D float array — tangent-space feature vector of dimension n_ch*(n_ch+1)/2',
             'features_dim': 'int — dimensionality of the feature vector',
         },
         'parameters': [],
         'gotchas': [
-            'The ts_transform must be fitted (via RiemannTSTrainer) before use.',
-            'Input covariance must be SPD and match the dimensionality used during training.',
+            'The ts_transform must be fitted (via RiemannTSTrainer) before use; otherwise transform will fail silently.',
+            'Input covariance must be SPD and square, matching the number of channels used during TS training.',
+            'The covariance is wrapped in a batch dimension internally: ts.transform(C[np.newaxis, ...]).',
+            'If either ts_transform or cov is None, the node outputs nothing (no error emitted).',
         ],
     }
 

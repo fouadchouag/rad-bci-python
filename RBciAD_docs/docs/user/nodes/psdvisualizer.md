@@ -4,27 +4,38 @@
 
 **Language:** Python
 
+**Source:** `psd_visualizer.py`
+
 ## Summary
-PSDVisualizer
+Displays Welch PSD curves per channel with optional averaging and dB scaling.
 
 ## Inputs
 | Name | Description |
 |---|---|
-| segment | 2D float [ch x samples] (or raw/derived) |
+| freqs | 1D float array — frequency axis (Hz) from Welch computation |
+| psd | 2D float array [channels x frequencies] — power spectral density values |
+| ch_names | list[str] — channel names for the channel selector |
+| info | dict — optional metadata (not currently used) |
 
 ## Outputs
-_None_
+| Name | Description |
+|---|---|
+| config_out | dict — current config: {average_channels, use_db, max_points} |
 
 ## Parameters
 | Name | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| scale_uv | float | 50.0 | µV | Vertical scale |
-| speed | float | 1.0 |  | Scroll speed |
-| fullscreen | bool | False |  | Show full screen |
+| average_channels | bool |  |  | Average PSD across all selected channels into a single curve |
+| use_db | bool |  |  | Display power on a logarithmic dB scale (10*log10) |
+| max_points | int |  |  | Visual decimation limit — frequencies are downsampled if above this count |
 
 ## Usage
-Connect upstream data; adjust view parameters.
+Connect freqs and psd outputs from a PSD computation node. Toggle averaging and dB in the collapsible panel.
 
 ## Gotchas
-- High refresh can drop FPS; consider decimation.
+- psd must be 2D [n_ch x n_freqs]; 1D or 3D inputs are rejected as shape mismatches.
+- freqs and psd shapes must be compatible (psd.shape[1] == freqs.shape[0]).
+- dB mode clamps values at 1e-20 floor to avoid log(0) issues.
+- Channel selector syncs with upstream ch_names; if names are missing, generic ch1/ch2 labels are used.
+- Drawing is throttled to ~25 FPS to avoid UI lag on rapid updates.
 

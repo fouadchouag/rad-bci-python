@@ -64,19 +64,34 @@ class _CollapsibleSection(QWidget):
 
 class ArrayToMNERaw(BasePlugin):
     help = {
-        'gotchas': [],
+        'gotchas': ['MNE required (pip install mne).',
+               'Data must be numeric (2D/3D array or list of chunks).',
+               'Unit scaling: input values are multiplied by the selected unit '
+               '(default µV → V). Set to V if data is already in Volts.',
+               'NaN/Inf values in data are replaced with 0.',
+               'Montage is applied only for channels recognized by the standard template.',
+               'Auto mode reconverts on every input change.'],
         'inputs': {
-            'data': '2D/3D array or list of chunks (EEG amplitudes)',
-            'sfreq': 'float sampling rate (Hz)',
-            'ch_names': 'list[str] channel names',
+            'data': '2D/3D array or list of chunks [ch x samples]',
+            'sfreq': 'float — sampling rate (Hz)',
+            'ch_names': 'list[str] — channel names',
+            'title': 'str — optional title (unused)',
         },
         'outputs': {
-            'raw': 'mne.io.Raw',
-            'status': 'text status',
+            'raw': 'mne.io.RawArray — constructed Raw object',
+            'status': 'str — conversion status message',
         },
-        'parameters': [],
-        'summary': 'Array → MNE Raw (Adapter) — fixed v3',
-        'usage': 'Provide data/sfreq/ch_names; converts to MNE Raw.'
+        'parameters': [
+            {'name': 'units', 'type': 'str', 'default': 'µV', 'desc': 'Input data units',
+             'enum': ['V', 'µV', 'mV', 'nV']},
+            {'name': 'montage', 'type': 'str', 'default': 'standard_1020',
+             'desc': 'Standard montage to apply',
+             'enum': ['(none)', 'standard_1020', 'standard_1005', 'biosemi64', 'easycap-M1']},
+            {'name': 'auto', 'type': 'bool', 'default': True,
+             'desc': 'Automatically reconvert on input change'},
+        ],
+        'summary': 'Convert numeric arrays (segment/samples) to an MNE Raw object.',
+        'usage': 'Provide data, sfreq, and ch_names; outputs an MNE Raw for downstream MNE nodes.'
     }
 
     # 🔹 Familles explicites pour la validation des connexions

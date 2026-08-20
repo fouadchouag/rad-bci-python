@@ -4,6 +4,8 @@
 
 **Language:** Python
 
+**Source:** `mne_universal_reader_mneonly.py`
+
 ## Summary
 EEGUniversalReader — ultra-fast, tous formats MNE, avec métriques enrichies:
 
@@ -23,8 +25,8 @@ _None_
 | Name | Type | Default | Unit | Description |
 |---|---|---|---|---|
 | filepath | path |  |  | EDF/BDF/GDF/FIF/... file to load |
-| picks | list\|None | None |  | Channels selection |
-| segment_len | float | 1.0 | s | Window length for streaming output |
+| picks | list\|None |  |  | Channels selection |
+| segment_len | float |  | s | Window length for streaming output |
 
 ## Usage
 Place at pipeline start; connect `raw` to MNE ops or `segment` to streaming ops.

@@ -42,24 +42,31 @@ from core.collapsible import CollapsibleSection
 
 
 class PSDVisualizer(BasePlugin):
-    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
-  'outputs': {},
-  'parameters': [ { 'default': 50.0,
-                    'desc': 'Vertical scale',
-                    'name': 'scale_uv',
-                    'type': 'float',
-                    'unit': 'µV'},
-                  { 'default': 1.0,
-                    'desc': 'Scroll speed',
-                    'name': 'speed',
-                    'type': 'float'},
-                  { 'default': False,
-                    'desc': 'Show full screen',
-                    'name': 'fullscreen',
-                    'type': 'bool'}],
-  'summary': 'PSDVisualizer',
-  'usage': 'Connect upstream data; adjust view parameters.'}
+    help = {
+        'summary': 'Displays Welch PSD curves per channel with optional averaging and dB scaling.',
+        'usage': 'Connect freqs and psd outputs from a PSD computation node. Toggle averaging and dB in the collapsible panel.',
+        'inputs': {
+            'freqs': '1D float array — frequency axis (Hz) from Welch computation',
+            'psd': '2D float array [channels x frequencies] — power spectral density values',
+            'ch_names': 'list[str] — channel names for the channel selector',
+            'info': 'dict — optional metadata (not currently used)',
+        },
+        'outputs': {
+            'config_out': 'dict — current config: {average_channels, use_db, max_points}',
+        },
+        'parameters': [
+            {'name': 'average_channels', 'type': 'bool', 'default': True, 'desc': 'Average PSD across all selected channels into a single curve'},
+            {'name': 'use_db', 'type': 'bool', 'default': True, 'desc': 'Display power on a logarithmic dB scale (10*log10)'},
+            {'name': 'max_points', 'type': 'int', 'default': 4096, 'desc': 'Visual decimation limit — frequencies are downsampled if above this count'},
+        ],
+        'gotchas': [
+            'psd must be 2D [n_ch x n_freqs]; 1D or 3D inputs are rejected as shape mismatches.',
+            'freqs and psd shapes must be compatible (psd.shape[1] == freqs.shape[0]).',
+            'dB mode clamps values at 1e-20 floor to avoid log(0) issues.',
+            'Channel selector syncs with upstream ch_names; if names are missing, generic ch1/ch2 labels are used.',
+            'Drawing is throttled to ~25 FPS to avoid UI lag on rapid updates.',
+        ],
+    }
 
     name = "PSDVisualizer"
     language = "Python"

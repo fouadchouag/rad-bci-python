@@ -4,30 +4,36 @@
 
 **Language:** Python
 
+**Source:** `lsl_markers_inlet.py`
+
 ## Summary
 Inlet LSL pour flux de marqueurs (strings).
 
 ## Inputs
-_None_
+| Name | Description |
+|---|---|
+| config_in | dict — merged configuration block (keys: emit_ms, auto_connect, stream_name) |
+| lsl_markers_conf | dict — markers-specific config (same keys as config_in, overrides config_in) |
 
 ## Outputs
 | Name | Description |
 |---|---|
-| ch_names | List[str] |
-| segment | 2D float [ch x samples] |
-| sfreq | float (Hz) |
+| config_out | dict — current configuration (emit_ms, auto_connect, stream_name) |
+| events | list[dict] — batch of events [{"ts": float, "code": str}, ...] since last tick |
+| last_event | dict — most recent event {"ts": float, "code": str} |
 
 ## Parameters
 | Name | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| stream_name | str | EEG |  | LSL stream name to subscribe to |
-| chunk_size | int | 256 |  | Samples per pull |
-| timeout | float | 0.1 | s | Pull timeout |
+| emit_ms | int |  |  | Interval between emit ticks in milliseconds |
+| auto_connect | bool |  |  | Automatically connect on config import |
 
 ## Usage
-Start external LSL stream; connect this inlet to processing pipeline.
+Use the UI to refresh and connect to a Markers LSL stream, or send a config dict via config_in/lsl_markers_conf inputs to autoconnect programmatically.
 
 ## Gotchas
-- Verify channels and sampling rate.
+- Resolves only LSL streams with type="Markers" (not EEG).
+- Events are pulled one sample at a time and buffered; emitted in bursts on the QTimer tick.
 - Network hiccups may cause gaps—use buffering.
+- Auto-connect triggers after import_config if enabled.
 

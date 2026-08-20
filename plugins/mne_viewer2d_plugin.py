@@ -218,16 +218,30 @@ def _band_edges():
 # ---------------- Plugin ----------------
 class MNEViewer2D(BasePlugin):
     help = {
-        'gotchas': ['High refresh can drop FPS; consider decimation.'],
-        'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
-        'outputs': {},
+        'gotchas': ['High refresh rate can drop FPS; reduce update frequency or increase window size.',
+               'If both raw and segment are connected, raw takes priority.',
+               'Markers are only shown when the Marqueurs checkbox is enabled; max 20 markers are drawn to avoid clutter.',
+               'Scipy is optional; if absent, numpy fallbacks are used for PSD/coherence (slower).',
+               'MNE is optional; if absent, only segment (numpy array) input works, not MNE Raw objects.'],
+        'inputs': {'ch_names': 'List[str] — channel labels (overrides names from raw/segment)',
+                   'markers': 'list or dict — vertical markers in formats: (t, label), (t, label, dur), {"t":..., "label":..., "dur":..., "mode":"rel|sample"}, or a list thereof',
+                   'raw': 'MNE Raw object — takes priority over segment if both connected',
+                   'segment': '2D float [channels x samples] — EEG data array',
+                   'sfreq': 'float (Hz) — sampling rate (used with segment, ignored for raw)',
+                   'title': 'str — custom title displayed at the top'},
+        'outputs': {'status': 'str — current viewer status message'},
         'parameters': [
-            {'name': 'scale_uv', 'type': 'float', 'default': 50.0, 'unit': 'µV', 'desc': 'Vertical scale'},
-            {'name': 'speed', 'type': 'float', 'default': 1.0, 'desc': 'Scroll speed'},
+            {'name': 'scale_uv', 'type': 'float', 'default': 50.0, 'unit': 'µV', 'desc': 'Vertical scale for signal plot'},
+            {'name': 'speed', 'type': 'float', 'default': 1.0, 'desc': 'Scroll speed multiplier'},
             {'name': 'fullscreen', 'type': 'bool', 'default': False, 'desc': 'Show full screen'},
+            {'name': 'max_ch_plot', 'type': 'int', 'default': 16, 'desc': 'Maximum number of channels displayed in traces and correlation matrix'},
+            {'name': 'fmax', 'type': 'float', 'default': 60.0, 'desc': 'Maximum frequency in Hz for PSD, spectrogram, and coherence plots'},
+            {'name': 'win_sec', 'type': 'float', 'default': 5.0, 'desc': 'Visible window duration in seconds for signal auto-scroll'},
+            {'name': 'nperseg', 'type': 'int', 'default': 1024, 'desc': 'Welch segment length for PSD/coherence'},
+            {'name': 'noverlap', 'type': 'int', 'default': 512, 'desc': 'Welch overlap for PSD/coherence'},
         ],
         'summary': 'MNE Viewer 2D — Montage-Free Plots (markers-ready)',
-        'usage': 'Connect upstream data; adjust view parameters.'
+        'usage': 'Connect segment (or raw) plus sfreq and ch_names. Supports Signal, PSD, Spectrogram, Band-power, Correlation, and Coherence plots with optional vertical markers.'
     }
 
     name = "MNE Viewer 2D (montage-free)"

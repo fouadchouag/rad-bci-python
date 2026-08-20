@@ -4,33 +4,39 @@
 
 **Language:** Python
 
+**Source:** `eeg_filter_stateful.py`
+
 ## Summary
-EEGFilterStateful — bandpass IIR à état (streaming)
+Stateful IIR bandpass filter for streaming EEG chunks.
 
 ## Inputs
 | Name | Description |
 |---|---|
-| raw | mne.Raw (opt.) |
-| segment | 2D float [ch x samples] (opt.) |
-| sfreq | float (Hz if segment) |
+| segment | 2D float array [ch x samples] — EEG data chunk |
+| sfreq | float — sampling rate in Hz |
+| ch_names | list[str] — channel names (passthrough) |
 
 ## Outputs
 | Name | Description |
 |---|---|
-| raw | filtered Raw |
-| segment | filtered array |
+| segment | 2D float array — bandpass-filtered chunk |
+| sfreq | float — sampling rate passthrough |
+| ch_names | list[str] — channel names passthrough |
 
 ## Parameters
 | Name | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| hp | float\|None | 1.0 | Hz | High-pass cutoff |
-| lp | float\|None | 40.0 | Hz | Low-pass cutoff |
-| notch | float\|None | 50.0 | Hz | Notch (mains) |
+| low | float |  | Hz | Bandpass lower cutoff (Hz) |
+| high | float |  | Hz | Bandpass upper cutoff (Hz) |
+| order | int |  |  | Butterworth filter order |
 
 ## Usage
-Insert after a reader or inlet; tune band edges.
+Insert after a reader/slicer to bandpass-filter streaming data. Preserves filter state across chunks for phase continuity.
 
 ## Gotchas
-- Choose FIR/IIR consistent with sfreq.
-- Mind edge effects on short windows.
+- SciPy required (pip install scipy).
+- IIR bandpass only — no FIR, no separate HP/LP/Notch.
+- Filter state persists across chunks; redesign resets state.
+- If sfreq changes, filters are re-designed automatically.
+- Edge effects on very short windows (< ~5x filter order).
 

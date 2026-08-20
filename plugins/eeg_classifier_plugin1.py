@@ -95,16 +95,36 @@ def _bandpower_vec(segment, ch_names, sfreq, preset="MI", relative=True, nperseg
 
 
 class EEGClassifierPlugin(BasePlugin):
-    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
-  'inputs': {'features': 'array/dict', 'model': 'trained model'},
-  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
-  'parameters': [ { 'default': 0.5,
-                    'desc': 'Decision threshold (if applicable)',
-                    'name': 'threshold',
-                    'type': 'float'}],
-  'summary': 'Classif EEG multi-classe avec enregistrement par classe puis '
-             'entraînement.',
-  'usage': 'Connect features and a compatible model.'}
+    help = {
+        'summary': 'Multi-class (2-6) EEG classifier with record-train-predict workflow and optional auto-feature extraction.',
+        'inputs': {
+            'features': 'dict[channel_name -> {band_name: value}] — precomputed bandpower features',
+            'band_labels': 'list[str] — ordered band names for the feature dict',
+            'segment': '2D array [ch x samples] — raw EEG segment (fallback if features is None)',
+            'sfreq': 'float — sampling frequency in Hz (required when using segment fallback)',
+            'ch_names': 'list[str] — channel names (required when using segment fallback)',
+        },
+        'outputs': {
+            'pred_label': 'str — predicted class name',
+            'pred_conf': 'float — max probability (0..1)',
+            'pred_idx': 'int — index of predicted class',
+            'proba': 'dict[class_name -> float] — probability per class',
+            'dataset': 'dict {X, y, y_names, feature_mode, bands} — emitted on every sample for metrics nodes',
+        },
+        'parameters': [
+            {'name': 'feature_mode', 'type': 'str', 'default': 'mean_all', 'desc': '"mean_all" (average bandpower across channels) or "c3c4_ab" (C3/C4 alpha+beta). Set via UI combo.'},
+            {'name': 'num_classes', 'type': 'int', 'default': 2, 'desc': 'Number of classes (2-6), set via UI spin box.'},
+            {'name': 'min_per_class', 'type': 'int', 'default': 4, 'desc': 'Minimum samples per class required before training is enabled.'},
+        ],
+        'gotchas': [
+            'Requires scikit-learn for training.',
+            'If features is None but segment+sfreq+ch_names are provided, bandpower features are computed automatically (fallback).',
+            'C3/C4 mode silently falls back to MeanAll if C3 or C4 channels are not found.',
+            'Changing the number of classes resets the UI but does NOT clear collected data.',
+            'Saved .pkl files contain the sklearn pipeline — do not load untrusted pickles.',
+        ],
+        'usage': 'Connect features+band_labels (preferred) or segment+sfreq+ch_names (auto-extract). Record samples per class, train, then predictions stream on pred_label/pred_conf/pred_idx/proba.',
+    }
 
     """
     Classif EEG multi-classe avec enregistrement par classe puis entraînement.

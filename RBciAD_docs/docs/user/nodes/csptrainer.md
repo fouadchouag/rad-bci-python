@@ -1,33 +1,43 @@
 # CSPTrainer
 
-**Category:** ML / Features
+**Category:** ML
 
 **Language:** Python
 
+**Source:** `csp_trainer_plugin.py`
+
 ## Summary
-Train a machine-learning model for BCI.
+Train a Common Spatial Patterns (CSP) spatial filter from EEG trials and labels.
 
 ## Inputs
 | Name | Description |
 |---|---|
-| features | array/dict |
-| labels | array |
+| segment | 2D float [channels x samples] — a single EEG trial |
+| label | int/str — class label for the trial |
 
 ## Outputs
 | Name | Description |
 |---|---|
-| model | trained model |
+| feature_transform | fitted MNE CSP object (or None until trained) |
+| classes | list — class labels seen during training |
+| n_samples | int — number of accumulated samples |
+| counts | dict — sample count per class |
+| status | str — status message |
 
 ## Parameters
 | Name | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| model | str | LR |  | Classifier (LR/SVM/RF/...) |
-| cv | int | 5 |  | Cross-validation folds |
-| scaler | str | standard |  | Feature scaling |
+| n_components | int |  |  | Number of CSP spatial filters (2–64). Controls how many spatial patterns are learned. |
 
 ## Usage
-Feed features and labels; connect model to runtime/apply node.
+Connect EEG segments and their class labels. Click "Train CSP" to fit. Outputs a fitted CSP transform for downstream feature extraction.
 
 ## Gotchas
-- Balance classes; keep held-out test set.
+- You need at least 2 classes with multiple trials each to train.
+- Balance classes for best results; keep a held-out test set.
+- Training is manual — click the "Train CSP" button in the node UI.
+- The execute() method is a no-op; all data accumulation and training happens via the UI buttons.
+- Segment orientation is auto-detected: if rows > cols it is transposed to (n_ch, n_t).
+- CSP uses OAS shrinkage regularization and log-variance features by default.
+- Saved/loaded models include the label encoder classes alongside the CSP object.
 

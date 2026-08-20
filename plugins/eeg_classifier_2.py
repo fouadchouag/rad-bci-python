@@ -96,16 +96,40 @@ def _bandpower_vec(segment, ch_names, sfreq, preset="MI", relative=True, nperseg
 
 
 class EEGClassifier2(BasePlugin):
-    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
-  'inputs': {'features': 'array/dict', 'model': 'trained model'},
-  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
-  'parameters': [ { 'default': 0.5,
-                    'desc': 'Decision threshold (if applicable)',
-                    'name': 'threshold',
-                    'type': 'float'}],
-  'summary': 'BCI trainer compact : collecte multi-classe, CV, entraînement et '
-             'prédiction.',
-  'usage': 'Connect features and a compatible model.'}
+    help = {
+        'summary': 'Advanced BCI trainer: multi-class (2-8) collect, CV cross-validation, train, predict, and dataset import/export.',
+        'inputs': {
+            'features': 'dict[channel_name -> {band_name: value}] — precomputed bandpower features',
+            'band_labels': 'list[str] — ordered band names for the feature dict',
+            'segment': '2D array [ch x samples] — raw EEG segment (fallback if features is None)',
+            'sfreq': 'float — sampling frequency in Hz (required when using segment fallback)',
+            'ch_names': 'list[str] — channel names (required when using segment fallback)',
+        },
+        'outputs': {
+            'pred_label': 'str — predicted class name',
+            'pred_conf': 'float — max probability (0..1)',
+            'pred_idx': 'int — index of predicted class',
+            'proba': 'dict[class_name -> float] — full probability distribution across classes',
+            'dataset': 'dict {X, y, y_names, feature_mode, bands} — emitted on every sample',
+        },
+        'parameters': [
+            {'name': 'feature_mode', 'type': 'str', 'default': 'mean_all', 'desc': '"mean_all" or "c3c4_ab" (C3/C4 alpha+beta features). Set via UI combo.'},
+            {'name': 'num_classes', 'type': 'int', 'default': 2, 'desc': 'Number of classes (2-8), set via UI spin box.'},
+            {'name': 'min_per_class', 'type': 'int', 'default': 4, 'desc': 'Minimum samples per class required before training.'},
+            {'name': 'cv_folds', 'type': 'int', 'default': 5, 'desc': 'Number of stratified CV folds (2-12) for cross-validation scoring.'},
+            {'name': 'class_weight_balanced', 'type': 'bool', 'default': True, 'desc': 'Use sklearn class_weight="balanced" to handle imbalanced classes.'},
+        ],
+        'gotchas': [
+            'Requires scikit-learn for training and cross-validation.',
+            'Segment fallback (segment+sfreq+ch_names) computes bandpower automatically if features is None.',
+            'C3/C4 mode falls back to MeanAll if C3/C4 channels are missing from the feature dict.',
+            'Snap button captures exactly one sample on the next execute(); Record button captures continuously.',
+            'CV folds may be reduced automatically if any class has fewer samples than the requested fold count.',
+            'Export/import uses .npz format (NumPy) — not compatible with .pkl model files.',
+            'Loaded models override current class count and names from the saved file.',
+        ],
+        'usage': 'Connect features+band_labels or segment+sfreq+ch_names. Use Collect tab to record samples (Record for continuous, Snap for one-shot). Train tab for cross-validation and model training. Predict tab shows live predictions.',
+    }
 
     """
     BCI trainer compact : collecte multi-classe, CV, entraînement et prédiction.

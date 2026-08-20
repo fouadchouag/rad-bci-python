@@ -13,15 +13,25 @@ from core.collapsible import CollapsibleSection
 
 
 class BCI_OnlineMetrics(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'in': 'various'},
-  'outputs': {'out': 'various'},
-  'parameters': [ { 'default': 'default',
-                    'desc': 'Routing/aggregation mode',
-                    'name': 'mode',
-                    'type': 'str'}],
-  'summary': 'Métriques en ligne (rolling):',
-  'usage': 'Drop in where coordination is needed.'}
+    help = help = { 'gotchas': [
+                 'Both pred_idx and y_idx must arrive simultaneously; if either is None, the sample is skipped.',
+                 'Rolling window uses a deque with maxlen; old samples are discarded permanently.',
+                 'UI is updated by a 150 ms timer, not on every execute() call.',
+                 'Reset clears both the rolling queue and the cumulative confusion matrix.'],
+  'inputs': {'pred_idx': 'int — predicted class index',
+             'y_idx': 'int — ground truth class index',
+             'y_names': 'list[str] (optional) — class names, can change at runtime',
+             'config_in': 'dict (optional) — merged with online_metrics_conf',
+             'online_metrics_conf': 'dict (optional) — {"roll": int} to set window size'},
+  'outputs': {'config_out': 'dict — {"roll": int} current window size'},
+  'parameters': [ { 'default': 100,
+                    'desc': 'Rolling accuracy window size (5..5000)',
+                    'name': 'roll',
+                    'type': 'int'}],
+  'summary': 'Computes online rolling accuracy and cumulative confusion matrix '
+             'by comparing pred_idx vs y_idx in real time.',
+  'usage': 'Connect pred_idx and y_idx from classifier and ground truth. '
+           'Window size can be adjusted via UI or config_in.'}
 
     """
     Métriques en ligne (rolling):

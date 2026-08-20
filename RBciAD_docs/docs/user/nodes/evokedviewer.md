@@ -4,27 +4,30 @@
 
 **Language:** Python
 
+**Source:** `evoked_viewer.py`
+
 ## Summary
-EvokedViewer (single-channel capable)
+Displays MNE Evoked (ERP) data in butterfly or single-channel mode.
 
 ## Inputs
 | Name | Description |
 |---|---|
-| segment | 2D float [ch x samples] (or raw/derived) |
+| evoked | mne.Evoked or list[mne.Evoked] — evoked/averaged EEG data (if list, first element is used) |
+| channel | str or int — optional: force channel selection by name or index (only applies in single-channel mode) |
 
 ## Outputs
 _None_
 
 ## Parameters
-| Name | Type | Default | Unit | Description |
-|---|---|---|---|---|
-| scale_uv | float | 50.0 | µV | Vertical scale |
-| speed | float | 1.0 |  | Scroll speed |
-| fullscreen | bool | False |  | Show full screen |
+_None_
 
 ## Usage
-Connect upstream data; adjust view parameters.
+Connect an mne.Evoked or list of Evoked objects. Toggle single-channel mode to inspect individual channels.
 
 ## Gotchas
-- High refresh can drop FPS; consider decimation.
+- If a list of Evoked is provided, only the first is displayed.
+- Single-channel mode requires the checkbox to be enabled in the UI; channel input alone does not activate it.
+- The channel input accepts a string (name, case-insensitive) or integer (index).
+- Butterfly mode overlays all channels on the same axes — can be dense with many channels.
+- Requires MNE to be installed for Evoked data handling.
 

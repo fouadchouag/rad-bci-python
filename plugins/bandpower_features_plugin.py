@@ -202,16 +202,36 @@ class CollapsibleSection(QWidget):
 # ---------- Plugin ----------
 class BandpowerFeaturesPlugin(BasePlugin):
     help = {
-        'gotchas': ['Use adequate window length for low frequencies.'],
-        'inputs': {'segment': '2D float [ch x samples] or epochs', 'sfreq': 'float (Hz)'},
-        'outputs': {'features': '1D ndarray', 'features_matrix': '2D ndarray', 'features_dim': 'int', 'band_labels': 'list[str]'},
+        'summary': 'Extract per-band power features from EEG segments using Welch PSD estimation.',
+        'inputs': {
+            'segment': '2D float [channels x samples] — EEG data window or epoched array',
+            'sfreq': 'float — sampling frequency in Hz (required)',
+            'ch_names': 'list[str] — optional channel names (not used in computation, but accepted)',
+        },
+        'outputs': {
+            'features': '1D float ndarray — concatenated band powers (flattened from features_matrix)',
+            'features_matrix': '2D float ndarray [channels x bands] — per-channel band power values',
+            'features_dim': 'int — total number of features (n_ch * n_bands)',
+            'band_labels': 'list[str] — band names in order (e.g. ["delta","theta","alpha","beta","gamma"])',
+            'status': 'str — status message',
+        },
         'parameters': [
-            {'name': 'bands', 'type': 'str', 'default': 'delta:1-4,theta:4-8,alpha:8-13,beta:13-30,gamma:30-45'},
-            {'name': 'nperseg', 'type': 'int', 'default': 256},
-            {'name': 'overlap', 'type': 'float', 'default': 0.5}
+            {'name': 'bands', 'type': 'str', 'default': 'delta:1-4,theta:4-8,alpha:8-13,beta:13-30,gamma:30-45',
+             'desc': 'Band specification as comma-separated name:lo-hi pairs in Hz.'},
+            {'name': 'nperseg', 'type': 'int', 'default': 256,
+             'desc': 'Welch segment length (samples). Must be ≤ data length. Larger values give better frequency resolution.'},
+            {'name': 'overlap', 'type': 'float', 'default': 0.5,
+             'desc': 'Overlap ratio (0.0–0.9) between Welch segments. Higher overlap reduces variance.'},
         ],
-        'summary': 'BandpowerFeatures — extrait des features de puissance par bande (Welch).',
-        'usage': 'Connect windowed or epoched data; feed features to ML nodes.'
+        'gotchas': [
+            'sfreq is required — the node outputs nothing if it is missing or ≤ 0.',
+            'nperseg is clamped to the data length if the segment is shorter.',
+            'Falls back to a plain FFT windowed periodogram if SciPy is not installed.',
+            'Orientation is auto-detected: if rows > cols, the segment is transposed to (n_ch, n_t).',
+            'The flat features vector is ordered as [ch0_band0, ch0_band1, ..., ch1_band0, ...].',
+            'Low-frequency bands (e.g. delta < 1 Hz) require a sufficiently long segment.',
+        ],
+        'usage': 'Connect a windowed EEG segment and a sampling frequency. Outputs per-channel band power features for ML classification or regression.',
     }
 
     name = "BandpowerFeatures"

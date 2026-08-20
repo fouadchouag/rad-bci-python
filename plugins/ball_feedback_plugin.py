@@ -61,24 +61,32 @@ class _BallCanvas(QWidget):
 
 
 class BallFeedbackPlugin(BasePlugin):
-    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
-  'outputs': {},
-  'parameters': [ { 'default': 50.0,
-                    'desc': 'Vertical scale',
-                    'name': 'scale_uv',
-                    'type': 'float',
-                    'unit': 'µV'},
-                  { 'default': 1.0,
-                    'desc': 'Scroll speed',
-                    'name': 'speed',
-                    'type': 'float'},
-                  { 'default': False,
-                    'desc': 'Show full screen',
-                    'name': 'fullscreen',
-                    'type': 'bool'}],
-  'summary': 'Déplace une balle à gauche/droite selon la prédiction du classifieur.',
-  'usage': 'Connect upstream data; adjust view parameters.'}
+    help = {
+        'summary': 'Moves a ball left/right according to classifier prediction — real-time BCI feedback visualizer.',
+        'usage': 'Connect pred_label and pred_conf from a classifier. Configure class names, threshold, and speed in the UI.',
+        'inputs': {
+            'pred_label': 'str — predicted class label (must match left_name or right_name)',
+            'pred_conf': 'float — prediction confidence in [0, 1]; ball only moves when >= threshold',
+            'config_in': 'dict — optional config override (keys: left_name, right_name, threshold, speed)',
+            'ball_feedback_conf': 'dict — alternative config override (merged after config_in)',
+        },
+        'outputs': {
+            'config_out': 'dict — current config state: {left_name, right_name, threshold, speed}',
+        },
+        'parameters': [
+            {'name': 'left_name', 'type': 'str', 'default': 'Left', 'desc': 'Label string for left-class predictions'},
+            {'name': 'right_name', 'type': 'str', 'default': 'Right', 'desc': 'Label string for right-class predictions'},
+            {'name': 'threshold', 'type': 'float', 'default': 0.6, 'desc': 'Minimum confidence to actuate the ball (0.0–1.0)'},
+            {'name': 'speed', 'type': 'float', 'default': 0.6, 'desc': 'Ball movement speed (screen-widths per second)'},
+        ],
+        'gotchas': [
+            'Ball only moves when confidence >= threshold; below threshold the ball stays still.',
+            'Left/right class name matching is case-sensitive and must exactly match pred_label.',
+            'Test Left/Test Right buttons override the classifier prediction while held down.',
+            'config_in and ball_feedback_conf are merged sequentially — ball_feedback_conf wins on conflicts.',
+            'Animation runs at ~33 FPS (30 ms timer) regardless of prediction rate.',
+        ],
+    }
 
     """
     Déplace une balle à gauche/droite selon la prédiction du classifieur.

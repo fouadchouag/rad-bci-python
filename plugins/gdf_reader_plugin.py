@@ -8,29 +8,17 @@ from core.node_base import BasePlugin
 
 
 class GDFReaderPlugin(BasePlugin):
-    help = help = { 'gotchas': ['Large files: prefer windowed output.', 'Check montage and units.'],
+    help = help = { 'gotchas': ['Uses mne.io.read_raw_gdf — GDF format only.',
+               'Large files are fully preloaded into memory.',
+               'Check montage and units after loading.'],
   'inputs': {},
-  'outputs': { 'ch_names': 'List[str]',
-               'events': 'array/list',
-               'raw': 'mne.Raw',
-               'segment': '2D float [ch x samples]',
-               'sfreq': 'float (Hz)'},
+  'outputs': { 'raw': 'mne.io.Raw — loaded GDF recording (preloaded)'},
   'parameters': [ { 'default': '',
-                    'desc': 'EDF/BDF/GDF/FIF/... file to load',
+                    'desc': 'GDF file path (set via Load button)',
                     'name': 'filepath',
-                    'type': 'path'},
-                  { 'default': None,
-                    'desc': 'Channels selection',
-                    'name': 'picks',
-                    'type': 'list|None'},
-                  { 'default': 1.0,
-                    'desc': 'Window length for streaming output',
-                    'name': 'segment_len',
-                    'type': 'float',
-                    'unit': 's'}],
-  'summary': 'Read EEG files/datasets with MNE-Python; emits Raw or window windows.',
-  'usage': 'Place at pipeline start; connect `raw` to MNE ops or `segment` to '
-           'streaming ops.'}
+                    'type': 'path'}],
+  'summary': 'Read GDF EEG files using MNE-Python; emits an MNE Raw object.',
+  'usage': 'Place at pipeline start; connect `raw` output to slicer or MNE-compatible nodes.'}
 
     name = "GDFReader"
     language = "Python"

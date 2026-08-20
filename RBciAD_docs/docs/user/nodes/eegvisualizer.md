@@ -4,27 +4,27 @@
 
 **Language:** Python
 
+**Source:** `eeg_visualizer_plugin.py`
+
 ## Summary
-Visualize signals, features or predictions.
+Simple real-time EEG viewer — displays raw MNE Raw data with selectable channels.
 
 ## Inputs
 | Name | Description |
 |---|---|
-| segment | 2D float [ch x samples] (or raw/derived) |
+| raw | MNE Raw object — the continuous EEG signal to display |
 
 ## Outputs
 _None_
 
 ## Parameters
-| Name | Type | Default | Unit | Description |
-|---|---|---|---|---|
-| scale_uv | float | 50.0 | µV | Vertical scale |
-| speed | float | 1.0 |  | Scroll speed |
-| fullscreen | bool | False |  | Show full screen |
+_None_
 
 ## Usage
-Connect upstream data; adjust view parameters.
+Connect an MNE Raw object to the raw input. Select channels in the collapsible panel to focus on specific traces.
 
 ## Gotchas
-- High refresh can drop FPS; consider decimation.
+- Only accepts MNE Raw objects (not raw numpy arrays); use EEGLiveDisplay for segment arrays.
+- Displays up to 1500 samples from the beginning of the Raw buffer — not a scrolling window.
+- Channel list auto-populates on first data or when channel count changes.
 

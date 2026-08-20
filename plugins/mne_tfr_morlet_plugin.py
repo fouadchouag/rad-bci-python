@@ -21,23 +21,46 @@ except Exception:
 
 
 class MNETFRMorletPlugin(BasePlugin):
-    help = help = { 'gotchas': ['Use adequate window length for low frequencies.'],
-  'inputs': {'segment': '2D float [ch x samples] or epochs', 'sfreq': 'float (Hz)'},
-  'outputs': { 'features': 'array/dict',
-               'freqs': 'optional freqs',
-               'psd': 'optional PSD'},
-  'parameters': [ { 'default': 1.0,
-                    'desc': 'Lower frequency',
-                    'name': 'fmin',
-                    'type': 'float',
-                    'unit': 'Hz'},
-                  { 'default': 40.0,
-                    'desc': 'Upper frequency',
-                    'name': 'fmax',
-                    'type': 'float',
-                    'unit': 'Hz'}],
-  'summary': 'MNETFRMorletPlugin (safe v3)',
-  'usage': 'Connect windowed or epoched data; feed features to ML nodes.'}
+    help = help = {
+        'summary': 'Compute time-frequency representation (TFR) using Morlet wavelets on mne.Epochs, with safe auto-clipping of cycles.',
+        'usage': 'Connect mne.Epochs. Set frequency range, step, and wavelet cycles. Output TFR and freqs for visualization or further analysis.',
+        'inputs': {
+            'epochs': 'mne.Epochs — epoched data to compute TFR on',
+            'fmin': 'float — minimum frequency in Hz (default 2.0)',
+            'fmax': 'float — maximum frequency in Hz (default 40.0)',
+            'fstep': 'float — frequency step in Hz (default 1.0)',
+            'cycles': 'float — base number of wavelet cycles (default 2.0); clamped per-frequency when auto_clip is on',
+            'average': 'bool — if True, return EvokedTFR (averaged across epochs); if False, return AverageTFR per epoch (default True)',
+            'decim': 'int — decimation factor for the time axis (default 1, i.e. no decimation)',
+            'picks_eeg_only': 'bool — restrict to EEG channels (default True)',
+            'auto_clip_cycles': 'bool — automatically clamp cycles and drop frequencies that are too low for the epoch length (default True)',
+            'min_cycles': 'float — minimum acceptable clamped cycle count; frequencies below this are dropped (default 0.25)',
+            'safety_margin': 'float — safety margin < 1 applied to the max-cycles bound (default 0.98)',
+        },
+        'outputs': {
+            'tfr': 'mne.time_frequency.AverageTFR or mne.time_frequency.EpochsTFR — the computed time-frequency representation',
+            'freqs': 'np.ndarray — the actual frequencies used (after potential dropping)',
+        },
+        'parameters': [
+            {'name': 'fmin', 'type': 'float', 'default': 2.0, 'desc': 'Minimum frequency (Hz)'},
+            {'name': 'fmax', 'type': 'float', 'default': 40.0, 'desc': 'Maximum frequency (Hz)'},
+            {'name': 'fstep', 'type': 'float', 'default': 1.0, 'desc': 'Frequency step (Hz)'},
+            {'name': 'cycles', 'type': 'float', 'default': 2.0, 'desc': 'Base number of Morlet wavelet cycles'},
+            {'name': 'average', 'type': 'bool', 'default': True, 'desc': 'Average across epochs (EvokedTFR)'},
+            {'name': 'decim', 'type': 'int', 'default': 1, 'desc': 'Time-axis decimation factor'},
+            {'name': 'picks_eeg_only', 'type': 'bool', 'default': True, 'desc': 'Restrict to EEG channels'},
+            {'name': 'auto_clip_cycles', 'type': 'bool', 'default': True, 'desc': 'Clamp cycles and drop unsafe low frequencies automatically'},
+            {'name': 'min_cycles', 'type': 'float', 'default': 0.25, 'desc': 'Minimum clamped cycle count to keep a frequency'},
+            {'name': 'safety_margin', 'type': 'float', 'default': 0.98, 'desc': 'Safety margin for the max-cycles bound (< 1)'},
+        ],
+        'gotchas': [
+            'The auto_clip_cycles feature enforces 2·(n_cycles·sfreq/f) < n_times to prevent edge artifacts; low frequencies may be dropped.',
+            'n_jobs is hardcoded to None for MNE compatibility (no parallel execution).',
+            'Uses n_jobs=None instead of "auto" to avoid compatibility issues with some MNE versions.',
+            'If no valid frequencies survive the safety checks, outputs default to (None, None).',
+            'Caching skips re-computation when the same epochs and all parameters match.',
+        ],
+    }
 
     name = "TFR (Morlet)"
     language = "Python"

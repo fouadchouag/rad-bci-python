@@ -4,8 +4,10 @@
 
 **Language:** Python
 
+**Source:** `gdf_reader_plugin.py`
+
 ## Summary
-Read EEG files/datasets with MNE-Python; emits Raw or window windows.
+Read GDF EEG files using MNE-Python; emits an MNE Raw object.
 
 ## Inputs
 _None_
@@ -13,23 +15,18 @@ _None_
 ## Outputs
 | Name | Description |
 |---|---|
-| ch_names | List[str] |
-| events | array/list |
-| raw | mne.Raw |
-| segment | 2D float [ch x samples] |
-| sfreq | float (Hz) |
+| raw | mne.io.Raw — loaded GDF recording (preloaded) |
 
 ## Parameters
 | Name | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| filepath | path |  |  | EDF/BDF/GDF/FIF/... file to load |
-| picks | list\|None | None |  | Channels selection |
-| segment_len | float | 1.0 | s | Window length for streaming output |
+| filepath | path |  |  | GDF file path (set via Load button) |
 
 ## Usage
-Place at pipeline start; connect `raw` to MNE ops or `segment` to streaming ops.
+Place at pipeline start; connect `raw` output to slicer or MNE-compatible nodes.
 
 ## Gotchas
-- Large files: prefer windowed output.
-- Check montage and units.
+- Uses mne.io.read_raw_gdf — GDF format only.
+- Large files are fully preloaded into memory.
+- Check montage and units after loading.
 

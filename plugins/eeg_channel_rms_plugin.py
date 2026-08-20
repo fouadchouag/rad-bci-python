@@ -57,13 +57,33 @@ class CollapsibleSection(QWidget):
 
 
 class EEGChannelRMSPlugin(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
-  'outputs': {'segment': 'processed array'},
-  'parameters': [],
-  'summary': 'EEGChannelRMSPlugin — Convert Raw/segment to per-channel scalar values '
-             '(RMS)',
-  'usage': 'Wire upstream data and route downstream.'}
+    help = {
+        'summary': 'Compute per-channel RMS (Root Mean Square) values from an EEG segment or MNE Raw object.',
+        'inputs': {
+            'raw': 'mne.io.Raw — MNE Raw object (used if segment is not provided)',
+            'segment': '2D float [channels x samples] — EEG data (takes precedence over raw)',
+            'ch_names': 'list[str] — optional channel names for ordering and labeling the output',
+            'window_s': 'float — window length in seconds for Raw mode (default 1.0); 0 = full data',
+        },
+        'outputs': {
+            'values': 'dict[str, float] — per-channel RMS amplitude',
+            'ch_names': 'list[str] — channel names corresponding to the values dict',
+            'status': 'str — status message',
+        },
+        'parameters': [
+            {'name': 'window_s', 'type': 'float', 'default': 1.0,
+             'desc': 'Window length in seconds for Raw mode. Uses the last N seconds of data. Set to 0 for full data. Configurable from the UI spinbox.'},
+        ],
+        'gotchas': [
+            'If both segment and raw are provided, segment takes precedence.',
+            'For Raw mode, if window_s is 0 or not set, the entire recording is used.',
+            'MNE is required for Raw mode; segment mode works without MNE.',
+            'If ch_names is provided and its length matches the number of channels, it is used for labeling; otherwise auto-generated (Ch0, Ch1, ...).',
+            'Segment orientation is auto-detected: if rows < cols it is treated as (n_ch, n_t).',
+            'Designed as a simple scalar driver for ScalpTopomap3D or similar visualization nodes.',
+        ],
+        'usage': 'Connect an EEG segment or MNE Raw object. Outputs per-channel RMS values as a dict, suitable for driving topographic or scalp-map visualizations.',
+    }
 
     name = "EEGChannelRMS"
     language = "Python"

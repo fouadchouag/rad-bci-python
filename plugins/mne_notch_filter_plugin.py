@@ -36,29 +36,32 @@ Number = Union[int, float]
 
 
 class MNENotchFilterPlugin(BasePlugin):
-    help = help = { 'gotchas': [ 'Choose FIR/IIR consistent with sfreq.',
-               'Mind edge effects on short windows.'],
-  'inputs': { 'raw': 'mne.Raw (opt.)',
-              'segment': '2D float [ch x samples] (opt.)',
-              'sfreq': 'float (Hz if segment)'},
-  'outputs': {'raw': 'filtered Raw', 'segment': 'filtered array'},
-  'parameters': [ { 'default': 1.0,
-                    'desc': 'High-pass cutoff',
-                    'name': 'hp',
-                    'type': 'float|None',
-                    'unit': 'Hz'},
-                  { 'default': 40.0,
-                    'desc': 'Low-pass cutoff',
-                    'name': 'lp',
-                    'type': 'float|None',
-                    'unit': 'Hz'},
-                  { 'default': 50.0,
-                    'desc': 'Notch (mains)',
-                    'name': 'notch',
-                    'type': 'float|None',
-                    'unit': 'Hz'}],
-  'summary': 'MNENotchFilterPlugin (final)',
-  'usage': 'Insert after a reader or inlet; tune band edges.'}
+    help = help = {
+        'summary': 'Apply FIR notch filtering to remove powerline noise (50/60 Hz) and optional harmonics from Raw or Epochs.',
+        'usage': 'Connect an MNE Raw or Epochs object. Set the fundamental frequency and number of harmonics in the properties panel.',
+        'inputs': {
+            'raw': 'mne.io.Raw or mne.Epochs — input data to notch-filter',
+            'freqs': 'float | list[float] — notch center frequency in Hz (default 50.0)',
+            'harmonics_max': 'int — include harmonics up to this multiple of the base frequency (0 = none, default 0)',
+            'picks_eeg_only': 'bool — restrict filtering to EEG channels only (default True)',
+            'phase': 'str — FIR phase type: "zero" or "zero-double" (default "zero")',
+        },
+        'outputs': {
+            'raw': 'mne.io.Raw or mne.Epochs — notch-filtered copy',
+        },
+        'parameters': [
+            {'name': 'freqs', 'type': 'float', 'default': 50.0, 'desc': 'Base notch frequency in Hz (e.g. 50 or 60)'},
+            {'name': 'harmonics_max', 'type': 'int', 'default': 0, 'desc': 'Max harmonic multiple to also notch (0 = base only)'},
+            {'name': 'picks_eeg_only', 'type': 'bool', 'default': True, 'desc': 'Apply notch filter to EEG channels only'},
+            {'name': 'phase', 'type': 'str', 'default': 'zero', 'desc': 'FIR filter phase: "zero" or "zero-double"'},
+        ],
+        'gotchas': [
+            'Force-loads data before filtering if the Raw object is not preloaded (avoids MNE RuntimeError).',
+            'If freqs is empty or all frequencies are ≤ 0, the input passes through unchanged.',
+            'Caching skips re-filtering when the same object and parameters are provided again.',
+            'On error, the original (unfiltered) object is passed through to avoid breaking the pipeline.',
+        ],
+    }
 
     name = "MNENotchFilter"
     language = "Python"

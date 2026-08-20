@@ -47,23 +47,39 @@ except Exception as _e:
 
 
 class PSDWelchPlugin(BasePlugin):
-    help = help = { 'gotchas': ['Use adequate window length for low frequencies.'],
-  'inputs': {'segment': '2D float [ch x samples] or epochs', 'sfreq': 'float (Hz)'},
-  'outputs': { 'features': 'array/dict',
-               'freqs': 'optional freqs',
-               'psd': 'optional PSD'},
-  'parameters': [ { 'default': 1.0,
-                    'desc': 'Lower frequency',
-                    'name': 'fmin',
-                    'type': 'float',
-                    'unit': 'Hz'},
-                  { 'default': 40.0,
-                    'desc': 'Upper frequency',
-                    'name': 'fmax',
-                    'type': 'float',
-                    'unit': 'Hz'}],
-  'summary': 'PSDWelchPlugin',
-  'usage': 'Connect windowed or epoched data; feed features to ML nodes.'}
+    help = help = {
+        'summary': 'Compute power spectral density via Welch\'s method from MNE Raw/Epochs or a raw segment array.',
+        'usage': 'Connect either an MNE Raw/Epochs object OR a segment array with sfreq. Output freqs, psd, and ch_names feed into BandPowerExtractor or viewers.',
+        'inputs': {
+            'raw': 'mne.io.Raw or mne.Epochs — input recording (primary path)',
+            'segment': 'np.ndarray (n_channels, n_samples) — alternative raw array input (requires sfreq)',
+            'sfreq': 'float — sampling frequency in Hz (required when using the segment input)',
+            'ch_names': 'list[str] — optional channel names when using the segment input',
+        },
+        'outputs': {
+            'freqs': 'np.ndarray (n_freqs,) — frequency axis in Hz',
+            'psd': 'np.ndarray float32 (n_channels, n_freqs) — power spectral density',
+            'ch_names': 'list[str] — channel names used in the computation',
+            'info': 'dict — metadata: sfreq, nyquist, fmin, fmax, n_per_seg, n_overlap, average, mode, n_channels, n_freqs',
+            'config_out': 'dict — exported configuration for ConfigNode',
+        },
+        'parameters': [
+            {'name': 'fmin', 'type': 'float', 'default': 0.5, 'desc': 'Lower frequency bound (Hz)'},
+            {'name': 'fmax', 'type': 'float', 'default': 45.0, 'desc': 'Upper frequency bound (Hz)'},
+            {'name': 'seglen_s', 'type': 'float', 'default': 2.0, 'desc': 'Welch window length in seconds'},
+            {'name': 'overlap_s', 'type': 'float', 'default': 1.0, 'desc': 'Overlap between Welch segments in seconds'},
+            {'name': 'average', 'type': 'str', 'default': 'mean', 'desc': 'Welch averaging method: "mean" or "median"'},
+            {'name': 'eeg_only', 'type': 'bool', 'default': True, 'desc': 'Restrict to EEG channels when using the Raw path'},
+            {'name': 'max_points', 'type': 'int', 'default': 2048, 'desc': 'Decimate output to at most this many frequency points'},
+        ],
+        'gotchas': [
+            'fmax is automatically clamped to just below Nyquist (sfreq/2).',
+            'n_per_seg is auto-reduced if it exceeds the available signal length.',
+            'If the requested fmin–fmax band yields no frequency bins, the range is slightly relaxed.',
+            'When using the segment path, the array is expected as (n_channels, n_samples); rows < cols convention.',
+            'Caching skips re-computation when all parameters and the data signature match.',
+        ],
+    }
 
     name = "PSDWelch"
     language = "Python"

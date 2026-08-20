@@ -77,15 +77,30 @@ class _CollapsibleSection(QWidget):
 
 
 class EEGClassifierPlugin(BasePlugin):
-    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
-  'inputs': {'features': 'array/dict', 'model': 'trained model'},
-  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
-  'parameters': [ { 'default': 0.5,
-                    'desc': 'Decision threshold (if applicable)',
-                    'name': 'threshold',
-                    'type': 'float'}],
-  'summary': 'Classification 2 classes (Left/Right) simplifiée.',
-  'usage': 'Connect features and a compatible model.'}
+    help = {
+        'summary': '2-class (Left/Right) EEG classifier with record-train-predict workflow.',
+        'inputs': {
+            'features': 'dict[channel_name -> {band_name: value}] — bandpower features from upstream',
+            'band_labels': 'list[str] — ordered band names matching the feature dict',
+        },
+        'outputs': {
+            'pred_label': 'str — predicted class name (e.g. "Left" or "Right")',
+            'pred_conf': 'float — confidence of prediction (0..1)',
+            'dataset': 'dict {X, y, y_names, feature_mode, bands} — emitted on every sample for metrics nodes',
+        },
+        'parameters': [
+            {'name': 'feature_mode', 'type': 'str', 'default': 'mean_all', 'desc': '"mean_all" (average bandpower across all channels) or "c3c4_ab" (C3/C4 alpha+beta features). Set via UI combo.'},
+        ],
+        'gotchas': [
+            'Requires scikit-learn (pip install scikit-learn) for training.',
+            'Train button disabled until both classes have >= 4 samples.',
+            'C3/C4 mode silently falls back to MeanAll if C3 or C4 channels are not found in the feature dict.',
+            'Saved models are pickle files — do not load untrusted .pkl files.',
+            'Model-version mismatch (different bands or feature_mode) can reduce accuracy.',
+            'Class names are read from UI text fields; only two classes are supported.',
+        ],
+        'usage': 'Connect features and band_labels from a BandpowerExt node. Record samples for each class via the UI, train, then predictions stream on pred_label/pred_conf.',
+    }
 
     """
     Classification 2 classes (Left/Right) simplifiée.

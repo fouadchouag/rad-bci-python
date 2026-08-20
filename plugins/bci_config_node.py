@@ -60,15 +60,21 @@ def _value_to_str(x):
 
 
 class BCI_ConfigNode(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'in': 'various'},
-  'outputs': {'out': 'various'},
-  'parameters': [ { 'default': 'default',
-                    'desc': 'Routing/aggregation mode',
-                    'name': 'mode',
-                    'type': 'str'}],
-  'summary': 'Config manager « no-code » :',
-  'usage': 'Drop in where coordination is needed.'}
+    help = help = { 'gotchas': [
+                 'Uses gc.get_objects() to find nodes — may be slow on very large workflows.',
+                 'Node identity uses id(), which changes between runs; presets handle this via class-based fallback.',
+                 'Apply targets: "selected" applies only to the highlighted node, '
+                 '"class" applies to all nodes of the same type, "all" applies to every scanned node.',
+                 'Preset loading auto-switches to "all" if no node is selected.'],
+  'inputs': {'config_in': 'dict — preset config to apply programmatically'},
+  'outputs': {'config_out': 'dict — last applied preset, format {"nodes": {key: {"class","plugin_name","config"}}}'},
+  'parameters': [],
+  'summary': 'No-code workflow config manager: scans all nodes in the workflow, '
+             'provides a friendly UI to edit their parameters (auto-generated from export_config/config_hints), '
+             'and supports preview/revert/apply (selected/class/all) plus preset save/load.',
+  'usage': 'Place in workflow and click "Scan workflow" to discover nodes. '
+           'Select a node to edit its parameters, then Apply. '
+           'Presets are saved/loaded as JSON and tolerant of node ID changes.'}
 
     """
     Config manager « no-code » :

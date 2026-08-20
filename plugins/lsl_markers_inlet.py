@@ -24,27 +24,25 @@ except Exception:
 
 
 class LSL_Markers_Inlet(BasePlugin):
-    help = help = { 'gotchas': [ 'Verify channels and sampling rate.',
-               'Network hiccups may cause gaps—use buffering.'],
-  'inputs': {},
-  'outputs': { 'ch_names': 'List[str]',
-               'segment': '2D float [ch x samples]',
-               'sfreq': 'float (Hz)'},
-  'parameters': [ { 'default': 'EEG',
-                    'desc': 'LSL stream name to subscribe to',
-                    'name': 'stream_name',
-                    'type': 'str'},
-                  { 'default': 256,
-                    'desc': 'Samples per pull',
-                    'name': 'chunk_size',
-                    'type': 'int'},
-                  { 'default': 0.1,
-                    'desc': 'Pull timeout',
-                    'name': 'timeout',
-                    'type': 'float',
-                    'unit': 's'}],
+    help = help = { 'gotchas': [ 'Resolves only LSL streams with type="Markers" (not EEG).',
+               'Events are pulled one sample at a time and buffered; emitted in bursts on the QTimer tick.',
+               'Network hiccups may cause gaps—use buffering.',
+               'Auto-connect triggers after import_config if enabled.'],
+  'inputs': { 'config_in': 'dict — merged configuration block (keys: emit_ms, auto_connect, stream_name)',
+              'lsl_markers_conf': 'dict — markers-specific config (same keys as config_in, overrides config_in)'},
+  'outputs': { 'config_out': 'dict — current configuration (emit_ms, auto_connect, stream_name)',
+               'events': 'list[dict] — batch of events [{"ts": float, "code": str}, ...] since last tick',
+               'last_event': 'dict — most recent event {"ts": float, "code": str}'},
+  'parameters': [ { 'default': 20,
+                     'desc': 'Interval between emit ticks in milliseconds',
+                     'name': 'emit_ms',
+                     'type': 'int'},
+                   { 'default': False,
+                     'desc': 'Automatically connect on config import',
+                     'name': 'auto_connect',
+                     'type': 'bool'}],
   'summary': 'Inlet LSL pour flux de marqueurs (strings).',
-  'usage': 'Start external LSL stream; connect this inlet to processing pipeline.'}
+  'usage': 'Use the UI to refresh and connect to a Markers LSL stream, or send a config dict via config_in/lsl_markers_conf inputs to autoconnect programmatically.'}
 
     """
     Inlet LSL pour flux de marqueurs (strings).

@@ -135,17 +135,20 @@ class CollapsibleSection(QWidget):
 
 class MNESampleLoader(BasePlugin):
     help = {
-        'gotchas': ['Télécharge le dataset au 1er appel (via mne.datasets.sample).'],
+        'gotchas': ['First call downloads the MNE sample dataset (~2GB) via mne.datasets.sample.',
+               'Data is loaded from sample_audvis_raw.fif (auditory/visual paradigm).',
+               'Duration is cropped from the beginning (tmin=0).'],
         'inputs': {},
-        'outputs': {'raw': 'mne.Raw', 'status': 'str'},
+        'outputs': {'raw': 'mne.io.Raw — loaded sample recording',
+                    'status': 'str — load status message'},
         'parameters': [
             {'name': 'duration_s', 'type': 'float', 'default': 60.0, 'unit': 's',
-             'desc': 'Durée à garder'},
+             'desc': 'Duration to keep (cropped from start)'},
             {'name': 'preload', 'type': 'bool', 'default': True,
-             'desc': 'Précharger les données en mémoire'}
+             'desc': 'Preload data into memory'}
         ],
-        'summary': "MNESampleLoader — dataset d'exemple MNE (FIF)",
-        'usage': "Placez-le en début de pipeline; connectez `raw` vers MNE Viewer 2D."
+        'summary': "Load the MNE sample dataset (sample_audvis_raw.fif).",
+        'usage': "Place at pipeline start; connect `raw` to a slicer or MNE Viewer."
     }
 
     name = "MNESampleLoader"

@@ -60,15 +60,20 @@ class _CollapsibleSection(QWidget):
 
 
 class ClassifierMetricsPlugin(BasePlugin):
-    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
-  'inputs': {'features': 'array/dict', 'model': 'trained model'},
-  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
-  'parameters': [ { 'default': 0.5,
-                    'desc': 'Decision threshold (if applicable)',
-                    'name': 'threshold',
-                    'type': 'float'}],
-  'summary': 'Évalue un dataset {X,y,y_names} (multi-classe) par CV.',
-  'usage': 'Connect features and a compatible model.'}
+    help = help = { 'gotchas': [
+                 'Model-version mismatch can reduce accuracy.',
+                 'Multi-class: K is auto-detected from unique y values; y_names is padded with "Class{i}" if too short.',
+                 'Requires scikit-learn; shows install message if missing.',
+                 'Needs at least 2 samples per class; actual folds = min(requested, smallest class count).',
+                 'Unlike ClassifierMetrics, this node has no config_in/config_out — folds are UI-only.'],
+  'inputs': {'dataset': 'dict — {X: np.ndarray[N,d], y: np.ndarray[N], y_names: [str,...]}'},
+  'outputs': {},
+  'parameters': [],
+  'summary': 'Evaluates a multi-class dataset {X, y, y_names} using StratifiedKFold '
+             'cross-validation with a StandardScaler + LogisticRegression pipeline. '
+             'Displays accuracy ± std, macro-F1, and confusion matrix.',
+  'usage': 'Connect a dataset dict (X, y, y_names) from an upstream data source. '
+           'Click "Evaluate (CV)" to run cross-validation. Folds are set via UI spinner (2..10).'}
 
     """
     Évalue un dataset {X,y,y_names} (multi-classe) par CV.

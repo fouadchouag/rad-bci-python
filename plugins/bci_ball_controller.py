@@ -81,12 +81,38 @@ class BCI_BallController(BasePlugin):
         { K, map, speed, friction, prob_gain, use_prob }
     """
 
-    help = help = { 'gotchas': [],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
-  'outputs': {'segment': 'processed array'},
-  'parameters': [],
-  'summary': 'Contrôle une balle 2D à partir de pred_idx / proba.',
-  'usage': 'Wire upstream data and route downstream.'}
+    help = help = { 'gotchas': [
+                 'Ball physics runs at ~30 FPS via QTimer; timer stops automatically on widget destruction.',
+                 'Map values must be from ACTIONS: ["Idle","Left","Right","Up","Down"].',
+                 'If pred_idx is outside [0, K), ball receives no acceleration (continues with inertia/friction).',
+                 'proba-based scaling uses (p_selected - p_background) * prob_gain; low-confidence predictions move slower.'],
+  'inputs': {'pred_idx': 'int — predicted class index',
+             'proba': 'dict[str->float] (optional) — class probabilities for confidence-weighted speed',
+             'y_names': 'list[str] (optional) — class names; updates K and rebuilds mapping UI',
+             'config_in': 'dict (optional) — merged with ball_controller_conf',
+             'ball_controller_conf': 'dict (optional) — {K, map, speed, friction, prob_gain, use_prob}'},
+  'outputs': {'config_out': 'dict — {K, map, speed, friction, prob_gain, use_prob}'},
+  'parameters': [ { 'default': 0.8,
+                    'desc': 'Ball acceleration multiplier',
+                    'name': 'speed',
+                    'type': 'float'},
+                  { 'default': 0.92,
+                    'desc': 'Velocity decay per tick (0.80..0.999)',
+                    'name': 'friction',
+                    'type': 'float'},
+                  { 'default': 1.0,
+                    'desc': 'Confidence-based speed gain multiplier',
+                    'name': 'prob_gain',
+                    'type': 'float'},
+                  { 'default': True,
+                    'desc': 'Use probability dict to scale movement speed',
+                    'name': 'use_prob',
+                    'type': 'bool'}],
+  'summary': 'Controls a 2D ball using classifier predictions. Maps pred_idx to '
+             'directional actions (Left/Right/Up/Down/Idle) with physics simulation '
+             '(velocity, friction, boundary bouncing). Supports confidence-weighted speed.',
+  'usage': 'Connect pred_idx from a classifier. Configure class-to-action mapping in the UI. '
+           'Optionally connect proba for confidence-based speed scaling.'}
     
 
     name = "BCI_BallController"

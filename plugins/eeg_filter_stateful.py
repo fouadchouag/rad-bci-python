@@ -16,29 +16,34 @@ except Exception:
     HAVE_SCIPY = False
 
 class EEGFilterStateful(BasePlugin):
-    help = help = { 'gotchas': [ 'Choose FIR/IIR consistent with sfreq.',
-               'Mind edge effects on short windows.'],
-  'inputs': { 'raw': 'mne.Raw (opt.)',
-              'segment': '2D float [ch x samples] (opt.)',
-              'sfreq': 'float (Hz if segment)'},
-  'outputs': {'raw': 'filtered Raw', 'segment': 'filtered array'},
+    help = help = { 'gotchas': [ 'SciPy required (pip install scipy).',
+               'IIR bandpass only — no FIR, no separate HP/LP/Notch.',
+               'Filter state persists across chunks; redesign resets state.',
+               'If sfreq changes, filters are re-designed automatically.',
+               'Edge effects on very short windows (< ~5x filter order).'],
+  'inputs': { 'segment': '2D float array [ch x samples] — EEG data chunk',
+              'sfreq': 'float — sampling rate in Hz',
+              'ch_names': 'list[str] — channel names (passthrough)'},
+  'outputs': {'segment': '2D float array — bandpass-filtered chunk',
+              'sfreq': 'float — sampling rate passthrough',
+              'ch_names': 'list[str] — channel names passthrough'},
   'parameters': [ { 'default': 1.0,
-                    'desc': 'High-pass cutoff',
-                    'name': 'hp',
-                    'type': 'float|None',
+                    'desc': 'Bandpass lower cutoff (Hz)',
+                    'name': 'low',
+                    'type': 'float',
                     'unit': 'Hz'},
                   { 'default': 40.0,
-                    'desc': 'Low-pass cutoff',
-                    'name': 'lp',
-                    'type': 'float|None',
+                    'desc': 'Bandpass upper cutoff (Hz)',
+                    'name': 'high',
+                    'type': 'float',
                     'unit': 'Hz'},
-                  { 'default': 50.0,
-                    'desc': 'Notch (mains)',
-                    'name': 'notch',
-                    'type': 'float|None',
-                    'unit': 'Hz'}],
-  'summary': 'EEGFilterStateful — bandpass IIR à état (streaming)',
-  'usage': 'Insert after a reader or inlet; tune band edges.'}
+                  { 'default': 4,
+                    'desc': 'Butterworth filter order',
+                    'name': 'order',
+                    'type': 'int'}],
+  'summary': 'Stateful IIR bandpass filter for streaming EEG chunks.',
+  'usage': 'Insert after a reader/slicer to bandpass-filter streaming data. '
+           'Preserves filter state across chunks for phase continuity.'}
 
     name = "EEGFilterStateful"
     language = "Python"

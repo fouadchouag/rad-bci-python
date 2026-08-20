@@ -9,19 +9,20 @@ from core.node_base import BasePlugin
 
 class EEGReaderPlugin(BasePlugin):
     help = {
-        'summary': 'Load EEG files (EDF/BDF/GDF/FIF) using MNE-Python. Outputs an MNE Raw object.',
-        'usage': 'Place at the start of your pipeline. Click "Open" in the properties panel to select a file. Connect "raw" output to downstream nodes.',
+        'summary': 'Load EDF EEG files using MNE-Python. Outputs an MNE Raw object.',
+        'usage': 'Place at the start of your pipeline. Click "Load EDF File" in the properties panel to select a file. Connect "raw" output to downstream nodes.',
         'inputs': {},
         'outputs': {
-            'raw': 'MNE Raw object — the loaded EEG recording',
+            'raw': 'mne.io.Raw — the loaded EEG recording (preloaded)',
         },
         'parameters': [
-            {'name': 'filepath', 'type': 'path', 'default': '', 'desc': 'EDF/BDF/GDF/FIF file to load (set via Open button)'},
+            {'name': 'filepath', 'type': 'path', 'default': '', 'desc': 'EDF file to load (set via Load button)'},
         ],
         'gotchas': [
-            'Large files: prefer windowed/streaming output downstream.',
+            'Uses mne.io.read_raw_edf — only EDF format is supported (not BDF/GDF/FIF).',
+            'Large files are fully preloaded into memory.',
             'Ensure the file contains EEG channels (not just EOG/ECG).',
-            'The node outputs an MNE Raw object — connect to MNE-compatible nodes or use a segment slicer.',
+            'The output is an MNE Raw object — connect to MNE-compatible nodes or a slicer.',
         ],
     }
 

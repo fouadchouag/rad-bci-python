@@ -60,27 +60,23 @@ class _QtBridge(QObject):
 
 # ===================== Plugin =========================
 class LSLInletPlugin(BasePlugin):
-    help = help = { 'gotchas': [ 'Verify channels and sampling rate.',
-               'Network hiccups may cause gaps—use buffering.'],
+    help = help = { 'gotchas': ['Segment is transposed to [channels x samples] (n_ch x n_samples) from LSL convention.',
+               'Data is read as float64 (not float32) to match downstream precision.',
+               'Stream selection requires clicking "Rechercher" then "Connecter" in the UI.',
+               'Network hiccups may cause gaps in the stream; the reader loop sleeps 10ms between empty pulls.',
+               'Disconnecting emits None on segment and timestamps outputs to notify downstream.'],
   'inputs': {},
-  'outputs': { 'ch_names': 'List[str]',
-               'segment': '2D float [ch x samples]',
-               'sfreq': 'float (Hz)'},
-  'parameters': [ { 'default': 'EEG',
-                    'desc': 'LSL stream name to subscribe to',
-                    'name': 'stream_name',
-                    'type': 'str'},
-                  { 'default': 256,
-                    'desc': 'Samples per pull',
-                    'name': 'chunk_size',
-                    'type': 'int'},
-                  { 'default': 0.1,
-                    'desc': 'Pull timeout',
-                    'name': 'timeout',
-                    'type': 'float',
-                    'unit': 's'}],
+  'outputs': { 'ch_names': 'List[str] — channel labels from LSL stream metadata',
+               'info': 'dict — stream metadata ({sfreq, ch_names, name, type, uid, n_channels, reset})',
+               'segment': '2D float64 [channels x samples] — EEG data chunk',
+               'sfreq': 'float (Hz) — nominal sampling rate from LSL stream',
+               'timestamps': 'list[float] — LSL timestamps for the emitted chunk'},
+  'parameters': [ { 'default': 50,
+                     'desc': 'Number of samples per LSL pull (chunk length)',
+                     'name': 'chunk_len',
+                     'type': 'int'}],
   'summary': 'LSL Inlet — compatible LiveDisplay / SliceFilter',
-  'usage': 'Start external LSL stream; connect this inlet to processing pipeline.'}
+  'usage': 'Use the UI to search for and connect to any LSL stream. Outputs segment, sfreq, ch_names, timestamps, and info for downstream processing.'}
 
     name = "LSL Inlet"
     category = "Input Nodes"

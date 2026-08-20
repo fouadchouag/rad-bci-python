@@ -124,12 +124,16 @@ class CSPTrainerPlugin(BasePlugin):
             'status': 'str — status message',
         },
         'parameters': [
-            {'name': 'n_components', 'type': 'int', 'default': 8, 'desc': 'Number of CSP spatial filters (2–64)'},
+            {'name': 'n_components', 'type': 'int', 'default': 8, 'desc': 'Number of CSP spatial filters (2–64). Controls how many spatial patterns are learned.'},
         ],
         'gotchas': [
-            'You need at least 2 classes with multiple trials each.',
+            'You need at least 2 classes with multiple trials each to train.',
             'Balance classes for best results; keep a held-out test set.',
-            'Training is manual — click the "Train CSP" button in the node.',
+            'Training is manual — click the "Train CSP" button in the node UI.',
+            'The execute() method is a no-op; all data accumulation and training happens via the UI buttons.',
+            'Segment orientation is auto-detected: if rows > cols it is transposed to (n_ch, n_t).',
+            'CSP uses OAS shrinkage regularization and log-variance features by default.',
+            'Saved/loaded models include the label encoder classes alongside the CSP object.',
         ],
     }
 

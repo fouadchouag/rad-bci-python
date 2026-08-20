@@ -32,16 +32,51 @@ _CMD2VEC = {
 
 
 class BCI_CommandRouter(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'in': 'various'},
-  'outputs': {'out': 'various'},
-  'parameters': [ { 'default': 'default',
-                    'desc': 'Routing/aggregation mode',
-                    'name': 'mode',
-                    'type': 'str'}],
-  'summary': 'Transforme les prédictions en commandes stables '
-             '(LEFT/RIGHT/UP/DOWN/STOP)',
-  'usage': 'Drop in where coordination is needed.'}
+    help = help = { 'gotchas': [
+                 'LSL output requires pylsl; if missing, stream is silently skipped.',
+                 'Mapping must follow format "idx:CMD; ..." (e.g. "0:LEFT; 1:RIGHT; 2:UP; 3:DOWN; *:STOP").',
+                 'If confidence < conf_thr and nc_idx is -1, the prediction is silently dropped (no command emitted).',
+                 'Refractory period suppresses ALL command outputs, including STOP transitions.'],
+  'inputs': {'pred_idx': 'int — predicted class index',
+             'pred_conf': 'float (optional) — prediction confidence',
+             'proba': 'dict[str->float] (optional) — class probabilities; max used if pred_conf absent',
+             'pred_label': 'str (optional) — predicted label (not used in routing logic)'},
+  'outputs': {'command': 'str — stable command (LEFT/RIGHT/UP/DOWN/STOP)',
+              'dx': 'float — horizontal component (-1.0, 0.0, or 1.0)',
+              'dy': 'float — vertical component (-1.0, 0.0, or 1.0)'},
+  'parameters': [ { 'default': '0:LEFT; 1:RIGHT; 2:UP; 3:DOWN; *:STOP',
+                    'desc': 'Index-to-command mapping (idx:CMD; ...; *:default)',
+                    'name': 'map_text',
+                    'type': 'str'},
+                  { 'default': 0.60,
+                    'desc': 'Minimum confidence to accept a prediction',
+                    'name': 'conf_thr',
+                    'type': 'float'},
+                  { 'default': 300,
+                    'desc': 'Dwell time in ms — prediction must persist this long',
+                    'name': 'dwell_ms',
+                    'type': 'int'},
+                  { 'default': 500,
+                    'desc': 'Refractory period in ms after a command is emitted',
+                    'name': 'refr_ms',
+                    'type': 'int'},
+                  { 'default': 3,
+                    'desc': 'Majority smoothing window (last N valid predictions)',
+                    'name': 'smooth_N',
+                    'type': 'int'},
+                  { 'default': -1,
+                    'desc': 'Class index used when confidence is below threshold (-1 = drop)',
+                    'name': 'nc_idx',
+                    'type': 'int'},
+                  { 'default': True,
+                    'desc': 'Emit LSL stream "BCI_CMD" (type=Markers)',
+                    'name': 'emit_lsl',
+                    'type': 'bool'}],
+  'summary': 'Transforms classifier predictions into stable directional commands '
+             '(LEFT/RIGHT/UP/DOWN/STOP) with confidence threshold, dwell time, '
+             'majority smoothing, and refractory period. Optionally emits an LSL stream.',
+  'usage': 'Connect pred_idx (and optionally pred_conf/proba) from a classifier. '
+           'Outputs dx/dy for ball controllers or command strings for other consumers.'}
 
     """
     Transforme les prédictions en commandes stables (LEFT/RIGHT/UP/DOWN/STOP)

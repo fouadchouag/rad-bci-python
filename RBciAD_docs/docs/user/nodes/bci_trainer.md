@@ -1,33 +1,40 @@
 # BCI_Trainer
 
-**Category:** BCI/ML
+**Category:** ML
 
 **Language:** Python
 
+**Source:** `bci_trainer_node.py`
+
 ## Summary
-Entraîne un modèle scikit-learn en THREAD (non-bloquant UI) et publie un rapport complet.
+Train a scikit-learn classifier (LogisticRegression or LDA) in a background thread. Outputs a trained model and cross-validation report.
 
 ## Inputs
 | Name | Description |
 |---|---|
-| features | array/dict |
-| labels | array |
+| dataset | dict — {"X": ndarray(N,F), "y": ndarray(N,), "y_names": list} |
+| config_in | dict — generic config from BCI_Config |
 
 ## Outputs
 | Name | Description |
 |---|---|
-| model | trained model |
+| model | trained scikit-learn Pipeline (StandardScaler + classifier) |
+| report | dict — cv_mean, cv_std, N, K, labels, cv_confusion, cv_acc, cv_bal_acc, cv_f1_macro, algo, etc. |
+| config_out | dict — current parameter state |
 
 ## Parameters
 | Name | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| model | str | LR |  | Classifier (LR/SVM/RF/...) |
-| cv | int | 5 |  | Cross-validation folds |
-| scaler | str | standard |  | Feature scaling |
+| algo | str | LogisticRegression |  | Classifier: "LogisticRegression" or "LDA" |
+| cv_k | int |  |  | Number of stratified k-fold CV splits (2–20) |
+| balanced | bool |  |  | Use class_weight="balanced" for LogisticRegression |
+| holdout | float |  |  | Hold-out test set fraction (0.0 = disabled, 0–0.49) |
 
 ## Usage
-Feed features and labels; connect model to runtime/apply node.
+Connect a dataset dict (from BCICollector). Click "Train" to start. Results appear in the report output.
 
 ## Gotchas
-- Balance classes; keep held-out test set.
+- Training runs in a background thread — the UI stays responsive.
+- Balance classes for best results; use the "balanced" option for imbalanced data.
+- Set holdout > 0 to get a separate test-set evaluation in the report.
 

@@ -133,18 +133,25 @@ def _ensure_seg_2d(seg):
 
 class RiemannCovPlugin(BasePlugin):
     help = {
-        'gotchas': [
-            "Utiliser une fenêtre suffisamment longue (n_t >> n_ch).",
-            "ε empêche la singularité quand n_t ~ n_ch."
-        ],
-        'inputs': {'segment': '2D float [ch x samples]'},
-        'outputs': {'cov': '2D float SPD (n_ch x n_ch)'},
+        'summary': "Compute the SPD covariance matrix from a single EEG segment.",
+        'inputs': {
+            'segment': '2D float [channels x samples] or [samples x channels]',
+        },
+        'outputs': {
+            'cov': '2D float SPD matrix [channels x channels] — regularized sample covariance',
+        },
         'parameters': [
             {'name': 'epsilon', 'type': 'float', 'default': 1e-6,
-             'desc': 'Régularisation diagonale (εI)'}
+             'desc': 'Diagonal regularization (εI). Prevents singularity when n_samples ≈ n_channels. Range: 1e-12 to 1e-2.'}
         ],
-        'summary': "RiemannCov — covariance SPD d’un segment EEG",
-        'usage': 'Connecter un segment (ch×samples) ; sortie = matrice SPD.'
+        'gotchas': [
+            "Segment must be 2D; a 1D or 3D input will be rejected (outputs None).",
+            "Orientation is auto-detected: if rows > cols, the array is transposed to (n_ch, n_t).",
+            "ε is added to the diagonal of the covariance; too large a value biases the result toward identity.",
+            "NaN/Inf values in the segment are replaced with zero before computing covariance.",
+            "The covariance is computed as (X @ X.T) / (n_t - 1) with mean-centering per channel.",
+        ],
+        'usage': 'Connect a 2D EEG segment (channels × samples). Outputs the regularized SPD covariance matrix for downstream Riemannian geometry processing.',
     }
 
     name = "RiemannCov"

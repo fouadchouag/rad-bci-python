@@ -25,12 +25,26 @@ from core.collapsible import CollapsibleSection
 
 
 class MNEAverageReferencePlugin(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
-  'outputs': {'segment': 'processed array'},
-  'parameters': [],
-  'summary': 'MNEAverageReference',
-  'usage': 'Wire upstream data and route downstream.'}
+    help = help = {
+        'summary': 'Apply average re-referencing to EEG channels of a Raw or Epochs object.',
+        'usage': 'Connect an MNE Raw or Epochs object. The re-referenced copy is emitted on the "raw" output.',
+        'inputs': {
+            'raw': 'mne.io.Raw or mne.Epochs — input recording to re-reference',
+        },
+        'outputs': {
+            'raw': 'mne.io.Raw or mne.Epochs — copy with average reference applied (or projected)',
+            'config_out': 'dict — current configuration snapshot (as_projection)',
+        },
+        'parameters': [
+            {'name': 'as_projection', 'type': 'bool', 'default': False, 'desc': 'If True, add an average-EEG projector without applying it immediately'},
+        ],
+        'gotchas': [
+            'If no EEG channels are found, the input is passed through unchanged.',
+            'When as_projection=True the data itself is not altered; the projector must be applied later.',
+            'Operates on a copy — the original object is never mutated.',
+            'Caching skips re-computation if the same object and parameters are provided again.',
+        ],
+    }
 
     name = "MNEAverageReference"
     language = "Python"

@@ -69,24 +69,20 @@ class _CollapsibleSection(QWidget):
 
 
 class EEGVisualizerPlugin(BasePlugin):
-    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
-  'outputs': {},
-  'parameters': [ { 'default': 50.0,
-                    'desc': 'Vertical scale',
-                    'name': 'scale_uv',
-                    'type': 'float',
-                    'unit': 'µV'},
-                  { 'default': 1.0,
-                    'desc': 'Scroll speed',
-                    'name': 'speed',
-                    'type': 'float'},
-                  { 'default': False,
-                    'desc': 'Show full screen',
-                    'name': 'fullscreen',
-                    'type': 'bool'}],
-  'summary': 'Visualize signals, features or predictions.',
-  'usage': 'Connect upstream data; adjust view parameters.'}
+    help = {
+        'summary': 'Simple real-time EEG viewer — displays raw MNE Raw data with selectable channels.',
+        'usage': 'Connect an MNE Raw object to the raw input. Select channels in the collapsible panel to focus on specific traces.',
+        'inputs': {
+            'raw': 'MNE Raw object — the continuous EEG signal to display',
+        },
+        'outputs': {},
+        'parameters': [],
+        'gotchas': [
+            'Only accepts MNE Raw objects (not raw numpy arrays); use EEGLiveDisplay for segment arrays.',
+            'Displays up to 1500 samples from the beginning of the Raw buffer — not a scrolling window.',
+            'Channel list auto-populates on first data or when channel count changes.',
+        ],
+    }
 
     name = "EEGVisualizer"
     language = "Python"

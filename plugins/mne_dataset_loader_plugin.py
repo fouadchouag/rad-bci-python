@@ -144,6 +144,34 @@ class MNEDatasetLoader(BasePlugin):
     language = "Python"
     category = "Input Nodes"
 
+    help = {
+        'gotchas': ['Requires MNE + mne.datasets.eegbci (downloads EEGBCI data on first use).',
+               'Channel names are auto-remapped to standard 10-20/10-05 equivalents.',
+               'Montage is auto-selected from best matching standard template.',
+               'Only EEG channels are used (EOG/ECG/EMG excluded).'],
+        'inputs': {},
+        'outputs': {
+            'pos': 'dict[str → tuple(x,y,z)] — 3D channel positions',
+            'ch_names': 'list[str] — channel names with montage positions',
+            'values': 'dict[str → float] — per-channel metric values (RMS or band power)',
+            'band_values': 'dict[str → dict[str → float]] — per-band per-channel power',
+            'status': 'str — load status message',
+        },
+        'parameters': [
+            {'name': 'subject', 'type': 'int', 'default': 1, 'desc': 'EEGBCI subject ID (1–109)'},
+            {'name': 'runs', 'type': 'str', 'default': '6',
+             'desc': 'Run numbers (comma-separated, e.g. "6" or "3,7,11")'},
+            {'name': 'duration_s', 'type': 'float', 'default': 15.0, 'unit': 's',
+             'desc': 'Duration of data used for metric computation'},
+            {'name': 'metric', 'type': 'str', 'default': 'RMS',
+             'desc': 'Per-channel metric to compute',
+             'enum': ['RMS', 'Alpha (8-12 Hz)', 'Beta (13-30 Hz)', 'Theta (4-7 Hz)']},
+        ],
+        'summary': 'Load EEGBCI dataset and compute per-channel metric + band powers for topomaps.',
+        'usage': 'Click "Charger" after setting subject/runs; outputs channel positions and '
+                 'values for topographic map visualization.'
+    }
+
     def setup(self):
         self.outputs["pos"] = BehaviorSubject(None)
         self.outputs["ch_names"] = BehaviorSubject(None)

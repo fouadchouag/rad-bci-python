@@ -145,23 +145,26 @@ class CollapsibleSection(QWidget):
 
 class MATToMNERaw(BasePlugin):
     help = {
-        'gotchas': ['Large files: prefer windowed output.', 'Check montage and units.'],
+        'gotchas': ['Requires MNE (pip install mne) plus scipy (v7.2) or h5py (v7.3).',
+               'Auto-detects BBCI (cnt/mrk/nfo), BNCI (X/y/trial), and generic formats.',
+               '"Forcer µV → V" multiplies all data by 1e-6; use if data is in microvolts.',
+               'Int16 data (common in BBCI) is auto-scaled at 0.1 µV per count.',
+               'Montage is applied after loading; non-matching channel names are ignored.'],
         'inputs': {},
         'outputs': {
-            'ch_names': 'List[str]',
-            'events': 'array/list',
-            'raw': 'mne.Raw',
-            'segment': '2D float [ch x samples]',
-            'sfreq': 'float (Hz)'
+            'raw': 'mne.io.RawArray — loaded and scaled recording',
+            'status': 'str — load status message',
         },
         'parameters': [
             {'name': 'filepath', 'type': 'path', 'default': '', 'desc': 'MAT file to load'},
-            {'name': 'picks', 'type': 'list|None', 'default': None, 'desc': 'Channels selection'},
-            {'name': 'segment_len', 'type': 'float', 'default': 1.0, 'unit': 's',
-             'desc': 'Window length for streaming output'}
+            {'name': 'montage', 'type': 'str', 'default': 'standard_1020',
+             'desc': 'Standard montage to apply',
+             'enum': ['standard_1020', 'standard_1005', 'easycap-M1', 'biosemi64', '(none)']},
+            {'name': 'force_uV', 'type': 'bool', 'default': False,
+             'desc': 'Force µV → V scaling'},
         ],
-        'summary': 'MAT → MNE Raw (BNCI/BCI-Compatible Loader)',
-        'usage': 'Place at pipeline start; connect `raw` to MNE ops or `segment` to streaming ops.'
+        'summary': 'Load .mat EEG files (BBCI/BCI-Compatible) and convert to MNE Raw.',
+        'usage': 'Browse and load a .mat file; connects `raw` to downstream MNE-compatible nodes.'
     }
 
     name = "MAT → MNE Raw"

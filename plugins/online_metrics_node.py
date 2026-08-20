@@ -37,15 +37,32 @@ def _cohen_kappa(conf):
 
 
 class OnlineMetrics(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'in': 'various'},
-  'outputs': {'out': 'various'},
-  'parameters': [ { 'default': 'default',
-                    'desc': 'Routing/aggregation mode',
-                    'name': 'mode',
-                    'type': 'str'}],
-  'summary': 'Compare en ligne pred_idx vs y_idx et calcule:',
-  'usage': 'Drop in where coordination is needed.'}
+    help = help = { 'gotchas': [
+                 'Both pred_idx and y_idx must be non-negative integers; negative values are silently ignored.',
+                 'Auto-K only expands K when new indices appear; use Reset to shrink back.',
+                 'Confusion matrix output is a copy — safe to mutate externally.',
+                 'Cohen\'s kappa returns 0.0 when total samples are zero or agreement is at chance level.'],
+  'inputs': {'pred_idx': 'int — predicted class index (non-negative)',
+             'y_idx': 'int — ground truth class index (non-negative)'},
+  'outputs': {'metrics': 'dict — {acc_window, acc_cum, kappa, n_total, window_size, K}',
+              'confusion': 'np.ndarray (K,K) — cumulative confusion matrix (copy)'},
+  'parameters': [ { 'default': 200,
+                    'desc': 'Rolling accuracy window size',
+                    'name': 'win_N',
+                    'type': 'int'},
+                  { 'default': True,
+                    'desc': 'Automatically expand K when new class indices appear',
+                    'name': 'auto_K',
+                    'type': 'bool'},
+                  { 'default': 4,
+                    'desc': 'Number of classes (used when auto_K is off)',
+                    'name': 'K',
+                    'type': 'int'}],
+  'summary': 'Computes online metrics by comparing pred_idx vs y_idx: rolling accuracy '
+             '(window N), cumulative accuracy, Cohen\'s kappa, and cumulative confusion matrix. '
+             'Auto-expands K when new class indices appear.',
+  'usage': 'Connect pred_idx from classifier and y_idx from ground truth marker. '
+           'Outputs a metrics dict and confusion matrix for downstream display or logging.'}
 
     """
     Compare en ligne pred_idx vs y_idx et calcule:

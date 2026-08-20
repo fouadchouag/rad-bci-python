@@ -80,18 +80,19 @@ class EEGLiveDisplay(BasePlugin):
         'inputs': {
             'raw': 'MNE Raw object — for continuous raw display mode',
             'segment': '2D float [channels x samples] — for segment display mode',
-            'ch_names': 'list[str] — channel names',
+            'ch_names': 'list[str] — channel names (used to populate channel selector)',
             'sfreq': 'float — sampling frequency (Hz)',
-            'info': 'dict — metadata (reset, seg_index, seg_len_s, etc.)',
+            'info': 'dict — metadata keys: reset (bool), seg_index (int), seg_total/total_segments (int), seg_len_s (float)',
         },
         'outputs': {
-            'config_out': 'dict — current parameter state',
+            'config_out': 'dict — current parameter state (loop, window_s, step_s, seg_len_auto, seg_len_manual, force_nch, max_points, max_fps)',
         },
         'parameters': [
             {'name': 'loop', 'type': 'bool', 'default': True, 'desc': 'Loop playback for RAW mode'},
             {'name': 'window_s', 'type': 'float', 'default': 10.0, 'desc': 'Display window duration (seconds)'},
             {'name': 'step_s', 'type': 'float', 'default': 0.2, 'desc': 'RAW scroll step (seconds)'},
             {'name': 'seg_len_auto', 'type': 'bool', 'default': True, 'desc': 'Auto-detect segment length from incoming data'},
+            {'name': 'seg_len_manual', 'type': 'float', 'default': None, 'desc': 'Manual segment length override (seconds); only used when seg_len_auto is False'},
             {'name': 'max_points', 'type': 'int', 'default': 3000, 'desc': 'Max plot points per trace (decimation limit)'},
             {'name': 'max_fps', 'type': 'int', 'default': 20, 'desc': 'Max rendering frame rate (5–120)'},
             {'name': 'force_nch', 'type': 'int', 'default': 0, 'desc': 'Force number of displayed channels (0 = auto/all)'},
@@ -100,6 +101,9 @@ class EEGLiveDisplay(BasePlugin):
             'High max_fps can drop performance on slow machines; start with 20–30.',
             'max_points controls decimation — lower values = smoother but less detail.',
             'In RAW mode, data must be streamed continuously (e.g., from LSLInlet).',
+            'Requires MNE for raw mode; segment mode accepts plain numpy arrays.',
+            'Segment mode needs sfreq input to compute time axis; without it, time display is broken.',
+            'force_nch truncates channels from the top — use channel selector to pick specific channels.',
         ],
     }
 

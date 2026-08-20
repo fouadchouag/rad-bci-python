@@ -64,23 +64,24 @@ class ChannelPickerDialog(QDialog):
 
 
 class BandpowerInspectorPlugin(BasePlugin):
-    help = help = { 'gotchas': ['Use adequate window length for low frequencies.'],
-  'inputs': {'segment': '2D float [ch x samples] or epochs', 'sfreq': 'float (Hz)'},
-  'outputs': { 'features': 'array/dict',
-               'freqs': 'optional freqs',
-               'psd': 'optional PSD'},
-  'parameters': [ { 'default': 1.0,
-                    'desc': 'Lower frequency',
-                    'name': 'fmin',
-                    'type': 'float',
-                    'unit': 'Hz'},
-                  { 'default': 40.0,
-                    'desc': 'Upper frequency',
-                    'name': 'fmax',
-                    'type': 'float',
-                    'unit': 'Hz'}],
-  'summary': 'Inspecteur bandpower avec:',
-  'usage': 'Connect windowed or epoched data; feed features to ML nodes.'}
+    help = {
+        'summary': 'Visual inspector for band power features — displays per-channel band powers as a table or bar chart.',
+        'inputs': {
+            'features': 'dict — nested {channel_name: {band_name: float}} from a BandpowerFeatures or BandpowerExt node',
+            'band_labels': 'list[str] — band names to display (auto-inferred from features if not provided)',
+        },
+        'outputs': {},
+        'parameters': [],
+        'gotchas': [
+            'This is a display-only node; it produces no downstream outputs.',
+            'The "Pick channel" dialog filters the table/bars to a single channel; re-clicking the same row resets to All.',
+            'Relative % mode shows each band as a percentage of the total power of the displayed channel(s).',
+            'When "All" is selected in the bar chart, values are averaged across all channels.',
+            'Input features must be a dict of dicts — other formats (list of dicts, array) are normalized but may lose info.',
+            'The node starts hidden (start_hidden = True) to avoid cluttering the canvas.',
+        ],
+        'usage': 'Connect the features output from a BandpowerFeatures, BandpowerExt, or BandpowerExt_param node. Use the toolbar to switch between Table and Bar views, pick channels, or toggle relative percentages.',
+    }
 
     """
     Inspecteur bandpower avec:

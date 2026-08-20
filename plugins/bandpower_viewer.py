@@ -38,24 +38,27 @@ except Exception:
             lay = QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.addWidget(content)
 
 class BandpowerViewer(BasePlugin):
-    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
-  'outputs': {},
-  'parameters': [ { 'default': 50.0,
-                    'desc': 'Vertical scale',
-                    'name': 'scale_uv',
-                    'type': 'float',
-                    'unit': 'µV'},
-                  { 'default': 1.0,
-                    'desc': 'Scroll speed',
-                    'name': 'speed',
-                    'type': 'float'},
-                  { 'default': False,
-                    'desc': 'Show full screen',
-                    'name': 'fullscreen',
-                    'type': 'bool'}],
-  'summary': 'BandpowerViewer',
-  'usage': 'Connect upstream data; adjust view parameters.'}
+    help = {
+        'summary': 'Bar chart of EEG band powers (e.g. theta, alpha, beta), either averaged across channels or per-channel.',
+        'usage': 'Connect bandpowers and band_labels from a band-power computation node. Switch between average and single-channel mode in the UI.',
+        'inputs': {
+            'bandpowers': '2D float array [channels x bands] — power values per channel per frequency band',
+            'band_labels': 'list[str] — labels for each frequency band (e.g. ["delta", "theta", "alpha", "beta"])',
+            'ch_names': 'list[str] — channel names for the channel dropdown selector',
+        },
+        'outputs': {},
+        'parameters': [
+            {'name': 'mode', 'type': 'str', 'default': 'avg', 'desc': 'Display mode: "avg" (mean across all channels) or "single" (one channel via dropdown)'},
+            {'name': 'sel_ch', 'type': 'int', 'default': 0, 'desc': 'Selected channel index when in "single" mode'},
+        ],
+        'gotchas': [
+            'bandpowers must be 2D [n_channels x n_bands]; 1D or mismatched shapes show "No data".',
+            'band_labels length must match bandpowers.shape[1] for correct bar alignment.',
+            'ch_names is optional — if absent, the channel dropdown is empty and single mode uses index 0.',
+            'No outputs — this is a viewer-only node; use it at the end of a pipeline branch.',
+            'Popup ("Agrandir") syncs with the main view in real time.',
+        ],
+    }
     
 
     name = "MNEBandpowerViewer"

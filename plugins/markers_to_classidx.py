@@ -14,12 +14,40 @@ from core.collapsible import CollapsibleSection
 
 
 class MarkersToClassIdx(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
-  'outputs': {'segment': 'processed array'},
-  'parameters': [],
+    help = help = { 'gotchas': ['P300 events are not held (hold_sec is ignored for P300 scenario).',
+               'SSVEP codes must match the pattern FREQ<value> (e.g. "FREQ10" or "FREQ-12.5").',
+               'If hold_sec expires and auto_reset_on_idle is off, the last y_idx persists until a new event arrives.',
+               'K (number of classes) is estimated from the scenario, not the mapping; Custom scenario uses max mapping index + 1.'],
+  'inputs': { 'config_in': 'dict — merged configuration block (scenario, map, ssvep_freqs, hold_sec, auto_reset_on_idle)',
+              'events': 'list[dict] — batch of events [{"ts": float, "code": str}, ...] from LSL Markers inlet',
+              'markers_conf': 'dict — markers-specific config (same keys as config_in, overrides config_in)'},
+  'outputs': { 'K': 'int — estimated number of classes for the current scenario',
+               'config_out': 'dict — current configuration exported',
+               'last_event': 'dict — most recent event {"ts": float, "code": str}',
+               'y_idx': 'int or None — class index of the current event (None if no event or hold expired)',
+               'y_name': 'str or None — class name of the current event (None if no event or hold expired)'},
+  'parameters': [ { 'default': 'MI',
+                     'desc': 'Paradigm scenario: MI, P300, SSVEP, or Custom',
+                     'name': 'scenario',
+                     'type': 'str'},
+                   { 'default': '769:0; 770:1; 771:2; 772:3',
+                     'desc': 'Semicolon-separated code:idx mapping for MI/P300/Custom',
+                     'name': 'map',
+                     'type': 'str'},
+                   { 'default': '10,12,15',
+                     'desc': 'Comma-separated target frequencies in Hz for SSVEP scenario',
+                     'name': 'ssvep_freqs',
+                     'type': 'str'},
+                   { 'default': 4.0,
+                     'desc': 'Duration in seconds to hold the current class index',
+                     'name': 'hold_sec',
+                     'type': 'float'},
+                   { 'default': True,
+                     'desc': 'Reset y_idx to None when hold expires',
+                     'name': 'auto_reset_on_idle',
+                     'type': 'bool'}],
   'summary': 'Convertit des marqueurs LSL (strings) en y_idx (int) et y_name (str).',
-  'usage': 'Wire upstream data and route downstream.'}
+  'usage': 'Connect events from an LSL Markers inlet. Outputs y_idx, y_name, K, and last_event for downstream classification or display.'}
 
     """
     Convertit des marqueurs LSL (strings) en y_idx (int) et y_name (str).

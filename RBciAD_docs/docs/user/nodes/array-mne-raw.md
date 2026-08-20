@@ -4,22 +4,40 @@
 
 **Language:** Python
 
+**Source:** `array_to_mne_raw_plugin.py`
+
 ## Summary
-Array → MNE Raw (Adapter) — fixed v2
+Convert numeric arrays (segment/samples) to an MNE Raw object.
 
 ## Inputs
 | Name | Description |
 |---|---|
-| segment | 2D float [ch x samples] (or raw/epochs) |
+| data | 2D/3D array or list of chunks [ch x samples] |
+| sfreq | float — sampling rate (Hz) |
+| ch_names | list[str] — channel names |
+| title | str — optional title (unused) |
 
 ## Outputs
 | Name | Description |
 |---|---|
-| segment | processed array |
+| raw | mne.io.RawArray — constructed Raw object |
+| status | str — conversion status message |
 
 ## Parameters
-_None_
+| Name | Type | Default | Unit | Description |
+|---|---|---|---|---|
+| units | str | µV |  | Input data units |
+| montage | str | standard_1020 |  | Standard montage to apply |
+| auto | bool |  |  | Automatically reconvert on input change |
 
 ## Usage
-Wire upstream data and route downstream.
+Provide data, sfreq, and ch_names; outputs an MNE Raw for downstream MNE nodes.
+
+## Gotchas
+- MNE required (pip install mne).
+- Data must be numeric (2D/3D array or list of chunks).
+- Unit scaling: input values are multiplied by the selected unit (default µV → V). Set to V if data is already in Volts.
+- NaN/Inf values in data are replaced with 0.
+- Montage is applied only for channels recognized by the standard template.
+- Auto mode reconverts on every input change.
 

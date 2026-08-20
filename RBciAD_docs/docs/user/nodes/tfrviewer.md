@@ -4,13 +4,16 @@
 
 **Language:** Python
 
+**Source:** `tfr_viewer.py`
+
 ## Summary
 TFRViewer — robuste au changement de fichier / nbre de canaux
 
 ## Inputs
 | Name | Description |
 |---|---|
-| segment | 2D float [ch x samples] (or raw/derived) |
+| tfr | mne.time_frequency.AverageTFR\|EpochsTFR |
+| channel | str\|int (opt.) |
 
 ## Outputs
 _None_
@@ -18,12 +21,11 @@ _None_
 ## Parameters
 | Name | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| scale_uv | float | 50.0 | µV | Vertical scale |
-| speed | float | 1.0 |  | Scroll speed |
-| fullscreen | bool | False |  | Show full screen |
+| single_channel | bool |  |  | Afficher un seul canal |
+| db_scale | bool |  |  | Échelle dB |
 
 ## Usage
-Connect upstream data; adjust view parameters.
+Connect upstream TFR; ouvrez Paramètres pour choisir le canal / dB.
 
 ## Gotchas
 - High refresh can drop FPS; consider decimation.

@@ -19,12 +19,26 @@ except Exception:
     HAVE_MNE = False
 
 class MNEAveragePlugin(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
-  'outputs': {'segment': 'processed array'},
-  'parameters': [],
-  'summary': 'MNEAveragePlugin',
-  'usage': 'Wire upstream data and route downstream.'}
+    help = help = {
+        'summary': 'Compute the mean across epochs to produce an MNE Evoked object.',
+        'usage': 'Connect an mne.Epochs object to the "epochs" input. The averaged Evoked is emitted on the "evoked" output.',
+        'inputs': {
+            'epochs': 'mne.Epochs object to average across trials',
+            'picks_eeg_only': 'bool — restrict averaging to EEG channels only (default True)',
+        },
+        'outputs': {
+            'evoked': 'mne.Evoked — the result of averaging all epochs (mean method)',
+            'n_epochs': 'int — number of epochs that were averaged',
+        },
+        'parameters': [
+            {'name': 'picks_eeg_only', 'type': 'bool', 'default': True, 'desc': 'Restrict to EEG channels before averaging'},
+        ],
+        'gotchas': [
+            'Requires MNE-Python to be installed.',
+            'If epochs is None or MNE is missing, outputs default to (None, 0).',
+            'EEG-only picking silently fails if info is unavailable.',
+        ],
+    }
 
     name = "MNEAverage"
     language = "Python"

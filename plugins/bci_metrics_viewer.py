@@ -66,25 +66,19 @@ def _to_int(x, default=0):
 
 
 class BCI_MetricsViewer(BasePlugin):
-    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
+    help = help = { 'gotchas': [
+                 'Report dict must contain expected keys (cv_mean, cv_std, cv_confusion, etc.); missing keys show as NaN or empty.',
+                 'UI updates via QTimer.singleShot(0) to avoid cross-thread Qt crashes.',
+                 'CSV export creates two files: <name>.csv (confusion matrix) and <name>_perclass.csv (per-class accuracy).',
+                 'If dataset y_names is not connected, class labels default to "Cls0", "Cls1", etc.'],
+  'inputs': {'report': 'dict — training report from BCI_Trainer (cv_mean, cv_std, cv_confusion, cv_per_class_acc, etc.)',
+             'dataset': 'dict (optional) — contains y_names for human-readable class labels'},
   'outputs': {},
-  'parameters': [ { 'default': 50.0,
-                    'desc': 'Vertical scale',
-                    'name': 'scale_uv',
-                    'type': 'float',
-                    'unit': 'µV'},
-                  { 'default': 1.0,
-                    'desc': 'Scroll speed',
-                    'name': 'speed',
-                    'type': 'float'},
-                  { 'default': False,
-                    'desc': 'Show full screen',
-                    'name': 'fullscreen',
-                    'type': 'bool'}],
-  'summary': "Affiche les métriques d'un modèle entraîné (venant de "
-             'BCI_Trainer.report).',
-  'usage': 'Connect upstream data; adjust view parameters.'}
+  'parameters': [],
+  'summary': 'Displays trained model evaluation metrics from a BCI_Trainer report: '
+             'CV accuracy ± std, balanced accuracy, F1 macro, confusion matrix, and per-class accuracy. '
+             'Supports JSON and CSV export.',
+  'usage': 'Connect the "report" output from BCI_Trainer. Optionally connect "dataset" for human-readable class names.'}
 
     """
     Affiche les métriques d'un modèle entraîné (venant de BCI_Trainer.report).
