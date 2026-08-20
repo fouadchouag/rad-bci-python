@@ -30,29 +30,27 @@ except Exception:
 
 
 class MNEBandpassFilterPlugin(BasePlugin):
-    help = help = { 'gotchas': [ 'Choose FIR/IIR consistent with sfreq.',
-               'Mind edge effects on short windows.'],
-  'inputs': { 'raw': 'mne.Raw (opt.)',
-              'segment': '2D float [ch x samples] (opt.)',
-              'sfreq': 'float (Hz if segment)'},
-  'outputs': {'raw': 'filtered Raw', 'segment': 'filtered array'},
-  'parameters': [ { 'default': 1.0,
-                    'desc': 'High-pass cutoff',
-                    'name': 'hp',
-                    'type': 'float|None',
-                    'unit': 'Hz'},
-                  { 'default': 40.0,
-                    'desc': 'Low-pass cutoff',
-                    'name': 'lp',
-                    'type': 'float|None',
-                    'unit': 'Hz'},
-                  { 'default': 50.0,
-                    'desc': 'Notch (mains)',
-                    'name': 'notch',
-                    'type': 'float|None',
-                    'unit': 'Hz'}],
-  'summary': 'MNEBandpassFilterPlugin (final)',
-  'usage': 'Insert after a reader or inlet; tune band edges.'}
+    help = {
+        'summary': 'Apply MNE-Python bandpass filtering to an MNE Raw object. Supports high-pass, low-pass, and FIR phase options.',
+        'usage': 'Connect an MNE Raw object (from EEGReader). Set l_freq (high-pass) and h_freq (low-pass) in the properties panel.',
+        'inputs': {
+            'raw': 'MNE Raw object — the recording to filter',
+        },
+        'outputs': {
+            'raw': 'MNE Raw object — filtered copy (in-place if possible)',
+        },
+        'parameters': [
+            {'name': 'l_freq', 'type': 'float', 'default': 1.0, 'desc': 'High-pass cutoff frequency (Hz); 0 = no high-pass'},
+            {'name': 'h_freq', 'type': 'float', 'default': 40.0, 'desc': 'Low-pass cutoff frequency (Hz); None = no low-pass'},
+            {'name': 'picks_eeg_only', 'type': 'bool', 'default': True, 'desc': 'Restrict filtering to EEG channels only'},
+            {'name': 'phase', 'type': 'str', 'default': 'zero', 'desc': 'FIR filter phase: "zero" or "zero-double"'},
+        ],
+        'gotchas': [
+            'Filter length must be appropriate for the sampling rate — too short = poor stopband.',
+            'Edge effects are more pronounced on short segments.',
+            'The node caches filtered results — re-filtering with same params is instant.',
+        ],
+    }
 
     name = "MNEBandpassFilter"
     language = "Python"

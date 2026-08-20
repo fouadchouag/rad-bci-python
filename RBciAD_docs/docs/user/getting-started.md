@@ -1,45 +1,64 @@
-Getting Started
+# Getting Started
 
-Purpose. Install RBciAD, run your first EEG pipeline, and verify your environment.
+Install RBciAD, run your first EEG pipeline, and verify your environment.
 
-Requirements
+## Requirements
 
-OS: Windows 10/11, Ubuntu 22.04+, macOS 13+
+- **OS**: Windows 10/11, Ubuntu 22.04+, or macOS 13+
+- **Python**: 3.9+ (3.10–3.12 recommended)
+- **Core dependencies**: PyQt5, rx, numpy, scipy
+- **Recommended**: mne, pyriemann, joblib, matplotlib
+- **Optional**: LSL runtime for live EEG streams
 
-Python: 3.10–3.12
+## Installation
 
-Recommended: numpy, scipy, matplotlib, rx, mne
+### From source (recommended)
 
-Optional: LSL runtime for live streams
+```bash
+# Clone the repository
+git clone https://github.com/fouadchouag/rad-bci-python.git
+cd rad-bci-python
 
-Installation
-# From PyPI (after publication)
-pip install rbciad
+# Create and activate a virtual environment
+python -m venv .venv
 
+# Windows
+.venv\Scripts\activate
 
-# From source (development)
-git clone https://github.com/<org>/rbciad.git
-cd rbciad
-pip install -e .[dev]
-Launch
-rbciad
-# or
-python -m rbciad
-Demo data
+# macOS / Linux
+source .venv/bin/activate
 
-A small EDF ships with the app. If missing, use any public EDF (e.g., TUH samples) or generate a synthetic stream via LSLInlet.
+# Install dependencies
+pip install -r requirements.txt
 
-First pipeline (W1 — Reader → Visualizer)
+# Install in developer mode (registers the Rbciad CLI)
+pip install -e .
+```
 
-Place EEGUniversalReader and EEGVisualizer.
+### Verify
 
-Connect raw → raw (or segment → segment).
+```bash
+Rbciad
+```
 
-Click Open in the Reader and select an EDF.
+The RBciAD window should open. If the command is not found, ensure your venv is active and `.venv/Scripts` (Windows) or `.venv/bin` (Linux/macOS) is on your PATH.
 
-Expect scrolling traces within ~200 ms (TTFP) and ≥50 FPS on modern hardware.
+## Demo Data
 
-!!! tip "If the UI stutters" Use segment output or enable display decimation in the Visualizer.
+A small EDF file ships with the project. If missing, use any public EEG file (EDF, BDF, GDF, or FIF format) or generate a synthetic stream using the **LSLInlet** node.
 
-Uninstall
+## First Pipeline (W1 — Reader → Visualizer)
+
+1. Place **EEGUniversalReader** and **EEGVisualizer** on the canvas
+2. Connect `raw → raw` (drag from the output pin to the input pin)
+3. Click **Open** in the Reader and select an EDF file
+4. Expect scrolling traces within ~200 ms (TTFP) and ≥50 FPS
+
+!!! tip "If the UI stutters"
+    Use `segment` output or enable display decimation in the Visualizer.
+
+## Uninstall
+
+```bash
 pip uninstall rbciad
+```

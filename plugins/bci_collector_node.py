@@ -30,15 +30,31 @@ def _features_to_vec(features: dict, band_labels: list):
 
 
 class BCICollector(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'in': 'various'},
-  'outputs': {'out': 'various'},
-  'parameters': [ { 'default': 'default',
-                    'desc': 'Routing/aggregation mode',
-                    'name': 'mode',
-                    'type': 'str'}],
-  'summary': 'Utility/orchestration node for routing, collection or metrics.',
-  'usage': 'Drop in where coordination is needed.'}
+    help = {
+        'summary': 'Collect features and labels into a dataset dict for training. Supports manual recording or marker-based assignment.',
+        'usage': 'Connect BCI_Features output. Press Record buttons to assign class labels, or enable use_markers for automatic assignment.',
+        'inputs': {
+            'features': 'dict — per-channel band values from BCI_Features',
+            'band_labels': 'list[str] — feature dimension labels',
+            'y_idx': 'int — class index from external markers (when use_markers=True)',
+            'feature_mode': 'str — feature mode identifier',
+            'config_in': 'dict — generic config from BCI_Config',
+        },
+        'outputs': {
+            'dataset': 'dict — {"X": ndarray(N,F), "y": ndarray(N,), "y_names": list, "bands": list, "feature_mode": str|None}',
+            'config_out': 'dict — current parameter state',
+        },
+        'parameters': [
+            {'name': 'K', 'type': 'int', 'default': 2, 'desc': 'Number of classes (2–8)'},
+            {'name': 'y_names', 'type': 'list', 'default': ['Left', 'Right'], 'desc': 'Class label names'},
+            {'name': 'use_markers', 'type': 'bool', 'default': False, 'desc': 'Use y_idx input for class assignment instead of manual buttons'},
+        ],
+        'gotchas': [
+            'Ensure features are consistent (same bands, same mode) across all recorded trials.',
+            'Press "Reset" to clear accumulated data before starting a new recording session.',
+            'The dataset output is ready to connect to BCI_Trainer.',
+        ],
+    }
 
     name = "BCICollector"
     language = "Python"

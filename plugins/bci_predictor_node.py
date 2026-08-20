@@ -32,15 +32,35 @@ def _features_to_vec(features: dict, band_labels: list):
 
 
 class BCI_Predictor(BasePlugin):
-    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
-  'inputs': {'features': 'array/dict', 'model': 'trained model'},
-  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
-  'parameters': [ { 'default': 0.5,
-                    'desc': 'Decision threshold (if applicable)',
-                    'name': 'threshold',
-                    'type': 'float'}],
-  'summary': 'Prédicteur en ligne pour BCI.',
-  'usage': 'Connect features and a compatible model.'}
+    help = {
+        'summary': 'Online BCI predictor: applies a trained model to incoming features and outputs class predictions with confidence.',
+        'usage': 'Connect features (from BCI_Features) and a trained model (from BCI_Trainer). Outputs predicted class index, label, confidence, and per-class probabilities.',
+        'inputs': {
+            'features': 'dict — per-channel band values from BCI_Features',
+            'band_labels': 'list[str] — feature dimension labels',
+            'model': 'trained scikit-learn Pipeline (optional; can also load from file)',
+            'y_names_in': 'list[str] — class names (optional; overrides internal)',
+            'config_in': 'dict — generic config from BCI_Config',
+            'predictor_conf': 'dict — predictor-specific config',
+        },
+        'outputs': {
+            'pred_idx': 'int — predicted class index',
+            'pred_label': 'str — predicted class name',
+            'pred_conf': 'float — confidence (max probability)',
+            'proba': 'dict — {label_name: float} per-class probabilities',
+            'y_names': 'list[str] — class names',
+            'config_out': 'dict — current parameter state',
+        },
+        'parameters': [
+            {'name': 'smooth_N', 'type': 'int', 'default': 1, 'desc': 'Smoothing window size for probability averaging (1–50)'},
+            {'name': 'smooth_enabled', 'type': 'bool', 'default': True, 'desc': 'Enable/disable probability smoothing'},
+        ],
+        'gotchas': [
+            'The model must be trained with the same features (same bands, same mode) used at inference.',
+            'Smoothing (smooth_N > 1) reduces jitter but adds latency.',
+            'If no model is connected, you can load one from a file via the properties panel.',
+        ],
+    }
 
     """
     Prédicteur en ligne pour BCI.

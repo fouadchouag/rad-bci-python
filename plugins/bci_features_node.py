@@ -129,12 +129,37 @@ def _time_windows_from_text(text: str):
 
 
 class BCI_Features(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
-  'outputs': {'segment': 'processed array'},
-  'parameters': [],
-  'summary': 'Processing step for EEG streams.',
-  'usage': 'Wire upstream data and route downstream.'}
+    help = {
+        'summary': 'Extract EEG features: PSD band power, ERP mean windows, or time-domain statistics.',
+        'usage': 'Connect preprocessed EEG segments. Choose mode (PSD/ERP/TimeStats) and band preset (MI/P300/SSVEP).',
+        'inputs': {
+            'X': '2D float [channels x samples] or 3D [trials x channels x samples] — EEG data (aliases: segment, data)',
+            'sfreq': 'float — sampling frequency (Hz)',
+            'ch_names': 'list[str] — channel names',
+            'config_in': 'dict — generic config from BCI_Config',
+            'features_conf': 'dict — features-specific config',
+        },
+        'outputs': {
+            'features': 'dict — {channel_name: {band_name: float}, "GLOBAL": {band_name: float}}',
+            'band_labels': 'list[str] — feature dimension labels',
+            'feature_mode': 'str — "PSD_bands_rel", "PSD_bands_abs", "ERP_mean_windows", or "TimeStats"',
+            'config_out': 'dict — current parameter state',
+        },
+        'parameters': [
+            {'name': 'mode', 'type': 'str', 'default': 'PSD (bands)', 'desc': 'Feature mode: "PSD (bands)", "ERP mean windows", or "TimeStats"'},
+            {'name': 'preset', 'type': 'str', 'default': 'MI', 'desc': 'Band preset: "MI", "P300", "SSVEP", or "Full"'},
+            {'name': 'bands_text', 'type': 'str', 'default': '', 'desc': 'Custom bands (e.g. "alpha:8-12; beta:13-30"); empty = use preset'},
+            {'name': 'relative', 'type': 'bool', 'default': True, 'desc': 'Compute relative PSD (normalized by total power 1–40 Hz)'},
+            {'name': 'nperseg', 'type': 'int', 'default': 256, 'desc': 'Welch PSD window length (samples)'},
+            {'name': 'erp_wins_text', 'type': 'str', 'default': 'P3:300-450', 'desc': 'ERP time windows (e.g. "N1:-100-0; P3:300-450" in ms)'},
+            {'name': 'erp_t0', 'type': 'float', 'default': 0.0, 'desc': 'ERP epoch time-zero offset (seconds)'},
+        ],
+        'gotchas': [
+            'PSD mode requires sufficient segment length (>= nperseg samples).',
+            'Relative PSD normalizes by total power in 1–40 Hz; absolute mode returns raw µV²/Hz.',
+            'ERP mode expects epoch-aligned segments with a defined time-zero.',
+        ],
+    }
 
     name = "BCI_Features"
     language = "Python"

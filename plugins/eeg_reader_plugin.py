@@ -8,29 +8,22 @@ from core.node_base import BasePlugin
 
 
 class EEGReaderPlugin(BasePlugin):
-    help = help = { 'gotchas': ['Large files: prefer windowed output.', 'Check montage and units.'],
-  'inputs': {},
-  'outputs': { 'ch_names': 'List[str]',
-               'events': 'array/list',
-               'raw': 'mne.Raw',
-               'segment': '2D float [ch x samples]',
-               'sfreq': 'float (Hz)'},
-  'parameters': [ { 'default': '',
-                    'desc': 'EDF/BDF/GDF/FIF/... file to load',
-                    'name': 'filepath',
-                    'type': 'path'},
-                  { 'default': None,
-                    'desc': 'Channels selection',
-                    'name': 'picks',
-                    'type': 'list|None'},
-                  { 'default': 1.0,
-                    'desc': 'Window length for streaming output',
-                    'name': 'segment_len',
-                    'type': 'float',
-                    'unit': 's'}],
-  'summary': 'Read EEG files/datasets with MNE-Python; emits Raw or window windows.',
-  'usage': 'Place at pipeline start; connect `raw` to MNE ops or `segment` to '
-           'streaming ops.'}
+    help = {
+        'summary': 'Load EEG files (EDF/BDF/GDF/FIF) using MNE-Python. Outputs an MNE Raw object.',
+        'usage': 'Place at the start of your pipeline. Click "Open" in the properties panel to select a file. Connect "raw" output to downstream nodes.',
+        'inputs': {},
+        'outputs': {
+            'raw': 'MNE Raw object — the loaded EEG recording',
+        },
+        'parameters': [
+            {'name': 'filepath', 'type': 'path', 'default': '', 'desc': 'EDF/BDF/GDF/FIF file to load (set via Open button)'},
+        ],
+        'gotchas': [
+            'Large files: prefer windowed/streaming output downstream.',
+            'Ensure the file contains EEG channels (not just EOG/ECG).',
+            'The node outputs an MNE Raw object — connect to MNE-compatible nodes or use a segment slicer.',
+        ],
+    }
 
     name = "EEGReader"
     language = "Python"

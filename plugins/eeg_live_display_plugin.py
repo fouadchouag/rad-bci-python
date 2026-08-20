@@ -74,26 +74,35 @@ class _CollapsibleSection(QWidget):
 
 
 class EEGLiveDisplay(BasePlugin):
-    help = help = { 'gotchas': ['High refresh can drop FPS; consider decimation.'],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/derived)'},
-  'outputs': {},
-  'parameters': [ { 'default': 50.0,
-                    'desc': 'Vertical scale',
-                    'name': 'scale_uv',
-                    'type': 'float',
-                    'unit': 'µV'},
-                  { 'default': 1.0,
-                    'desc': 'Scroll speed',
-                    'name': 'speed',
-                    'type': 'float'},
-                  { 'default': False,
-                    'desc': 'Show full screen',
-                    'name': 'fullscreen',
-                    'type': 'bool'}],
-  'summary': 'EEGLiveDisplay — affichage RAW/SEGMENT avec défilement fluide '
-             '(Matplotlib+Qt)',
-  'usage': 'Connect upstream data; adjust view parameters.'}
-    
+    help = {
+        'summary': 'Real-time EEG display with scrolling traces. Supports both raw (continuous) and segment modes.',
+        'usage': 'Connect upstream EEG data (raw or segment). Adjust window size, scroll speed, and FPS in the properties panel.',
+        'inputs': {
+            'raw': 'MNE Raw object — for continuous raw display mode',
+            'segment': '2D float [channels x samples] — for segment display mode',
+            'ch_names': 'list[str] — channel names',
+            'sfreq': 'float — sampling frequency (Hz)',
+            'info': 'dict — metadata (reset, seg_index, seg_len_s, etc.)',
+        },
+        'outputs': {
+            'config_out': 'dict — current parameter state',
+        },
+        'parameters': [
+            {'name': 'loop', 'type': 'bool', 'default': True, 'desc': 'Loop playback for RAW mode'},
+            {'name': 'window_s', 'type': 'float', 'default': 10.0, 'desc': 'Display window duration (seconds)'},
+            {'name': 'step_s', 'type': 'float', 'default': 0.2, 'desc': 'RAW scroll step (seconds)'},
+            {'name': 'seg_len_auto', 'type': 'bool', 'default': True, 'desc': 'Auto-detect segment length from incoming data'},
+            {'name': 'max_points', 'type': 'int', 'default': 3000, 'desc': 'Max plot points per trace (decimation limit)'},
+            {'name': 'max_fps', 'type': 'int', 'default': 20, 'desc': 'Max rendering frame rate (5–120)'},
+            {'name': 'force_nch', 'type': 'int', 'default': 0, 'desc': 'Force number of displayed channels (0 = auto/all)'},
+        ],
+        'gotchas': [
+            'High max_fps can drop performance on slow machines; start with 20–30.',
+            'max_points controls decimation — lower values = smoother but less detail.',
+            'In RAW mode, data must be streamed continuously (e.g., from LSLInlet).',
+        ],
+    }
+
     name = "EEGLiveDisplay"
     language = "Python"
     category = "Output Nodes"

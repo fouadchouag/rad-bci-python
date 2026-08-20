@@ -36,24 +36,30 @@ except Exception:
 
 
 class BCI_Trainer(BasePlugin):
-    help = help = { 'gotchas': ['Balance classes; keep held-out test set.'],
-  'inputs': {'features': 'array/dict', 'labels': 'array'},
-  'outputs': {'model': 'trained model'},
-  'parameters': [ { 'default': 'LR',
-                    'desc': 'Classifier (LR/SVM/RF/...)',
-                    'name': 'model',
-                    'type': 'str'},
-                  { 'default': 5,
-                    'desc': 'Cross-validation folds',
-                    'name': 'cv',
-                    'type': 'int'},
-                  { 'default': 'standard',
-                    'desc': 'Feature scaling',
-                    'name': 'scaler',
-                    'type': 'str'}],
-  'summary': 'Entraîne un modèle scikit-learn en THREAD (non-bloquant UI) et publie un '
-             'rapport complet.',
-  'usage': 'Feed features and labels; connect model to runtime/apply node.'}
+    help = {
+        'summary': 'Train a scikit-learn classifier (LogisticRegression or LDA) in a background thread. Outputs a trained model and cross-validation report.',
+        'usage': 'Connect a dataset dict (from BCICollector). Click "Train" to start. Results appear in the report output.',
+        'inputs': {
+            'dataset': 'dict — {"X": ndarray(N,F), "y": ndarray(N,), "y_names": list}',
+            'config_in': 'dict — generic config from BCI_Config',
+        },
+        'outputs': {
+            'model': 'trained scikit-learn Pipeline (StandardScaler + classifier)',
+            'report': 'dict — cv_mean, cv_std, N, K, labels, cv_confusion, cv_acc, cv_bal_acc, cv_f1_macro, algo, etc.',
+            'config_out': 'dict — current parameter state',
+        },
+        'parameters': [
+            {'name': 'algo', 'type': 'str', 'default': 'LogisticRegression', 'desc': 'Classifier: "LogisticRegression" or "LDA"'},
+            {'name': 'cv_k', 'type': 'int', 'default': 5, 'desc': 'Number of stratified k-fold CV splits (2–20)'},
+            {'name': 'balanced', 'type': 'bool', 'default': True, 'desc': 'Use class_weight="balanced" for LogisticRegression'},
+            {'name': 'holdout', 'type': 'float', 'default': 0.0, 'desc': 'Hold-out test set fraction (0.0 = disabled, 0–0.49)'},
+        ],
+        'gotchas': [
+            'Training runs in a background thread — the UI stays responsive.',
+            'Balance classes for best results; use the "balanced" option for imbalanced data.',
+            'Set holdout > 0 to get a separate test-set evaluation in the report.',
+        ],
+    }
 
     """
     Entraîne un modèle scikit-learn en THREAD (non-bloquant UI) et publie un rapport complet.

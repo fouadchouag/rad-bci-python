@@ -74,12 +74,41 @@ def _design_fir_bandpass(fs, f_lo, f_hi, numtaps=257):
 
 
 class BCIPreprocNode(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
-  'outputs': {'segment': 'processed array'},
-  'parameters': [],
-  'summary': 'Pré-traitement générique (causal) pour EEG:',
-  'usage': 'Wire upstream data and route downstream.'}
+    help = {
+        'summary': 'Generic causal preprocessing for EEG: bandpass, notch, CAR, EOG regression, resample, z-score.',
+        'usage': 'Connect upstream EEG segment. Configure filter bands, notch, reref, and z-score in the properties panel.',
+        'inputs': {
+            'segment': '2D float [samples x channels] — raw EEG segment',
+            'sfreq': 'float — sampling frequency (Hz)',
+            'ch_names': 'list[str] — channel names (optional, for auto EOG detection)',
+            'config_in': 'dict — generic config from BCI_Config',
+            'preproc_conf': 'dict — preprocessing-specific config',
+        },
+        'outputs': {
+            'segment': '2D float [samples x channels] — processed EEG segment',
+            'sfreq': 'float — sampling frequency (may change if resampled)',
+            'ch_names': 'list[str] — channel names (pass-through)',
+            'config_out': 'dict — current parameter state',
+        },
+        'parameters': [
+            {'name': 'bandpass_lo', 'type': 'float', 'default': 8.0, 'desc': 'Bandpass lower cutoff (Hz)'},
+            {'name': 'bandpass_hi', 'type': 'float', 'default': 30.0, 'desc': 'Bandpass upper cutoff (Hz)'},
+            {'name': 'bandpass_order', 'type': 'int', 'default': 4, 'desc': 'Butterworth filter order'},
+            {'name': 'causal', 'type': 'bool', 'default': True, 'desc': 'Use causal (forward-only) filtering'},
+            {'name': 'notch_base', 'type': 'str', 'default': 'None', 'desc': 'Notch frequency: "None", "50", or "60" (Hz)'},
+            {'name': 'notch_harmonics', 'type': 'int', 'default': 0, 'desc': 'Number of notch harmonics (0–3)'},
+            {'name': 'reref_mode', 'type': 'str', 'default': 'NONE', 'desc': 'Re-referencing: "NONE" or "CAR"'},
+            {'name': 'eog_idx', 'type': 'str', 'default': '', 'desc': 'Comma-separated EOG channel indices (e.g. "22,23,24")'},
+            {'name': 'auto_eog', 'type': 'bool', 'default': True, 'desc': 'Auto-detect EOG channels by name'},
+            {'name': 'target_fs', 'type': 'float', 'default': 0.0, 'desc': 'Target sampling rate after resample; 0 = keep original'},
+            {'name': 'zscore', 'type': 'bool', 'default': False, 'desc': 'Z-score normalization per channel'},
+        ],
+        'gotchas': [
+            'Causal filtering avoids phase distortion but has weaker stopband attenuation.',
+            'EOG regression requires EOG channels to be selected (manually or via auto_eog).',
+            'Resampling changes sfreq — downstream nodes must handle the new rate.',
+        ],
+    }
 
     """
     Pré-traitement générique (causal) pour EEG:

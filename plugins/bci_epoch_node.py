@@ -34,12 +34,42 @@ def _from_ns_nc(arr, was_T):
 
 
 class BCIEpochNode(BasePlugin):
-    help = help = { 'gotchas': [],
-  'inputs': {'segment': '2D float [ch x samples] (or raw/epochs)'},
-  'outputs': {'segment': 'processed array'},
-  'parameters': [],
-  'summary': 'Processing step for EEG streams.',
-  'usage': 'Wire upstream data and route downstream.'}
+    help = {
+        'summary': 'Extract fixed-length epochs from continuous EEG: sliding window or event-locked mode.',
+        'usage': 'Connect a data chunk stream (from Reader or Filter). Set mode to Sliding or Event-locked.',
+        'inputs': {
+            'chunk': '2D float [samples x channels] — incoming data chunk',
+            'sfreq': 'float — sampling frequency (Hz)',
+            'ch_names': 'list[str] — channel names',
+            'events': 'dict — {"pos": [int], "typ": [int]} event positions and types',
+            'reset': 'any — non-None triggers buffer reset',
+            'flush': 'bool — if True, forces emission of partial epochs',
+            'config_in': 'dict — generic config from BCI_Config',
+            'epoch_conf': 'dict — epoch-specific config',
+        },
+        'outputs': {
+            'segment': '2D float [samples x channels] — emitted epoch',
+            'sfreq': 'float — sampling frequency',
+            'ch_names': 'list[str] — channel names',
+            'epoch_info': 'dict — {"mode", "t0", "t1", "end", "epoch_idx", "event_type"?, "event_pos"?}',
+            'config_out': 'dict — current parameter state',
+        },
+        'parameters': [
+            {'name': 'mode', 'type': 'str', 'default': 'Sliding', 'desc': 'Epoching mode: "Sliding" or "Event-locked"'},
+            {'name': 'win_sec', 'type': 'float', 'default': 1.0, 'desc': 'Sliding window length (seconds)'},
+            {'name': 'step_sec', 'type': 'float', 'default': 0.5, 'desc': 'Sliding window step/hop (seconds)'},
+            {'name': 'drop_incomplete', 'type': 'bool', 'default': True, 'desc': 'Drop incomplete epochs at buffer boundary'},
+            {'name': 'pre_sec', 'type': 'float', 'default': 0.2, 'desc': 'Event-locked pre-stimulus duration (seconds)'},
+            {'name': 'post_sec', 'type': 'float', 'default': 0.8, 'desc': 'Event-locked post-stimulus duration (seconds)'},
+            {'name': 'ev_filter_text', 'type': 'str', 'default': '', 'desc': 'Keep only these event types (comma-separated ints; empty = all)'},
+            {'name': 'buffer_sec', 'type': 'float', 'default': 30.0, 'desc': 'Ring buffer capacity in seconds'},
+        ],
+        'gotchas': [
+            'In Event-locked mode, events must be provided via the "events" input pin.',
+            'win_sec must be >= step_sec for sliding mode.',
+            'Large buffer_sec values use more memory but capture longer event contexts.',
+        ],
+    }
 
     name = "BCI_Epoch"
     language = "Python"

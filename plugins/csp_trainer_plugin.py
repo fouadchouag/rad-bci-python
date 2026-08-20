@@ -110,16 +110,27 @@ class CollapsibleSection(QWidget):
 
 class CSPTrainerPlugin(BasePlugin):
     help = {
-        'gotchas': ['Balance classes; keep held-out test set.'],
-        'inputs': {'features': 'array/dict', 'labels': 'array'},
-        'outputs': {'model': 'trained model'},
+        'summary': 'Train a Common Spatial Patterns (CSP) spatial filter from EEG trials and labels.',
+        'usage': 'Connect EEG segments and their class labels. Click "Train CSP" to fit. Outputs a fitted CSP transform for downstream feature extraction.',
+        'inputs': {
+            'segment': '2D float [channels x samples] — a single EEG trial',
+            'label': 'int/str — class label for the trial',
+        },
+        'outputs': {
+            'feature_transform': 'fitted MNE CSP object (or None until trained)',
+            'classes': 'list — class labels seen during training',
+            'n_samples': 'int — number of accumulated samples',
+            'counts': 'dict — sample count per class',
+            'status': 'str — status message',
+        },
         'parameters': [
-            {'name': 'model', 'type': 'str', 'default': 'LR', 'desc': 'Classifier (LR/SVM/RF/...)'},
-            {'name': 'cv', 'type': 'int', 'default': 5, 'desc': 'Cross-validation folds'},
-            {'name': 'scaler', 'type': 'str', 'default': 'standard', 'desc': 'Feature scaling'}
+            {'name': 'n_components', 'type': 'int', 'default': 8, 'desc': 'Number of CSP spatial filters (2–64)'},
         ],
-        'summary': 'Train a machine-learning model for BCI.',
-        'usage': 'Feed features and labels; connect model to runtime/apply node.'
+        'gotchas': [
+            'You need at least 2 classes with multiple trials each.',
+            'Balance classes for best results; keep a held-out test set.',
+            'Training is manual — click the "Train CSP" button in the node.',
+        ],
     }
 
     name = "CSPTrainer"

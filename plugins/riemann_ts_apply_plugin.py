@@ -14,15 +14,23 @@ from rx.subject import BehaviorSubject
 from core.node_base import BasePlugin
 
 class RiemannTSApplyPlugin(BasePlugin):
-    help = help = { 'gotchas': ['Model-version mismatch can reduce accuracy.'],
-  'inputs': {'features': 'array/dict', 'model': 'trained model'},
-  'outputs': {'pred': 'labels', 'proba': 'optional probabilities'},
-  'parameters': [ { 'default': 0.5,
-                    'desc': 'Decision threshold (if applicable)',
-                    'name': 'threshold',
-                    'type': 'float'}],
-  'summary': 'RiemannTSApply — applique la Tangent Space pour obtenir des features 1D.',
-  'usage': 'Connect features and a compatible model.'}
+    help = {
+        'summary': 'Apply a trained Tangent Space transform to project covariance matrices into 1D feature vectors.',
+        'usage': 'Connect a trained ts_transform (from RiemannTSTrainer) and a covariance matrix. Outputs a 1D feature vector.',
+        'inputs': {
+            'ts_transform': 'trained pyRiemann TangentSpace object',
+            'cov': '2D float [ch x ch] — SPD covariance matrix',
+        },
+        'outputs': {
+            'features': '1D float array — tangent-space feature vector',
+            'features_dim': 'int — dimensionality of the feature vector',
+        },
+        'parameters': [],
+        'gotchas': [
+            'The ts_transform must be fitted (via RiemannTSTrainer) before use.',
+            'Input covariance must be SPD and match the dimensionality used during training.',
+        ],
+    }
 
     name = "RiemannTSApply"
     language = "Python"
