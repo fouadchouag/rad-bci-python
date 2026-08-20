@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rbciad"
-version = "1.10.0"
+version = "1.11.0"
 description = "RBciAD — Reactive BCI Builder"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,26 +14,15 @@ authors = [{ name = "Fouad CHOUAG" }]
 dependencies = [
   "PyQt5>=5.15",
   "numpy",
-  "scipy",
   "matplotlib",
-  "pyqtgraph",
   "rx>=3",
   "mne",
-  "pyyaml",
   "psutil",
   "scikit-learn",
-  "mne-lsl",
-  "numpy",
   "pylsl",
   "scipy",
   "h5py",
-  "pyyaml",
-  "pandas",
-  "pyvista",
-  "pyvistaqt",
-  "vtk",
-  "mkdocs-material",
-  "brainflow"
+  "pandas"
 ]
 
 # --- Commande terminal ---
