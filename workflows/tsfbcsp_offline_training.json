@@ -1,0 +1,87 @@
+{
+  "nodes": [
+    {
+      "name": "EEGSource",
+      "type": "EEGReaderPlugin",
+      "position": [50, 50]
+    },
+    {
+      "name": "Preproc",
+      "type": "BCIPreprocNode",
+      "position": [350, 50]
+    },
+    {
+      "name": "EA",
+      "type": "BCIEuclideanAlignment",
+      "position": [650, 50]
+    },
+    {
+      "name": "Epoch",
+      "type": "BCIEpochNode",
+      "position": [950, 50]
+    },
+    {
+      "name": "TSFBCSP_Features",
+      "type": "BCITSFBCSPFeatures",
+      "position": [1250, 50]
+    },
+    {
+      "name": "Markers",
+      "type": "LSL_Markers_Inlet",
+      "position": [50, 400]
+    },
+    {
+      "name": "MarkersToClassIdx",
+      "type": "MarkersToClassIdx",
+      "position": [350, 400]
+    },
+    {
+      "name": "Collector",
+      "type": "BCICollector",
+      "position": [1550, 50]
+    },
+    {
+      "name": "Trainer",
+      "type": "BCI_Trainer",
+      "position": [1850, 50]
+    },
+    {
+      "name": "Metrics",
+      "type": "ClassifierMetricsPlugin",
+      "position": [1850, 350]
+    },
+    {
+      "name": "MetricsViewer",
+      "type": "BCI_MetricsViewer",
+      "position": [2150, 50]
+    }
+  ],
+  "connections": [
+    {"from": "EEGSource", "from_pin": "data", "to": "Preproc", "to_pin": "segment"},
+    {"from": "EEGSource", "from_pin": "sfreq", "to": "Preproc", "to_pin": "sfreq"},
+    {"from": "EEGSource", "from_pin": "ch_names", "to": "Preproc", "to_pin": "ch_names"},
+
+    {"from": "Preproc", "from_pin": "segment", "to": "EA", "to_pin": "segment"},
+    {"from": "Preproc", "from_pin": "sfreq", "to": "EA", "to_pin": "sfreq"},
+    {"from": "Preproc", "from_pin": "ch_names", "to": "EA", "to_pin": "ch_names"},
+
+    {"from": "EA", "from_pin": "segment", "to": "Epoch", "to_pin": "chunk"},
+    {"from": "EA", "from_pin": "sfreq", "to": "Epoch", "to_pin": "sfreq"},
+    {"from": "EA", "from_pin": "ch_names", "to": "Epoch", "to_pin": "ch_names"},
+
+    {"from": "Epoch", "from_pin": "segment", "to": "TSFBCSP_Features", "to_pin": "segment"},
+    {"from": "Epoch", "from_pin": "sfreq", "to": "TSFBCSP_Features", "to_pin": "sfreq"},
+    {"from": "Epoch", "from_pin": "ch_names", "to": "TSFBCSP_Features", "to_pin": "ch_names"},
+
+    {"from": "Markers", "from_pin": "events", "to": "MarkersToClassIdx", "to_pin": "events"},
+    {"from": "MarkersToClassIdx", "from_pin": "y_idx", "to": "TSFBCSP_Features", "to_pin": "y_idx"},
+    {"from": "MarkersToClassIdx", "from_pin": "y_idx", "to": "Collector", "to_pin": "y_idx"},
+
+    {"from": "TSFBCSP_Features", "from_pin": "features", "to": "Collector", "to_pin": "features"},
+    {"from": "TSFBCSP_Features", "from_pin": "band_labels", "to": "Collector", "to_pin": "band_labels"},
+
+    {"from": "Collector", "from_pin": "dataset", "to": "Trainer", "to_pin": "dataset"},
+    {"from": "Collector", "from_pin": "dataset", "to": "Metrics", "to_pin": "dataset"},
+    {"from": "Trainer", "from_pin": "report", "to": "MetricsViewer", "to_pin": "report"}
+  ]
+}
